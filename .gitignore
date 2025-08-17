@@ -1,0 +1,60 @@
+# --------------------
+# Python cache / build
+# --------------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+*.log
+*.sqlite3
+*.db
+
+# --------------------
+# Virtual environment
+# --------------------
+venv/
+env/
+.venv/
+
+# --------------------
+# Environment variables
+# --------------------
+.env
+*.env
+
+# --------------------
+# IDE / Editor files
+# --------------------
+.vscode/
+.idea/
+*.iml
+
+# --------------------
+# Alembic migrations cache
+# --------------------
+migrations/versions/__pycache__/
+migrations/versions/*.pyc
+
+# --------------------
+# OS-specific files
+# --------------------
+.DS_Store
+Thumbs.db
+
+# --------------------
+# Pytest / Coverage
+# --------------------
+htmlcov/
+.coverage
+*.cover
+.cache/
+.pytest_cache/
+
+# --------------------
+# Logs
+# --------------------
+*.log
+logs/
+
+firebase.json

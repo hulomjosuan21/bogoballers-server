@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Verify Your Email</title>
+    <style>
+      body {
+        background: #f3f4f6;
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+      }
+      .container {
+        max-width: 500px;
+        margin: auto;
+        padding: 20px;
+      }
+      .card {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        text-align: center;
+      }
+      .title {
+        font-size: 20px;
+        font-weight: bold;
+        margin-bottom: 15px;
+      }
+      .text {
+        color: #374151;
+        margin-bottom: 20px;
+      }
+      .btn {
+        display: inline-block;
+        background: #2563eb;
+        color: #ffffff !important;
+        padding: 12px 24px;
+        border-radius: 6px;
+        text-decoration: none !important;
+        font-weight: bold;
+      }
+      .btn:hover {
+        background: #1d4ed8;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="card">
+        <h1 class="title">Verify Your Email</h1>
+        <p class="text">Click the button below to verify your account.</p>
+        <a href="{{ verify_url }}" class="btn">Verify Email</a>
+        <p
+          class="text"
+          style="font-size: 14px; margin-top: 20px; color: #6b7280"
+        >
+          This link will expire in <strong>1 hour</strong>.
+        </p>
+      </div>
+    </div>
+  </body>
+</html>
