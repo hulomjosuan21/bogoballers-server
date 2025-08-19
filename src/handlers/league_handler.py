@@ -30,6 +30,117 @@ ALLOWED_OPTION_KEYS = {
     "player_residency_certificate_valid_until"
 }
 
+class LeagueCategoryHandler:
+    @staticmethod
+    @league_bp.post("/category/<string:category_id>/add-round")
+    @login_required
+    async def add_round(category_id: str):
+        data = await request.get_json()
+        if not data:
+            return await ApiResponse.error("Missing request body", status_code=400)
+
+        ROUND_ORDER_MAP = {
+            "Elimination": 0,
+            "Quarterfinal": 1,
+            "Semifinal": 2,
+            "Final": 3,
+        }
+
+        round_name = data.get("round_name")
+        round_id = data.get("round_id")
+        if not round_name or not round_id:
+            return await ApiResponse.error("some fields is required", status_code=400)
+
+        round_order = ROUND_ORDER_MAP.get(round_name, 0)
+
+        try:
+            async with AsyncSession() as session:
+                new_round = LeagueCategoryRoundModel(
+                    round_id=round_id,
+                    category_id=category_id,
+                    round_name=round_name,
+                    round_order=round_order,
+                    position=data.get("position")
+                )
+                session.add(new_round)
+                await session.commit()
+                await session.refresh(new_round)
+
+                return await ApiResponse.success(
+                    message="Round added successfully",
+                    payload={"round_id": new_round.round_id}
+                )
+
+        except Exception as e:
+            return await ApiResponse.error(str(e), status_code=500)
+    
+    @staticmethod
+    @league_bp.post("/category/<string:category_id>/round/<string:round_id>/update-position")
+    @login_required
+    async def update_round_position(category_id: str, round_id: str):
+        data = await request.get_json()
+        if not data or "position" not in data:
+            return await ApiResponse.error("Missing 'position' in request body", status_code=400)
+
+        position = data["position"]
+
+        try:
+            async with AsyncSession() as session:
+                result = await session.execute(
+                    select(LeagueCategoryRoundModel)
+                    .where(LeagueCategoryRoundModel.category_id == category_id)
+                    .where(LeagueCategoryRoundModel.round_id == round_id)
+                )
+                round_obj = result.scalar_one_or_none()
+
+                if not round_obj:
+                    return await ApiResponse.error("Round not found", status_code=404)
+
+                round_obj.position = position
+
+                await session.commit()
+                await session.refresh(round_obj)
+
+                return await ApiResponse.success(
+                    message="Round position updated successfully",
+                    payload={"round_id": round_obj.round_id, "position": round_obj.position}
+                )
+
+        except Exception as e:
+            return await ApiResponse.error(str(e), status_code=500)
+    
+    @league_bp.post("/category/<string:category_id>/round/<string:round_id>/update-format")
+    @login_required
+    async def update_round_format(category_id: str, round_id: str):
+        data = await request.get_json()
+        if not data or "round_format" not in data:
+            return await ApiResponse.error("Missing 'round_format' in request body", status_code=400)
+
+        try:
+            async with AsyncSession() as session:
+                result = await session.execute(
+                    select(LeagueCategoryRoundModel)
+                    .where(LeagueCategoryRoundModel.category_id == category_id)
+                    .where(LeagueCategoryRoundModel.round_id == round_id)
+                )
+                round_obj = result.scalar_one_or_none()
+
+                if not round_obj:
+                    return await ApiResponse.error("Round not found", status_code=404)
+
+                round_obj.round_format = data["round_format"]
+
+                await session.commit()
+                await session.refresh(round_obj)
+
+                return await ApiResponse.success(
+                    message="Round format updated successfully",
+                    payload={"round_id": round_obj.round_id, "round_format": round_obj.round_format}
+                )
+
+        except Exception as e:
+            return await ApiResponse.error(str(e), status_code=500)
+        
 class LeagueHandler:
     @staticmethod
     @league_bp.get("/<string:league_id>/export-pdf")
@@ -86,84 +197,6 @@ class LeagueHandler:
 
         except Exception as e:
             traceback.print_exc()
-            return await ApiResponse.error(str(e), status_code=500)
-    
-    @staticmethod
-    @league_bp.post("/category/<string:category_id>/round/<string:round_id>/update-position")
-    @login_required
-    async def update_round_position(category_id: str, round_id: str):
-        data = await request.get_json()
-        if not data or "position" not in data:
-            return await ApiResponse.error("Missing 'position' in request body", status_code=400)
-
-        position = data["position"]
-
-        try:
-            async with AsyncSession() as session:
-                result = await session.execute(
-                    select(LeagueCategoryRoundModel)
-                    .where(LeagueCategoryRoundModel.category_id == category_id)
-                    .where(LeagueCategoryRoundModel.round_id == round_id)
-                )
-                round_obj = result.scalar_one_or_none()
-
-                if not round_obj:
-                    return await ApiResponse.error("Round not found", status_code=404)
-
-                round_obj.position = position
-
-                await session.commit()
-                await session.refresh(round_obj)
-
-                return await ApiResponse.success(
-                    message="Round position updated successfully",
-                    payload={"round_id": round_obj.round_id, "position": round_obj.position}
-                )
-
-        except Exception as e:
-            return await ApiResponse.error(str(e), status_code=500)
-    
-    @staticmethod
-    @league_bp.post("/category/<string:category_id>/add-round")
-    @login_required
-    async def add_round(category_id: str):
-        data = await request.get_json()
-        if not data:
-            return await ApiResponse.error("Missing request body", status_code=400)
-
-        ROUND_ORDER_MAP = {
-            "Elimination": 0,
-            "Quarterfinal": 1,
-            "Semifinal": 2,
-            "Final": 3,
-        }
-
-        round_name = data.get("round_name")
-        round_id = data.get("round_id")
-        if not round_name or not round_id:
-            return await ApiResponse.error("some fields is required", status_code=400)
-
-        round_order = ROUND_ORDER_MAP.get(round_name, 0)
-
-        try:
-            async with AsyncSession() as session:
-                new_round = LeagueCategoryRoundModel(
-                    round_id=round_id,
-                    category_id=category_id,
-                    round_name=round_name,
-                    round_order=round_order,
-                    position=data.get("position")
-                )
-                session.add(new_round)
-                await session.commit()
-                await session.refresh(new_round)
-
-                return await ApiResponse.success(
-                    message="Round added successfully",
-                    payload={"round_id": new_round.round_id}
-                )
-
-        except Exception as e:
             return await ApiResponse.error(str(e), status_code=500)
         
     @league_bp.put("/<string:league_id>/option")

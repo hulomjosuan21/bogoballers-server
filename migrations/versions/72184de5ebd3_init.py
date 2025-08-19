@@ -1,8 +1,8 @@
-"""init tablessd
+"""init
 
-Revision ID: e985da339e86
+Revision ID: 72184de5ebd3
 Revises: 
-Create Date: 2025-08-17 21:08:41.237166
+Create Date: 2025-08-19 09:13:37.421081
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'e985da339e86'
+revision: str = '72184de5ebd3'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -73,6 +73,7 @@ def upgrade() -> None:
     sa.Column('notification_id', sa.String(), nullable=False),
     sa.Column('action_type', sa.Enum('team_join_request', 'message_only', 'announcement', 'payment_failed', 'payment_received', 'team_invitation', name='notification_action_enum'), nullable=False),
     sa.Column('action_id', sa.String(), nullable=True),
+    sa.Column('title', sa.String(length=100), nullable=True),
     sa.Column('message', sa.String(length=255), nullable=False),
     sa.Column('image_url', sa.String(), nullable=True),
     sa.Column('to_id', sa.String(), nullable=False),
@@ -185,12 +186,14 @@ def upgrade() -> None:
     sa.Column('category_id', sa.String(), nullable=False),
     sa.Column('round_name', sa.Enum('Elimination', 'Quarterfinal', 'Semifinal', 'Final', 'Regular Season', 'Exhibition', 'Practice', name='round_name_enum'), nullable=False),
     sa.Column('round_order', sa.Integer(), nullable=False),
-    sa.Column('round_format', sa.Enum('Round Robin', 'Knockout', 'Double Elimination', 'Twice-to-Beat', 'Best-of-3', 'Best-of-5', 'Best-of-7', name='round_format_enum'), nullable=True),
+    sa.Column('round_format', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.Column('position', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.Column('round_status', sa.Enum('Upcoming', 'Ongoing', 'Finished', name='round_status_enum'), nullable=False),
+    sa.Column('next_round_id', sa.String(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['category_id'], ['league_categories_table.category_id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['next_round_id'], ['league_category_rounds_table.round_id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('round_id')
     )
     op.create_table('league_teams_table',
@@ -214,7 +217,8 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['category_id'], ['league_categories_table.category_id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['league_id'], ['leagues_table.league_id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['team_id'], ['teams_table.team_id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('league_team_id')
+    sa.PrimaryKeyConstraint('league_team_id'),
+    sa.UniqueConstraint('league_id')
     )
     op.create_table('league_players_table',
     sa.Column('league_player_id', sa.String(), nullable=False),

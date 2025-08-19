@@ -158,6 +158,7 @@ class PlayerTeamModel(Base):
     created_at: Mapped[datetime] = CreatedAt()
     updated_at: Mapped[datetime] = UpdatedAt()
     
+    # comment this on migrate
     captain_of_team: Mapped["TeamModel"] = relationship(
         "TeamModel",
         back_populates="team_captain",

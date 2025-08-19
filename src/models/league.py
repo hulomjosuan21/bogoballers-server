@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 if TYPE_CHECKING:
     from src.models.league_admin import LeagueAdministratorModel
@@ -197,18 +197,6 @@ round_status_enum = SqlEnum(
     create_type=False
 )
 
-round_format_enum = SqlEnum(
-    "Round Robin",
-    "Knockout",
-    "Double Elimination",
-    "Twice-to-Beat",
-    "Best-of-3",
-    "Best-of-5",
-    "Best-of-7",
-    name="round_format_enum",
-    create_type=False
-)
-
 class LeagueCategoryRoundModel(Base):
     __tablename__ = "league_category_rounds_table"
 
@@ -224,11 +212,15 @@ class LeagueCategoryRoundModel(Base):
 
     round_order: Mapped[int] = mapped_column(Integer, nullable=False)
     
-    round_format: Mapped[str] = mapped_column(round_format_enum , nullable=True)
+    round_format: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True, default=None)
     
     position: Mapped[dict] = mapped_column(JSONB, nullable=True)
 
     round_status: Mapped[str] = mapped_column(round_status_enum, default="Upcoming", nullable=False)
+    
+    next_round_id: Mapped[Optional[str]] = mapped_column(
+        String, ForeignKey("league_category_rounds_table.round_id", ondelete="SET NULL"), nullable=True
+    )
 
     category: Mapped["LeagueCategoryModel"] = relationship(
         "LeagueCategoryModel",
@@ -245,8 +237,9 @@ class LeagueCategoryRoundModel(Base):
             "round_name": self.round_name,
             "round_order": self.round_order,
             "round_status": self.round_status,
-            "round_format": self.round_format,
+            "round_format": self.round_format or None,
             "position": self.position,
+            "next_round_id": self.next_round_id or None
         }
 
 _current_module = globals()

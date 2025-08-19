@@ -41,6 +41,7 @@ class TeamModel(Base, UpdatableMixin):
     is_recruiting: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     team_category: Mapped[str | None] = mapped_column(String(100), nullable=True)
     
+    # comment this on migrate
     team_captain_id: Mapped[str | None] =  mapped_column(
         String,
         ForeignKey("player_team_table.player_team_id"),
