@@ -5,16 +5,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
 from src.models.notification import NotificationModel
-from src.helpers.league_admin_helpers import get_active_league, get_league_administrator
 from src.logging.log_entity_action import log_action
 from src.config import get_jwt_cookie_settings
 from src.auth.auth_user import AuthUser
 from src.services.cloudinary_service import CloudinaryService
-from src.services.email_verification import send_verification_email
 from src.extensions import AsyncSession
 from src.models.league_admin import LeagueAdministratorModel
 from src.models.user import UserModel
-from src.utils.api_response import ApiResponse
+from src.utils.api_response import ApiResponse, ApiException
 import traceback
 from datetime import datetime, timezone
 
@@ -36,14 +34,14 @@ class LeagueAdministratorHandler:
             password = form.get("password")
 
             if not email or not password:
-                return await ApiResponse.error("Email and password are required", status_code=400)
+                raise ApiException("Email and password are required")
 
             async with AsyncSession() as async_session:
                 result = await async_session.execute(select(UserModel).where(UserModel.email == email))
                 user = result.scalar_one_or_none()
 
                 if not user or not user.verify_password(password):
-                    return await ApiResponse.error("Invalid credentials", status_code=401)
+                    raise ApiException("Invalid credentials",401)
 
                 login_user(AuthUser(user))
 
@@ -72,7 +70,7 @@ class LeagueAdministratorHandler:
                 )
 
         except Exception as e:
-            return await ApiResponse.error(f"Login failed: {str(e)}", status_code=500)
+            return await ApiResponse.error(e)
 
     @staticmethod
     @league_admin_bp.get("/auth")
@@ -91,21 +89,20 @@ class LeagueAdministratorHandler:
                 league_admin = result.scalar_one_or_none()
 
                 if not league_admin:
-                    return await ApiResponse.error("League Administrator not found", status_code=404)
+                    raise ApiException("League Administrator not found",404)
 
                 if league_admin.user.account_type not in (
                     "League_Administrator_Local",
                     "League_Administrator_LGU",
                 ):
-                    return await ApiResponse.error("Not a League Administrator", status_code=403)
+                    raise ApiException("Not a League Administrator",403)
 
                 payload = league_admin.to_json()
 
             return await ApiResponse.payload(payload)
 
         except Exception as e:
-            traceback.print_exc()
-            return await ApiResponse.error(f"Failed to fetch profile: {str(e)}", status_code=500)
+            return await ApiResponse.error(e)
 
     @staticmethod
     @league_admin_bp.post("/logout")
@@ -120,31 +117,30 @@ class LeagueAdministratorHandler:
     @staticmethod
     @league_admin_bp.post("/register")
     async def create_league_administrator():
-        form = await request.form
-        files = await request.files
-        file = files.get("organization_logo")
-
         try:
-            email = form["email"]
-            password_str = form["password_str"]
-            contact_number = form["contact_number"]
-            organization_type = form["organization_type"]
-            organization_name = form["organization_name"]
-            organization_address = form["organization_address"]
-            organization_logo_str = form.get("organization_logo")
-        except KeyError as e:
-            return await ApiResponse.error(f"Missing field: {str(e)}", status_code=400)
+            form = await request.form
+            files = await request.files
+            file = files.get("organization_logo")
 
-        user = UserModel(
-            email=email,
-            contact_number=contact_number,
-            account_type="League_Administrator_Local",
-            verification_token_created_at=datetime.now(timezone.utc),
-            is_verified=True
-        )
-        user.set_password(password_str)
+            try:
+                email = form["email"]
+                password_str = form["password_str"]
+                contact_number = form["contact_number"]
+                organization_type = form["organization_type"]
+                organization_name = form["organization_name"]
+                organization_address = form["organization_address"]
+                organization_logo_str = form.get("organization_logo")
+            except KeyError as e:
+                 raise ApiException(f"Missing field: {str(e)}")
 
-        try:
+            user = UserModel(
+                email=email,
+                contact_number=contact_number,
+                account_type="League_Administrator_Local",
+                verification_token_created_at=datetime.now(timezone.utc),
+                is_verified=True
+            )
+            user.set_password(password_str)
             async with AsyncSession() as async_session:
                 async_session.add(user)
                 await async_session.flush()
@@ -168,7 +164,7 @@ class LeagueAdministratorHandler:
                         folder="league-admin/organization-logos"
                     )
                 except Exception as e:
-                    print(f"⚠ Logo upload failed: {e}")
+                    raise ApiException("⚠ Logo upload failed")
 
             elif organization_logo_str and organization_logo_str.strip():
                 organization_logo_url = organization_logo_str.strip()
@@ -199,14 +195,9 @@ class LeagueAdministratorHandler:
                 status_code=409
             )
         except Exception as e:
-            traceback.print_exc()
-            return await ApiResponse.error(
-                f"Unexpected error: {str(e)}",
-                status_code=500
-            )
+            return await ApiResponse.error(e)
 
     @staticmethod
-    # @login_required
     @league_admin_bp.post('/send/notification')
     async def send_notification():
         data = await request.get_json()

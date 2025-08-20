@@ -1,7 +1,11 @@
 from quart import jsonify, make_response, Response
 from sqlalchemy.exc import IntegrityError, DataError, OperationalError
 from werkzeug.exceptions import NotFound
-import traceback
+class ApiException(Exception):
+    def __init__(self, message="An error occurred", code=400):
+        self.message = message
+        self.status_code = code
+        super().__init__(message)
 class ApiResponse:
     @staticmethod
     def success(redirect=None,message="Success", payload=None, status_code=200):
@@ -45,34 +49,26 @@ class ApiResponse:
         message = "An error occurred"
         code = 500
 
-        if isinstance(error, Exception):
-            print("❌ Exception traceback:")
-            traceback.print_exc()
-            if isinstance(error, IntegrityError):
-                message = "Duplicate entry or constraint violation"
-                code = 409
-            elif isinstance(error, DataError):
-                message = "Invalid data format or length"
-                code = 400
-            elif isinstance(error, NotFound):
-                message = "Resource not found"
-                code = 404
-            elif isinstance(error, ValueError):
-                message = error.message if hasattr(error, 'message') else str(error)
-                code = 401
-            elif isinstance(error, OperationalError):
-                message = "Database operational error"
-                code = 503
-            else:
-                message = str(error) or message
+        if isinstance(error, ApiException):
+            message = error.message
+            code = error.status_code
+        elif isinstance(error, IntegrityError):
+            message = "Duplicate entry or constraint violation"
+            code = 409
+        elif isinstance(error, DataError):
+            message = "Invalid data format or length"
+            code = 400
+        elif isinstance(error, NotFound):
+            message = "Resource not found"
+            code = 404
+        elif isinstance(error, OperationalError):
+            message = "Database operational error"
+            code = 503
         else:
-            message = error
+            message = str(error) or message
 
         if status_code is not None:
             code = status_code
 
-        response = {
-            "status": False,
-            "message": message
-        }
+        response = {"status": False, "message": message}
         return make_response(jsonify(response), code)

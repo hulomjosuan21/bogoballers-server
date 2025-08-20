@@ -7,7 +7,7 @@ from src.services.cloudinary_service import CloudinaryService
 from src.models.player import PlayerModel
 from src.models.user import UserModel
 from src.extensions import AsyncSession
-from src.utils.api_response import ApiResponse
+from src.utils.api_response import ApiResponse,ApiException
 import traceback
 from quart_auth import current_user, login_required
 from sqlalchemy.orm import joinedload
@@ -123,12 +123,9 @@ class PlayerHandler:
                     player = result.scalars().first()
 
                 if not player:
-                    return await ApiResponse.error(
-                        "Player not found",
-                        status_code=400
-                    )
+                    raise ApiException("Player not found")
 
                 return await ApiResponse.payload(player.to_json())
 
         except Exception as e:
-            return await ApiResponse.error(str(e))
+            return await ApiResponse.error(e)
