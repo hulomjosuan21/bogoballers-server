@@ -23,22 +23,24 @@ import subprocess
 from docxtpl import DocxTemplate
 from sqlalchemy.orm.attributes import flag_modified
 
-league_bp = Blueprint("league", __name__, url_prefix="/league")
 
 ALLOWED_OPTION_KEYS = {
     "player_residency_certificate_required",
     "player_residency_certificate_valid_until"
 }
+league_bp = Blueprint("league", __name__, url_prefix="/league")
 
 class LeagueCategoryHandler:
     @staticmethod
-    @league_bp.post("/category/<string:category_id>/add-round")
+    @league_bp.post("/category/<string:category_id>/save-changes")
     @login_required
-    async def add_round(category_id: str):
+    async def save_changes(category_id: str):
         data = await request.get_json()
-        if not data:
-            return await ApiResponse.error("Missing request body", status_code=400)
+        if not data or "operations" not in data:
+            return await ApiResponse.error("Missing 'operations' in request body", status_code=400)
 
+        operations = data["operations"]
+        
         ROUND_ORDER_MAP = {
             "Elimination": 0,
             "Quarterfinal": 1,
@@ -46,68 +48,91 @@ class LeagueCategoryHandler:
             "Final": 3,
         }
 
-        round_name = data.get("round_name")
-        round_id = data.get("round_id")
-        if not round_name or not round_id:
-            return await ApiResponse.error("some fields is required", status_code=400)
-
-        round_order = ROUND_ORDER_MAP.get(round_name, 0)
-
         try:
             async with AsyncSession() as session:
-                new_round = LeagueCategoryRoundModel(
-                    round_id=round_id,
-                    category_id=category_id,
-                    round_name=round_name,
-                    round_order=round_order,
-                    position=data.get("position")
-                )
-                session.add(new_round)
-                await session.commit()
-                await session.refresh(new_round)
+                results = []
+                
+                for operation in operations:
+                    op_type = operation.get("type")
+                    op_data = operation.get("data", {})
+                    
+                    if op_type == "create_round":
+                        round_name = op_data.get("round_name")
+                        round_id = op_data.get("round_id")
+                        
+                        if not round_name or not round_id:
+                            continue
+                        
+                        round_order = ROUND_ORDER_MAP.get(round_name, op_data.get("round_order", 0))
+                        
+                        new_round = LeagueCategoryRoundModel(
+                            round_id=round_id,
+                            category_id=category_id,
+                            round_name=round_name,
+                            round_order=round_order,
+                            round_status=op_data.get("round_status", "Upcoming"),
+                            position=op_data.get("position")
+                        )
+                        session.add(new_round)
+                        results.append({
+                            "operation": "create_round",
+                            "round_id": round_id,
+                            "status": "success"
+                        })
+                    
+                    elif op_type == "update_position":
+                        round_id = op_data.get("round_id")
+                        position = op_data.get("position")
+                        
+                        if not round_id or not position:
+                            continue
+                        
+                        result = await session.execute(
+                            select(LeagueCategoryRoundModel)
+                            .where(LeagueCategoryRoundModel.category_id == category_id)
+                            .where(LeagueCategoryRoundModel.round_id == round_id)
+                        )
+                        round_obj = result.scalar_one_or_none()
+                        
+                        if round_obj:
+                            round_obj.position = position
+                            results.append({
+                                "operation": "update_position",
+                                "round_id": round_id,
+                                "status": "success"
+                            })
+                    
+                    elif op_type == "update_format":
+                        round_id = op_data.get("round_id")
+                        round_format = op_data.get("round_format")
+                        
+                        if not round_id:
+                            continue
+                        
+                        result = await session.execute(
+                            select(LeagueCategoryRoundModel)
+                            .where(LeagueCategoryRoundModel.category_id == category_id)
+                            .where(LeagueCategoryRoundModel.round_id == round_id)
+                        )
+                        round_obj = result.scalar_one_or_none()
+                        
+                        if round_obj:
+                            round_obj.round_format = round_format
+                            results.append({
+                                "operation": "update_format",
+                                "round_id": round_id,
+                                "status": "success"
+                            })
 
+                await session.commit()
+                
                 return await ApiResponse.success(
-                    message="Round added successfully",
-                    payload={"round_id": new_round.round_id}
+                    message=f"Successfully processed {len(results)} operations",
+                    payload={"results": results}
                 )
 
         except Exception as e:
-            return await ApiResponse.error(str(e), status_code=500)
-    
-    @staticmethod
-    @league_bp.post("/category/<string:category_id>/round/<string:round_id>/update-position")
-    @login_required
-    async def update_round_position(category_id: str, round_id: str):
-        data = await request.get_json()
-        if not data or "position" not in data:
-            return await ApiResponse.error("Missing 'position' in request body", status_code=400)
-
-        position = data["position"]
-
-        try:
-            async with AsyncSession() as session:
-                result = await session.execute(
-                    select(LeagueCategoryRoundModel)
-                    .where(LeagueCategoryRoundModel.category_id == category_id)
-                    .where(LeagueCategoryRoundModel.round_id == round_id)
-                )
-                round_obj = result.scalar_one_or_none()
-
-                if not round_obj:
-                    return await ApiResponse.error("Round not found", status_code=404)
-
-                round_obj.position = position
-
-                await session.commit()
-                await session.refresh(round_obj)
-
-                return await ApiResponse.success(
-                    message="Round position updated successfully",
-                    payload={"round_id": round_obj.round_id, "position": round_obj.position}
-                )
-
-        except Exception as e:
-            return await ApiResponse.error(str(e), status_code=500)
+            return await ApiResponse.error(str(e), status_code=500)    
     
     @league_bp.post("/category/<string:category_id>/round/<string:round_id>/update-format")
     @login_required
