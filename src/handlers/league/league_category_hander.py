@@ -1,6 +1,6 @@
 from quart import Blueprint, request
 from quart_auth import login_required
-from sqlalchemy import select
+from sqlalchemy import select, update
 from src.extensions import AsyncSession
 from src.models.league import LeagueCategoryModel, LeagueCategoryRoundModel
 from src.utils.api_response import ApiException, ApiResponse
@@ -9,7 +9,7 @@ league_category_bp = Blueprint("league-category", __name__, url_prefix="/league/
 
 class LeagueCategoryHandler:
     @staticmethod
-    @league_category_bp.post("/category_id>/save-changes")
+    @league_category_bp.post("/<category_id>/save-changes")
     @login_required
     async def save_changes(category_id: str):
         try:
@@ -18,12 +18,17 @@ class LeagueCategoryHandler:
                 raise ApiException("Missing 'operations' in request body")
             operations = data["operations"]
             
+            print(f"Processing {len(operations)} operations for category {category_id}")
+            for i, op in enumerate(operations):
+                print(f"Operation {i+1}: {op.get('type')} - {op.get('data', {})}")
+            
             ROUND_ORDER_MAP = {
                 "Elimination": 0,
                 "Quarterfinal": 1,
                 "Semifinal": 2,
                 "Final": 3,
             }
+            
             async with AsyncSession() as session:
                 results = []
                 
@@ -46,7 +51,8 @@ class LeagueCategoryHandler:
                             round_name=round_name,
                             round_order=round_order,
                             round_status=op_data.get("round_status", "Upcoming"),
-                            position=op_data.get("position")
+                            position=op_data.get("position"),
+                            next_round_id=op_data.get("next_round_id")
                         )
                         session.add(new_round)
                         results.append({
@@ -98,6 +104,72 @@ class LeagueCategoryHandler:
                                 "round_id": round_id,
                                 "status": "success"
                             })
+                    
+                    elif op_type == "update_next_round":
+                        round_id = op_data.get("round_id")
+                        next_round_id = op_data.get("next_round_id")
+                        
+                        if not round_id:
+                            continue
+                        
+                        result = await session.execute(
+                            select(LeagueCategoryRoundModel)
+                            .where(LeagueCategoryRoundModel.category_id == category_id)
+                            .where(LeagueCategoryRoundModel.round_id == round_id)
+                        )
+                        round_obj = result.scalar_one_or_none()
+                        
+                        if round_obj:
+                            round_obj.next_round_id = next_round_id
+                            results.append({
+                                "operation": "update_next_round",
+                                "round_id": round_id,
+                                "status": "success"
+                            })
+                        else:
+                            results.append({
+                                "operation": "update_next_round",
+                                "round_id": round_id,
+                                "status": "error",
+                                "message": "Round not found"
+                            })
+                    
+                    elif op_type == "delete_round":
+                        round_id = op_data.get("round_id")
+                        
+                        if not round_id:
+                            continue
+                        
+                        result = await session.execute(
+                            select(LeagueCategoryRoundModel)
+                            .where(LeagueCategoryRoundModel.category_id == category_id)
+                            .where(LeagueCategoryRoundModel.round_id == round_id)
+                        )
+                        round_obj = result.scalar_one_or_none()
+                        
+                        if round_obj:
+                            # First, clear any references to this round as next_round_id
+                            await session.execute(
+                                update(LeagueCategoryRoundModel)
+                                .where(LeagueCategoryRoundModel.category_id == category_id)
+                                .where(LeagueCategoryRoundModel.next_round_id == round_id)
+                                .values(next_round_id=None)
+                            )
+                            
+                            # Then delete the round
+                            await session.delete(round_obj)
+                            results.append({
+                                "operation": "delete_round",
+                                "round_id": round_id,
+                                "status": "success"
+                            })
+                        else:
+                            results.append({
+                                "operation": "delete_round",
+                                "round_id": round_id,
+                                "status": "error",
+                                "message": "Round not found"
+                            })
 
                 await session.commit()
                 
@@ -109,6 +181,7 @@ class LeagueCategoryHandler:
         except Exception as e:
             return await ApiResponse.error(e)    
     
+    @staticmethod
     @league_category_bp.post("/<category_id>/round/<round_id>/update-format")
     @login_required
     async def update_round_format(category_id: str, round_id: str):
