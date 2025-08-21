@@ -13,8 +13,9 @@ from src.utils.api_response import ApiResponse, ApiException
 entity_bp = Blueprint("entity", __name__, url_prefix="/entity")
 
 class EntityHandler:
+    @staticmethod
     @entity_bp.post('/login')
-    async def login(self):
+    async def login():
         try:
             form = await request.form
             email = form.get("email")
@@ -72,6 +73,7 @@ class EntityHandler:
         except Exception as e:
             return await ApiResponse.error(e)
 
+    @staticmethod
     @entity_bp.get("/auth")
     @login_required
     async def get_current_user():
@@ -96,6 +98,7 @@ class EntityHandler:
         except Exception as e:
             return await ApiResponse.error(e)
         
+    @staticmethod
     @entity_bp.post("/update-fcm")
     @login_required
     async def update_fcm():

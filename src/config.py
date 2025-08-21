@@ -32,7 +32,7 @@ class Config:
     QUART_AUTH_COOKIE_HTTPONLY = True
     QUART_AUTH_COOKIE_SAMESITE = "Lax"
 
-    CORS_ORIGINS = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "").split(",") if origin.strip()]
+    CORS_ORIGINS = ["http://localhost:5173","https://bogoballers.site","https://basketball.bogoballers.site"]
 
     MAIL_SERVER = os.getenv("MAIL_SERVER", "smtp.gmail.com")
     MAIL_PORT = int(os.getenv("MAIL_PORT", 587))

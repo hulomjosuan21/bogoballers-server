@@ -1,10 +1,12 @@
+from sqlite3 import IntegrityError
 from quart import Blueprint, request
 from quart_auth import login_required
 from sqlalchemy import select, update
 from src.extensions import AsyncSession
 from src.models.league import LeagueCategoryModel, LeagueCategoryRoundModel
 from src.utils.api_response import ApiException, ApiResponse
-
+from sqlalchemy.orm import joinedload
+import traceback
 league_category_bp = Blueprint("league-category", __name__, url_prefix="/league/category")
 
 class LeagueCategoryHandler:
@@ -215,7 +217,7 @@ class LeagueCategoryHandler:
             return await ApiResponse.error(e)
         
     @staticmethod
-    @league_category_bp.post("/<string:league_id>/add-category")
+    @league_category_bp.post("/<league_id>/add-category")
     @login_required
     async def add_category(league_id: str):
         try:
@@ -245,6 +247,56 @@ class LeagueCategoryHandler:
                 await session.commit()
 
             return await ApiResponse.success(message="Category added successfully")
+
+        except Exception as e:
+            return await ApiResponse.error(e)
+        
+    @staticmethod
+    @league_category_bp.get("/<league_id>")
+    async def get_categories(league_id: str):
+        try:
+            
+            if not league_id:
+                raise ApiException("No league id.")
+            
+            async with AsyncSession() as session:
+                result = await session.execute(
+                    select(LeagueCategoryModel)
+                    .options(
+                        joinedload(LeagueCategoryModel.rounds),
+                    )
+                    .where(LeagueCategoryModel.league_id == league_id)
+                )
+
+                categories = result.unique().scalars().all()
+
+                return await ApiResponse.payload([c.to_json() for c in categories])
+
+        except Exception as e:
+            return await ApiResponse.error(e)
+    
+    @staticmethod
+    @league_category_bp.delete("/<category_id>")
+    async def delete_category(category_id: str):
+        try:
+            async with AsyncSession() as session:
+                category = await session.get(LeagueCategoryModel, category_id)
+
+                if not category:
+                    raise ApiException("Category not found.", 404)
+
+                await session.delete(category)
+
+                try:
+                    await session.commit()
+                except IntegrityError:
+                    await session.rollback()
+                    raise ApiException("Failed to delete category. Please try again.", 500)
+
+            return await ApiResponse.success(
+                message="Category deleted successfully",
+                status_code=200
+            )
 
         except Exception as e:
             return await ApiResponse.error(e)
