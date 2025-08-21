@@ -15,7 +15,7 @@ from src.models.user import UserModel
 from src.utils.api_response import ApiResponse, ApiException
 import traceback
 from datetime import datetime, timezone
-
+from src.utils.rate_limiter import rate_limit, login_limit
 
 league_admin_bp = Blueprint("league_admin", __name__, url_prefix="/league-administrator")
 
@@ -27,6 +27,7 @@ class LeagueAdministratorHandler:
         match_column=LeagueAdministratorModel.user_id,
         action_message="Logged in"
     )
+    @rate_limit(login_limit)
     async def login_league_administrator():
         try:
             form = await request.form
