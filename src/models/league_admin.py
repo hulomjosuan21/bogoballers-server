@@ -13,6 +13,9 @@ import inspect
 from src.extensions import Base
 from src.utils.db_utils import CreatedAt, UpdatedAt, UUIDGenerator
 
+class CategoryModel(Base):
+    category_id = Mapped[str] = UUIDGenerator("league_administrator")
+
 class LeagueAdministratorModel(Base):
     __tablename__ = "league_administrator_table"
 

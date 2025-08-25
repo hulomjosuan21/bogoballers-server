@@ -2,7 +2,7 @@ from datetime import datetime
 import json
 from sqlite3 import IntegrityError
 from quart import Blueprint, request
-from sqlalchemy import select
+from sqlalchemy import String, cast, or_, select
 from src.services.cloudinary_service import CloudinaryService
 from src.models.player import PlayerModel
 from src.models.user import UserModel
@@ -10,8 +10,7 @@ from src.extensions import AsyncSession
 from src.utils.api_response import ApiResponse,ApiException
 import traceback
 from quart_auth import current_user, login_required
-from sqlalchemy.orm import joinedload
-
+from sqlalchemy.orm import joinedload, selectinload
 player_bp = Blueprint('player',__name__,url_prefix='/player')
 
 class PlayerHandler:
@@ -84,7 +83,6 @@ class PlayerHandler:
                 )
                 session.add(player)
                 await session.commit()
-                await session.refresh(player)
 
                 return await ApiResponse.success(
                     message='Register successfully',
@@ -129,3 +127,32 @@ class PlayerHandler:
 
         except Exception as e:
             return await ApiResponse.error(e)
+        
+    @staticmethod
+    @player_bp.get('/all')
+    async def get_players():
+        try:
+            search = request.args.get("search", None)
+
+            async with AsyncSession() as session:
+                query = select(PlayerModel).options(selectinload(PlayerModel.user))
+
+                if search:
+                    search_term = f"%{search}%"
+                    query = query.where(
+                        or_(
+                            PlayerModel.full_name.ilike(search_term),
+                            PlayerModel.jersey_name.ilike(search_term),
+                            cast(PlayerModel.jersey_number, String).ilike(search_term)
+                        )
+                    )
+
+                result = await session.execute(query)
+                players = result.scalars().all()
+                players_data = [p.to_json() for p in players]
+
+                return await ApiResponse.payload(payload=players_data)
+
+        except Exception as e:
+            print(f"Error in get_players: {e}")
+            return await ApiResponse.payload(payload=[])

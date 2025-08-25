@@ -41,8 +41,9 @@ class LeagueModel(Base, UpdatableMixin):
         nullable=False
     )
 
-    league_title: Mapped[str] = mapped_column(String(100), nullable=False)
+    league_title: Mapped[str] = mapped_column(String(250), nullable=False)
     league_description: Mapped[str] = mapped_column(Text, nullable=False)
+    league_address: Mapped[str] = mapped_column(String(250), nullable=False)
     league_budget: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     
     league_courts: Mapped[List[dict]] = mapped_column(JSONB, nullable=False, default=list)

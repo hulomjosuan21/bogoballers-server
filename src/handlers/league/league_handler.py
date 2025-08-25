@@ -2,24 +2,21 @@ from quart import Blueprint, request, send_file
 from quart_auth import login_required
 import json
 import re
-import bleach
 from sqlalchemy import select, update
 from src.helpers.league_admin_helpers import get_active_league, get_league_administrator
 from src.extensions import AsyncSession, TEMPLATE_PATH
-from src.models.league import LeagueCategoryModel, LeagueCategoryRoundModel, LeagueModel
+from src.models.league import LeagueCategoryModel, LeagueModel
 from dateutil.relativedelta import relativedelta
 from src.services.cloudinary_service import CloudinaryService
 from src.utils.api_response import ApiException, ApiResponse
-from datetime import datetime, date, timedelta
+from datetime import datetime, date
 from io import BytesIO
 from docxtpl import DocxTemplate
 import tempfile
-from markdownify import markdownify as md
 import os
 import subprocess
 from docxtpl import DocxTemplate
 from sqlalchemy.orm.attributes import flag_modified
-
 
 ALLOWED_OPTION_KEYS = {
     "player_residency_certificate_required",
@@ -142,7 +139,7 @@ class LeagueHandler:
             files = await request.files
 
             required_fields = [
-                "league_title", "league_budget", "league_description", "sportsmanship_rules",
+                "league_title", "league_budget", "league_description", "league_address", "sportsmanship_rules",
                 "registration_deadline", "opening_date", "league_schedule", "banner_image", "categories"
             ]
             for field in required_fields:
@@ -151,12 +148,8 @@ class LeagueHandler:
 
             league_title = form['league_title']
             league_budget = float(form['league_budget'])
-
-            allowed_tags = [
-                'p', 'br', 'strong', 'em', 'i', 'b', 's', 'del',
-                'ul', 'ol', 'li', 'hr', 'h1', 'h2', 'h3', 'blockquote'
-            ]
-            league_description = bleach.clean(form['league_description'], tags=allowed_tags, strip=True)
+            league_description = form['league_description']
+            league_address = form['league_address']
 
             try:
                 league_schedule = json.loads(form['league_schedule'])
@@ -192,6 +185,7 @@ class LeagueHandler:
                     league_title=league_title,
                     league_budget=league_budget,
                     league_description=league_description,
+                    league_address=league_address,
                     registration_deadline=registration_deadline,
                     opening_date=opening_date,
                     league_schedule=league_schedule,

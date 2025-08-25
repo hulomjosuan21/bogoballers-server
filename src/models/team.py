@@ -104,6 +104,7 @@ class TeamModel(Base, UpdatableMixin):
             'total_points': self.total_points,
             'is_recruiting': self.is_recruiting,
             'team_category': self.team_category if self.team_category else None,
+            'user': self.user.to_json()
         }
 
 payment_status_enum = SqlEnum(
