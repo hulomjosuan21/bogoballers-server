@@ -201,11 +201,8 @@ class LeagueHandler:
                     },
                     categories=[
                         LeagueCategoryModel(
-                            category_name=cat['category_name'],
-                            max_team=cat.get('max_team', 4),
-                            team_entrance_fee_amount=cat.get('team_entrance_fee_amount', 0.0),
-                            individual_player_entrance_fee_amount=cat.get('individual_player_entrance_fee_amount', 0.0),
-                        ) for cat in categories
+                            category_id=cat_id,
+                        ) for cat_id in categories
                     ]
                 )
 

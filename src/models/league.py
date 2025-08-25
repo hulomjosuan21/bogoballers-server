@@ -1,8 +1,9 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, List, Optional
 
+
 if TYPE_CHECKING:
-    from src.models.league_admin import LeagueAdministratorModel
+    from src.models.league_admin import LeagueAdministratorModel, CategoryModel
     from src.models.team import LeagueTeamModel
     from src.models.league import LeagueCategoryModel
     
@@ -129,22 +130,25 @@ class LeagueModel(Base, UpdatableMixin):
             "league_affiliates": self.league_affiliates,
         }
         
-class LeagueCategoryModel(Base):
+class LeagueCategoryModel(Base, UpdatableMixin):
     __tablename__ = "league_categories_table"
 
-    category_id: Mapped[str] = UUIDGenerator("league-category")
+    league_category_id: Mapped[str] = UUIDGenerator("league-category")
+    
+    category_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey("categories_table.category_id", ondelete="CASCADE"),
+        nullable=False
+    )
     
     league_id: Mapped[str] = mapped_column(
         String,
         ForeignKey("leagues_table.league_id", ondelete="CASCADE"),
         nullable=False
     )
-
-    category_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    
     max_team: Mapped[int] = mapped_column(Integer, default=4, nullable=False)
-    accept_teams: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    team_entrance_fee_amount: Mapped[float] = mapped_column(Float, default=0.0, nullable=True)
-    individual_player_entrance_fee_amount: Mapped[float] = mapped_column(Float, default=0.0, nullable=True)
+    accept_teams: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     created_at: Mapped[datetime] = CreatedAt()
     updated_at: Mapped[datetime] = UpdatedAt()
@@ -164,15 +168,18 @@ class LeagueCategoryModel(Base):
         cascade="all, delete-orphan"
     )
     
+    category: Mapped["CategoryModel"] = relationship(
+        "CategoryModel",
+        lazy="joined"
+    )
+    
     def to_json(self) -> dict:
         return {
-            "category_id": self.category_id,
+            **self.category.to_json_league_category(),
+            "league_category_id": self.league_category_id,
             "league_id": self.league_id,
-            "category_name": self.category_name,
             "max_team": self.max_team,
             "accept_teams": self.accept_teams,
-            "team_entrance_fee_amount": self.team_entrance_fee_amount,
-            "individual_player_entrance_fee_amount": self.individual_player_entrance_fee_amount,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
             "rounds": [round_.to_json() for round_ in (self.rounds or [])]
@@ -198,14 +205,14 @@ round_status_enum = SqlEnum(
     create_type=False
 )
 
-class LeagueCategoryRoundModel(Base):
+class LeagueCategoryRoundModel(Base, UpdatableMixin):
     __tablename__ = "league_category_rounds_table"
 
     round_id: Mapped[str] = mapped_column(String, nullable=False, primary_key=True)
     
-    category_id: Mapped[str] = mapped_column(
+    league_category_id: Mapped[str] = mapped_column(
         String,
-        ForeignKey("league_categories_table.category_id", ondelete="CASCADE"),
+        ForeignKey("league_categories_table.league_category_id", ondelete="CASCADE"),
         nullable=False
     )
 
@@ -234,7 +241,7 @@ class LeagueCategoryRoundModel(Base):
     def to_json(self) -> dict:
         return {
             "round_id": self.round_id,
-            "category_id": self.category_id,
+            "league_category_id": self.league_category_id,
             "round_name": self.round_name,
             "round_order": self.round_order,
             "round_status": self.round_status,
