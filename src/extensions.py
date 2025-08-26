@@ -10,20 +10,27 @@ from docxtpl import DocxTemplate
 from firebase_admin import credentials, messaging
 from asyncio import to_thread
 import firebase_admin
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.executors.asyncio import AsyncIOExecutor
+
+executors = {
+    "default": AsyncIOExecutor()
+}
 
 Base = declarative_base()
 ph = PasswordHasher()
 engine = create_async_engine(Config.DATABASE_URL, echo=False, future=True)
 AsyncSession = async_sessionmaker(engine, expire_on_commit=False)
 
+workder = AsyncIOScheduler(timezone="UTC", executors=executors)
 
 BASE_DIR = Path(__file__).resolve().parent
 
-DATA_DIR = BASE_DIR / "data" / "json"
+def path_in(*parts):
+    return BASE_DIR.joinpath(*parts)
 
-TEMPLATE_PATH = BASE_DIR / "templates" / "league_template.docx"
-
-tpl = DocxTemplate(TEMPLATE_PATH)
+DATA_DIR = path_in("data", "json")
+TEMPLATE_PATH = path_in("templates", "league_template.docx")
 
 SERVICE_ACCOUNT_PATH = Path(__file__).parent.parent / "firebase.json"
 
@@ -34,7 +41,7 @@ async def db_session():
     async with AsyncSession() as session:
         yield session
 
-socket_service = SocketIOService(redis_url="redis://127.0.0.1:6379")
+socket_service = SocketIOService(redis_url=Config.REDIS_URL)
 sio = socket_service.sio 
 
 cred = credentials.Certificate(SERVICE_ACCOUNT_PATH)

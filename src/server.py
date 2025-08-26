@@ -6,11 +6,9 @@ import socketio
 from src.blueprints import all_blueprints
 from src.config import Config
 from src.extensions import sio
-from ast import literal_eval
 from quart_auth import (
     QuartAuth
 )
-
 from src.utils.server_utils import check_db_connection, print_debug_banner, print_routes
     
 def create_app():
@@ -41,8 +39,14 @@ def create_app():
     print_routes(app)
     return asgi_app
 
-async def main():
+async def main(init_scheduler_flag: bool = False):
     await check_db_connection()
+    
+    if init_scheduler_flag:
+        from src.worker import init_worker
+        init_worker()
+        print("[server] Scheduler initialized (worker mode)")
+        
     app = create_app()
     hyper_conf = HyperConfig()
     hyper_conf.bind = [f"{Config.HOST}:{Config.PORT}"]
