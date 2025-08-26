@@ -5,7 +5,7 @@ from hypercorn.config import Config as HyperConfig
 import socketio
 from src.blueprints import all_blueprints
 from src.config import Config
-from src.extensions import sio
+from src.extensions import sio, settings
 from quart_auth import (
     QuartAuth
 )
@@ -39,10 +39,12 @@ def create_app():
     print_routes(app)
     return asgi_app
 
-async def main(init_scheduler_flag: bool = False):
+async def main():
     await check_db_connection()
     
-    if init_scheduler_flag:
+    enable_worker: bool = settings['enable_worker']
+    
+    if enable_worker:
         from src.worker import Worker
         from src.task import Task
         task_instance = Task()
@@ -57,5 +59,5 @@ async def main(init_scheduler_flag: bool = False):
     hyper_conf.errorlog = "-"
     hyper_conf.worker_class = "asyncio"
     hyper_conf.workers = 1
-    print_debug_banner(init_scheduler_flag)
+    print_debug_banner(enable_worker)
     await serve(app, hyper_conf)

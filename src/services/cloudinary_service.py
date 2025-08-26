@@ -2,7 +2,7 @@ import os
 import asyncio
 from urllib.parse import urlparse
 from werkzeug.datastructures import FileStorage
-
+from src.extensions import settings
 import cloudinary
 import cloudinary.uploader
 from dotenv import load_dotenv
@@ -38,9 +38,9 @@ class CloudinaryService:
     async def delete_file_by_url(file_url: str) -> bool:
         try:
             from urllib.parse import urlparse
-            SAMPLE_TEAM_LOGO_URL = os.getenv("SAMPLE_TEAM_LOGO_URL")
-            SAMPLE_LEAGUE_ADMIN_LOGO_URL = os.getenv("SAMPLE_LEAGUE_ADMIN_LOGO_URL")
-            SAMPLE_PLAYER_PROFILE_URL = os.getenv("SAMPLE_PLAYER_PROFILE_URL")
+            SAMPLE_TEAM_LOGO_URL = settings['default_team_logo']
+            SAMPLE_LEAGUE_ADMIN_LOGO_URL = settings['default_league_admin_logo']
+            SAMPLE_PLAYER_PROFILE_URL = settings['default_player_profile']
 
             if file_url in [SAMPLE_TEAM_LOGO_URL, SAMPLE_LEAGUE_ADMIN_LOGO_URL, SAMPLE_PLAYER_PROFILE_URL]:
                 return True

@@ -1,3 +1,7 @@
 {
-  "interval": 1
+  "enable_worker": false,
+  "interval": 1,
+  "default_team_logo": "https://res.cloudinary.com/dod3lmxm6/image/upload/v1752672938/team-logo_iogj3l.png",
+  "default_league_admin_logo": "https://res.cloudinary.com/dod3lmxm6/image/upload/v1752673457/league-admin-logo_krdvlq.png",
+  "default_player_profile": "https://res.cloudinary.com/dod3lmxm6/image/upload/v1752715735/player-profile_xjzohu.png"
 }
