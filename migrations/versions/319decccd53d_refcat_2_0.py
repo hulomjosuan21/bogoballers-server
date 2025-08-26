@@ -1,8 +1,8 @@
-"""init
+"""refcat 2.0
 
-Revision ID: 72184de5ebd3
+Revision ID: 319decccd53d
 Revises: 
-Create Date: 2025-08-19 09:13:37.421081
+Create Date: 2025-08-25 19:51:16.586406
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '72184de5ebd3'
+revision: str = '319decccd53d'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -59,7 +59,7 @@ def upgrade() -> None:
     sa.Column('is_operational', sa.Boolean(), server_default=sa.text('true'), nullable=False),
     sa.Column('user_id', sa.String(), nullable=False),
     sa.Column('organization_type', sa.String(), nullable=False),
-    sa.Column('organization_name', sa.String(length=200), nullable=False),
+    sa.Column('organization_name', sa.String(length=250), nullable=False),
     sa.Column('organization_address', sa.String(length=250), nullable=False),
     sa.Column('organization_photo_url', sa.String(), nullable=True),
     sa.Column('organization_logo_url', sa.String(), nullable=True),
@@ -131,11 +131,32 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['user_id'], ['users_table.user_id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('team_id')
     )
+    op.create_table('categories_table',
+    sa.Column('category_id', sa.String(), nullable=False),
+    sa.Column('category_name', sa.String(length=250), nullable=False),
+    sa.Column('league_administrator_id', sa.String(), nullable=False),
+    sa.Column('check_player_age', sa.Boolean(), nullable=False),
+    sa.Column('player_min_age', sa.Integer(), nullable=True),
+    sa.Column('player_max_age', sa.Integer(), nullable=True),
+    sa.Column('player_gender', sa.Enum('Male', 'Female', name='category_allowed_gender_enum'), nullable=False),
+    sa.Column('check_address', sa.Boolean(), nullable=False),
+    sa.Column('allowed_address', sa.String(length=250), nullable=True),
+    sa.Column('allow_guest_team', sa.Boolean(), nullable=False),
+    sa.Column('team_entrance_fee_amount', sa.Float(), nullable=True),
+    sa.Column('allow_guest_player', sa.Boolean(), nullable=False),
+    sa.Column('guest_player_fee_amount', sa.Float(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+    sa.ForeignKeyConstraint(['league_administrator_id'], ['league_administrator_table.league_administrator_id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('category_id'),
+    sa.UniqueConstraint('category_name')
+    )
     op.create_table('leagues_table',
     sa.Column('league_id', sa.String(), nullable=False),
     sa.Column('league_administrator_id', sa.String(), nullable=False),
-    sa.Column('league_title', sa.String(length=100), nullable=False),
+    sa.Column('league_title', sa.String(length=250), nullable=False),
     sa.Column('league_description', sa.Text(), nullable=False),
+    sa.Column('league_address', sa.String(length=250), nullable=False),
     sa.Column('league_budget', sa.Float(), nullable=False),
     sa.Column('league_courts', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
     sa.Column('league_officials', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
@@ -160,6 +181,7 @@ def upgrade() -> None:
     sa.Column('player_id', sa.String(), nullable=False),
     sa.Column('team_id', sa.String(), nullable=False),
     sa.Column('is_ban', sa.Boolean(), nullable=False),
+    sa.Column('is_team_captain', sa.Boolean(), nullable=False),
     sa.Column('is_accepted', sa.Enum('Pending', 'Accepted', 'Rejected', 'Invited', name='player_is_accepted_enum'), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
@@ -169,21 +191,20 @@ def upgrade() -> None:
     sa.UniqueConstraint('player_id', 'team_id', name='unique_player_team')
     )
     op.create_table('league_categories_table',
+    sa.Column('league_category_id', sa.String(), nullable=False),
     sa.Column('category_id', sa.String(), nullable=False),
     sa.Column('league_id', sa.String(), nullable=False),
-    sa.Column('category_name', sa.String(length=100), nullable=False),
     sa.Column('max_team', sa.Integer(), nullable=False),
     sa.Column('accept_teams', sa.Boolean(), nullable=False),
-    sa.Column('team_entrance_fee_amount', sa.Float(), nullable=True),
-    sa.Column('individual_player_entrance_fee_amount', sa.Float(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+    sa.ForeignKeyConstraint(['category_id'], ['categories_table.category_id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['league_id'], ['leagues_table.league_id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('category_id')
+    sa.PrimaryKeyConstraint('league_category_id')
     )
     op.create_table('league_category_rounds_table',
     sa.Column('round_id', sa.String(), nullable=False),
-    sa.Column('category_id', sa.String(), nullable=False),
+    sa.Column('league_category_id', sa.String(), nullable=False),
     sa.Column('round_name', sa.Enum('Elimination', 'Quarterfinal', 'Semifinal', 'Final', 'Regular Season', 'Exhibition', 'Practice', name='round_name_enum'), nullable=False),
     sa.Column('round_order', sa.Integer(), nullable=False),
     sa.Column('round_format', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
@@ -192,7 +213,7 @@ def upgrade() -> None:
     sa.Column('next_round_id', sa.String(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-    sa.ForeignKeyConstraint(['category_id'], ['league_categories_table.category_id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['league_category_id'], ['league_categories_table.league_category_id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['next_round_id'], ['league_category_rounds_table.round_id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('round_id')
     )
@@ -200,7 +221,7 @@ def upgrade() -> None:
     sa.Column('league_team_id', sa.String(), nullable=False),
     sa.Column('team_id', sa.String(), nullable=False),
     sa.Column('league_id', sa.String(), nullable=False),
-    sa.Column('category_id', sa.String(), nullable=False),
+    sa.Column('league_category_id', sa.String(), nullable=False),
     sa.Column('status', sa.Enum('Pending', 'Accepted', 'Rejected', name='league_team_status_enum'), nullable=False),
     sa.Column('amount_paid', sa.Float(), nullable=False),
     sa.Column('payment_status', sa.Enum('Pending', 'Paid Online', 'Paid On Site', 'Waived', name='payment_status_enum'), nullable=False),
@@ -214,7 +235,7 @@ def upgrade() -> None:
     sa.CheckConstraint('losses >= 0', name='check_losses_positive'),
     sa.CheckConstraint('points >= 0', name='check_points_positive'),
     sa.CheckConstraint('wins >= 0', name='check_wins_positive'),
-    sa.ForeignKeyConstraint(['category_id'], ['league_categories_table.category_id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['league_category_id'], ['league_categories_table.league_category_id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['league_id'], ['leagues_table.league_id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['team_id'], ['teams_table.team_id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('league_team_id'),
@@ -286,6 +307,7 @@ def downgrade() -> None:
     op.drop_table('league_categories_table')
     op.drop_table('player_team_table')
     op.drop_table('leagues_table')
+    op.drop_table('categories_table')
     op.drop_table('teams_table')
     op.drop_table('players_table')
     op.drop_table('notifications_table')

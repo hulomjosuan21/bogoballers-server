@@ -22,6 +22,7 @@ env/
 # --------------------
 .env
 *.env
+.env.docker
 
 # --------------------
 # IDE / Editor files

@@ -1,7 +1,7 @@
 from quart import Blueprint, jsonify, make_response, request
 from quart_auth import login_user, login_required, current_user, logout_user
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
 from src.models.notification import NotificationModel
@@ -21,6 +21,32 @@ league_admin_bp = Blueprint("league_admin", __name__, url_prefix="/league-admini
 
 class LeagueAdministratorHandler:
     @staticmethod
+    @league_admin_bp.put('/update')
+    async def update_league_admin():
+        try:
+            user_id = request.args.get('user_id') or current_user.auth_id
+            data = await request.get_json()
+            async with AsyncSession() as session:
+                league_admin_result = (
+                    select(LeagueAdministratorModel)
+                    .where(LeagueAdministratorModel.user_id == user_id)
+                )
+                result = await session.execute(league_admin_result)
+                league_admin = result.unique().scalar_one_or_none()
+
+                if not league_admin:
+                    raise ApiException("League Administrator not found",404)
+                league_admin.copy_with(**data)
+
+                await session.commit()
+            return await ApiResponse.success(message="Update success.")
+        except (IntegrityError, SQLAlchemyError) as e:
+            await session.rollback()
+            return await ApiResponse.error(f"Error: {str(e)}")
+        except Exception as e:
+            return await ApiResponse.error(f"Error: {str(e)}")
+    
+    @staticmethod
     @league_admin_bp.post("/login")
     @log_action(
         model_class=LeagueAdministratorModel,
@@ -37,8 +63,8 @@ class LeagueAdministratorHandler:
             if not email or not password:
                 raise ApiException("Email and password are required")
 
-            async with AsyncSession() as async_session:
-                result = await async_session.execute(select(UserModel).where(UserModel.email == email))
+            async with AsyncSession() as session:
+                result = await session.execute(select(UserModel).where(UserModel.email == email))
                 user = result.scalar_one_or_none()
 
                 if not user or not user.verify_password(password):
@@ -48,7 +74,7 @@ class LeagueAdministratorHandler:
 
                 league_admin_id = None
                 if user.account_type in ("League_Administrator_Local", "League_Administrator_LGU"):
-                    result = await async_session.execute(
+                    result = await session.execute(
                         select(LeagueAdministratorModel).where(LeagueAdministratorModel.user_id == user.user_id)
                     )
                     league_admin = result.scalar_one_or_none()
@@ -80,14 +106,14 @@ class LeagueAdministratorHandler:
         try:
             user_id = current_user.auth_id
 
-            async with AsyncSession() as async_session:
+            async with AsyncSession() as session:
                 league_admin_result = (
                     select(LeagueAdministratorModel)
-                    .options(joinedload(LeagueAdministratorModel.user))
+                    .options(joinedload(LeagueAdministratorModel.user),joinedload(LeagueAdministratorModel.categories))
                     .where(LeagueAdministratorModel.user_id == user_id)
                 )
-                result = await async_session.execute(league_admin_result)
-                league_admin = result.scalar_one_or_none()
+                result = await session.execute(league_admin_result)
+                league_admin = result.unique().scalar_one_or_none()
 
                 if not league_admin:
                     raise ApiException("League Administrator not found",404)
@@ -142,9 +168,9 @@ class LeagueAdministratorHandler:
                 is_verified=True
             )
             user.set_password(password_str)
-            async with AsyncSession() as async_session:
-                async_session.add(user)
-                await async_session.flush()
+            async with AsyncSession() as session:
+                session.add(user)
+                await session.flush()
 
                 league_admin = LeagueAdministratorModel(
                     user_id=user.user_id,
@@ -153,8 +179,8 @@ class LeagueAdministratorHandler:
                     organization_address=organization_address,
                     organization_logo_url=None
                 )
-                async_session.add(league_admin)
-                await async_session.commit()
+                session.add(league_admin)
+                await session.commit()
 
             organization_logo_url = None
 
@@ -171,17 +197,17 @@ class LeagueAdministratorHandler:
                 organization_logo_url = organization_logo_str.strip()
 
             if organization_logo_url:
-                async with AsyncSession() as async_session:
-                    result = await async_session.get(LeagueAdministratorModel, league_admin.league_administrator_id)
+                async with AsyncSession() as session:
+                    result = await session.get(LeagueAdministratorModel, league_admin.league_administrator_id)
                     if result:
                         result.organization_logo_url = organization_logo_url
-                        await async_session.commit()
+                        await session.commit()
 
             frontend_host = request.headers.get("Origin") or form.get("frontend_url")
 
             # try:
-            #     async with AsyncSession() as async_session:
-            #         await send_verification_email(user, async_session, frontend_host=frontend_host)
+            #     async with AsyncSession() as session:
+            #         await send_verification_email(user, session, frontend_host=frontend_host)
             # except Exception:
             #     pass
 

@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     
 from datetime import datetime
 from sqlalchemy import (
-    CheckConstraint, Float, ForeignKey, String, Boolean, Integer, Enum as SqlEnum, Text, UniqueConstraint
+    CheckConstraint, Float, ForeignKey, String, Boolean, Integer, Enum as SqlEnum, Text
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import inspect
@@ -40,20 +40,6 @@ class TeamModel(Base, UpdatableMixin):
     total_points: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_recruiting: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     team_category: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    
-    # comment this on migrate
-    team_captain_id: Mapped[str | None] =  mapped_column(
-        String,
-        ForeignKey("player_team_table.player_team_id"),
-        unique=False,
-        nullable=True
-    )
-    
-    team_captain: Mapped["PlayerTeamModel"] = relationship(
-        "PlayerTeamModel",
-        foreign_keys=[team_captain_id],
-        back_populates="captain_of_team"
-    )
 
     created_at: Mapped[datetime] = CreatedAt()
     updated_at: Mapped[datetime] = UpdatedAt()
@@ -141,9 +127,9 @@ class LeagueTeamModel(Base, UpdatableMixin):
         nullable=False
     )
     
-    category_id: Mapped[str] = mapped_column(
+    league_category_id: Mapped[str] = mapped_column(
         String,
-        ForeignKey("league_categories_table.category_id", ondelete="CASCADE"),
+        ForeignKey("league_categories_table.league_category_id", ondelete="CASCADE"),
         nullable=False
     )
 

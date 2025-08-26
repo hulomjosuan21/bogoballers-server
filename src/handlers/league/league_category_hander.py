@@ -1,4 +1,4 @@
-from sqlite3 import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from quart import Blueprint, request
 from quart_auth import login_required
 from sqlalchemy import select, update
@@ -6,21 +6,19 @@ from src.extensions import AsyncSession
 from src.models.league import LeagueCategoryModel, LeagueCategoryRoundModel
 from src.utils.api_response import ApiException, ApiResponse
 from sqlalchemy.orm import joinedload
-import traceback
 league_category_bp = Blueprint("league-category", __name__, url_prefix="/league/category")
 
 class LeagueCategoryHandler:
     @staticmethod
-    @league_category_bp.post("/<category_id>/save-changes")
+    @league_category_bp.post("/<league_category_id>/save-changes")
     @login_required
-    async def save_changes(category_id: str):
+    async def save_changes(league_category_id: str):
         try:
             data = await request.get_json()
             if not data or "operations" not in data:
                 raise ApiException("Missing 'operations' in request body")
             operations = data["operations"]
             
-            print(f"Processing {len(operations)} operations for category {category_id}")
             for i, op in enumerate(operations):
                 print(f"Operation {i+1}: {op.get('type')} - {op.get('data', {})}")
             
@@ -49,7 +47,7 @@ class LeagueCategoryHandler:
                         
                         new_round = LeagueCategoryRoundModel(
                             round_id=round_id,
-                            category_id=category_id,
+                            league_category_id=league_category_id,
                             round_name=round_name,
                             round_order=round_order,
                             round_status=op_data.get("round_status", "Upcoming"),
@@ -72,7 +70,7 @@ class LeagueCategoryHandler:
                         
                         result = await session.execute(
                             select(LeagueCategoryRoundModel)
-                            .where(LeagueCategoryRoundModel.category_id == category_id)
+                            .where(LeagueCategoryRoundModel.league_category_id == league_category_id)
                             .where(LeagueCategoryRoundModel.round_id == round_id)
                         )
                         round_obj = result.scalar_one_or_none()
@@ -94,7 +92,7 @@ class LeagueCategoryHandler:
                         
                         result = await session.execute(
                             select(LeagueCategoryRoundModel)
-                            .where(LeagueCategoryRoundModel.category_id == category_id)
+                            .where(LeagueCategoryRoundModel.league_category_id == league_category_id)
                             .where(LeagueCategoryRoundModel.round_id == round_id)
                         )
                         round_obj = result.scalar_one_or_none()
@@ -116,7 +114,7 @@ class LeagueCategoryHandler:
                         
                         result = await session.execute(
                             select(LeagueCategoryRoundModel)
-                            .where(LeagueCategoryRoundModel.category_id == category_id)
+                            .where(LeagueCategoryRoundModel.league_category_id == league_category_id)
                             .where(LeagueCategoryRoundModel.round_id == round_id)
                         )
                         round_obj = result.scalar_one_or_none()
@@ -144,21 +142,19 @@ class LeagueCategoryHandler:
                         
                         result = await session.execute(
                             select(LeagueCategoryRoundModel)
-                            .where(LeagueCategoryRoundModel.category_id == category_id)
+                            .where(LeagueCategoryRoundModel.league_category_id == league_category_id)
                             .where(LeagueCategoryRoundModel.round_id == round_id)
                         )
                         round_obj = result.scalar_one_or_none()
                         
                         if round_obj:
-                            # First, clear any references to this round as next_round_id
                             await session.execute(
                                 update(LeagueCategoryRoundModel)
-                                .where(LeagueCategoryRoundModel.category_id == category_id)
+                                .where(LeagueCategoryRoundModel.league_category_id == league_category_id)
                                 .where(LeagueCategoryRoundModel.next_round_id == round_id)
                                 .values(next_round_id=None)
                             )
                             
-                            # Then delete the round
                             await session.delete(round_obj)
                             results.append({
                                 "operation": "delete_round",
@@ -177,16 +173,15 @@ class LeagueCategoryHandler:
                 
                 return await ApiResponse.success(
                     message=f"Successfully processed {len(results)} operations",
-                    payload={"results": results}
                 )
 
         except Exception as e:
-            return await ApiResponse.error(e)    
+            return await ApiResponse.error(e)
     
     @staticmethod
-    @league_category_bp.post("/<category_id>/round/<round_id>/update-format")
+    @league_category_bp.post("/<league_category_id>/round/<round_id>/update-format")
     @login_required
-    async def update_round_format(category_id: str, round_id: str):
+    async def update_round_format(league_category_id: str, round_id: str):
         try:
             data = await request.get_json()
             if not data or "round_format" not in data:
@@ -195,7 +190,7 @@ class LeagueCategoryHandler:
             async with AsyncSession() as session:
                 result = await session.execute(
                     select(LeagueCategoryRoundModel)
-                    .where(LeagueCategoryRoundModel.category_id == category_id)
+                    .where(LeagueCategoryRoundModel.league_category_id == league_category_id)
                     .where(LeagueCategoryRoundModel.round_id == round_id)
                 )
                 round_obj = result.scalar_one_or_none()
@@ -219,41 +214,33 @@ class LeagueCategoryHandler:
     @staticmethod
     @league_category_bp.post("/<league_id>/add-category")
     @login_required
-    async def add_category(league_id: str):
+    async def add_league_category(league_id: str):
         try:
-            data = await request.get_json()
-            if not data:
-                raise ApiException("Missing request body")
+            category_ids = await request.get_json()
 
-            required_fields = ["category_name"]
-            for field in required_fields:
-                if not data.get(field):
-                    raise ApiException(f"{field} is required")
-
-            max_team = int(data.get("max_team", 4))
-            team_entrance_fee_amount = float(data.get("team_entrance_fee_amount", 0.0))
-            individual_player_entrance_fee_amount = float(data.get("individual_player_entrance_fee_amount", 0.0))
+            if not category_ids or not isinstance(category_ids, list):
+                raise ApiException("Request body must be a non-empty list of category IDs")
+            if any(not cid for cid in category_ids):
+                raise ApiException("All category IDs must be valid non-empty strings")
 
             async with AsyncSession() as session:
-                new_category = LeagueCategoryModel(
-                    league_id=league_id,
-                    category_name=data["category_name"],
-                    max_team=max_team,
-                    team_entrance_fee_amount=team_entrance_fee_amount,
-                    individual_player_entrance_fee_amount=individual_player_entrance_fee_amount
-                )
+                for category_id in category_ids:
+                    new_category = LeagueCategoryModel(
+                        league_id=league_id,
+                        category_id=category_id,
+                    )
+                    session.add(new_category)
 
-                session.add(new_category)
                 await session.commit()
 
-            return await ApiResponse.success(message="Category added successfully")
+            return await ApiResponse.success(message="Categories added successfully")
 
         except Exception as e:
             return await ApiResponse.error(e)
         
     @staticmethod
     @league_category_bp.get("/<league_id>")
-    async def get_categories(league_id: str):
+    async def get_league_categories(league_id: str):
         try:
             
             if not league_id:
@@ -276,27 +263,46 @@ class LeagueCategoryHandler:
             return await ApiResponse.error(e)
     
     @staticmethod
-    @league_category_bp.delete("/<category_id>")
-    async def delete_category(category_id: str):
+    @league_category_bp.delete("/<league_category_id>")
+    async def delete_League_category(league_category_id: str):
         try:
             async with AsyncSession() as session:
-                category = await session.get(LeagueCategoryModel, category_id)
+                category = await session.get(LeagueCategoryModel, league_category_id)
 
                 if not category:
                     raise ApiException("Category not found.", 404)
 
                 await session.delete(category)
 
-                try:
-                    await session.commit()
-                except IntegrityError:
-                    await session.rollback()
-                    raise ApiException("Failed to delete category. Please try again.", 500)
-
+                await session.commit()
+                
             return await ApiResponse.success(
                 message="Category deleted successfully",
-                status_code=200
             )
 
+        except (IntegrityError, SQLAlchemyError) as e:
+            await session.rollback()
+            return await ApiResponse.error(f"Error: {str(e)}")
+        except Exception as e:
+            return await ApiResponse.error(e)
+        
+    @staticmethod
+    @league_category_bp.put('/<league_category_id>')
+    async def update_league_category(league_category_id: str):
+        data = await request.get_json()
+        try:
+            async with AsyncSession() as session:
+                category = await session.get(LeagueCategoryModel, league_category_id)
+                if not category:
+                    raise ApiException("Category not found", 404)
+                
+                category.copy_with(**data)
+                await session.commit()
+                
+            return await ApiResponse.success(message="Update success")
+        
+        except (IntegrityError, SQLAlchemyError) as e:
+            await session.rollback()
+            return await ApiResponse.error(f"Error: {str(e)}")
         except Exception as e:
             return await ApiResponse.error(e)

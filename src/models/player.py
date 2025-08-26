@@ -144,6 +144,7 @@ class PlayerTeamModel(Base):
     )
 
     is_ban: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_team_captain: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     is_accepted: Mapped[str] = mapped_column(
         player_is_accepted_enum,
@@ -158,12 +159,6 @@ class PlayerTeamModel(Base):
     created_at: Mapped[datetime] = CreatedAt()
     updated_at: Mapped[datetime] = UpdatedAt()
     
-    # comment this on migrate
-    captain_of_team: Mapped["TeamModel"] = relationship(
-        "TeamModel",
-        back_populates="team_captain",
-        foreign_keys="[TeamModel.team_captain_id]"
-    )
 
     player: Mapped["PlayerModel"] = relationship(
         "PlayerModel",
@@ -189,6 +184,7 @@ class PlayerTeamModel(Base):
             "team_id": self.team_id,
             "player_team_id": self.player_team_id,
             "is_ban": self.is_ban,
+            "is_team_captain": self.is_team_captain,
             "is_accepted": self.is_accepted
         }
     
@@ -199,6 +195,7 @@ class PlayerTeamModel(Base):
             "team_id": self.team_id,
             "is_ban": self.is_ban,
             "is_accepted": self.is_accepted,
+            "is_team_captain": self.is_team_captain,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
