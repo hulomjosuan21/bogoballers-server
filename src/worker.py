@@ -1,5 +1,5 @@
 from apscheduler.triggers.cron import CronTrigger
-from src.extensions import AsyncSession
+from src.extensions import AsyncSession, settings
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.executors.asyncio import AsyncIOExecutor
@@ -18,7 +18,8 @@ class Worker:
         }
 
         tasks_without_session = {
-            self.task.task_without_session: IntervalTrigger(seconds=10)
+            # self.task.task_without_session: IntervalTrigger(seconds=settings["interval"])
+            self.task.task_without_session: IntervalTrigger(seconds=settings["interval"])
         }
 
         for task_method, trigger in tasks_with_session.items():

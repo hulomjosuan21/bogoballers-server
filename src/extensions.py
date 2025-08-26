@@ -10,6 +10,7 @@ from docxtpl import DocxTemplate
 from firebase_admin import credentials, messaging
 from asyncio import to_thread
 import firebase_admin
+import json
 
 Base = declarative_base()
 ph = PasswordHasher()
@@ -25,9 +26,12 @@ DATA_DIR = path_in("data", "json")
 TEMPLATE_PATH = path_in("templates", "league_template.docx")
 
 SERVICE_ACCOUNT_PATH = Path(__file__).parent.parent / "firebase.json"
-
 redis_client = aioredis.from_url(Config.REDIS_URL, decode_responses=True)
 
+SETTINGS_PATH = BASE_DIR.parent / "settings.json"
+with open(SETTINGS_PATH, "r", encoding="utf-8") as f:
+    settings = json.load(f)
+    
 @asynccontextmanager
 async def db_session():
     async with AsyncSession() as session:
