@@ -10,7 +10,7 @@ team_mananger_bp = Blueprint('team-manager',__name__,url_prefix='/team-manager')
 class TeamManagerHandler:
     @staticmethod
     @team_mananger_bp.post('/create')
-    async def create_team_manager():
+    async def create():
         try:
             data = await request.get_json()
 
@@ -48,7 +48,7 @@ class TeamManagerHandler:
     @staticmethod
     @team_mananger_bp.get('/auth')
     @login_required
-    async def get_team_manager():
+    async def auth():
         try:
             user_id = request.args.get("user_id")
 

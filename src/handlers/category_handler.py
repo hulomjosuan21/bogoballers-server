@@ -12,7 +12,7 @@ category_bp = Blueprint('category',__name__,url_prefix='/category')
 class CategoryHandler:
     @staticmethod
     @category_bp.get('/all')
-    async def get_all_categories():
+    async def get_all():
         try:
             user_id = request.args.get('user_id') or current_user.auth_id
 
@@ -36,7 +36,7 @@ class CategoryHandler:
     @staticmethod
     @category_bp.get('/<category_id>')
     @login_required
-    async def get_category(category_id: str):
+    async def get_one(category_id: str):
         try:
             async with AsyncSession() as session:
                 query = select(CategoryModel).where(CategoryModel.category_id == category_id)
@@ -53,7 +53,7 @@ class CategoryHandler:
     @staticmethod
     @category_bp.post('/<league_administrator_id>')
     @login_required
-    async def create_category(league_administrator_id: str):
+    async def create_one(league_administrator_id: str):
         try:
             data = await request.get_json()
             if not league_administrator_id:
@@ -85,7 +85,7 @@ class CategoryHandler:
     @staticmethod
     @category_bp.put('/<category_id>')
     @login_required
-    async def update_category(category_id: str):
+    async def update(category_id: str):
         try:
             data = await request.get_json()
             async with AsyncSession() as session:
@@ -106,7 +106,7 @@ class CategoryHandler:
     @staticmethod
     @category_bp.delete('/<category_id>')
     @login_required
-    async def delete_category(category_id: str):
+    async def delete(category_id: str):
         try:
             async with AsyncSession() as session:
                 query = select(CategoryModel).where(CategoryModel.category_id == category_id)

@@ -10,19 +10,11 @@ from docxtpl import DocxTemplate
 from firebase_admin import credentials, messaging
 from asyncio import to_thread
 import firebase_admin
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.executors.asyncio import AsyncIOExecutor
-
-executors = {
-    "default": AsyncIOExecutor()
-}
 
 Base = declarative_base()
 ph = PasswordHasher()
 engine = create_async_engine(Config.DATABASE_URL, echo=False, future=True)
 AsyncSession = async_sessionmaker(engine, expire_on_commit=False)
-
-workder = AsyncIOScheduler(timezone="UTC", executors=executors)
 
 BASE_DIR = Path(__file__).resolve().parent
 

@@ -1,29 +1,43 @@
-from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
-from src.models.user import UserModel
-from src.extensions import workder, AsyncSession
+from src.extensions import AsyncSession
+from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.executors.asyncio import AsyncIOExecutor
+class Worker:
+    def __init__(self, task):
+        executors = {
+            "default": AsyncIOExecutor()
+        }
+        self.scheduler = AsyncIOScheduler(timezone="UTC", executors=executors)
+        self.task = task
+        self._register_tasks()
 
-def my_scheduled_task():
-    print("📌 Running scheduled task...")
+    def _register_tasks(self):
+        tasks_with_session = {
+            # self.task.task_with_session: CronTrigger(hour=16,minute=31)
+        }
 
-async def test_updated():
-    try:
-        async with AsyncSession() as session:
-            async with session.begin():
-                user = await session.get(UserModel, "user-cd92523e-7a3d-433d-8f71-aff44840ae21")
-                if user:
-                    user.email = "dakit-admin1@email.com"
-                    print("✅ Update Success (will commit on exit).")
-                else:
-                    print("⚠️ User not found.")
-    except Exception as e:
-        print("❌ Scheduled task failed:", e)
+        tasks_without_session = {
+            self.task.task_without_session: IntervalTrigger(seconds=10)
+        }
 
-def init_worker():
+        for task_method, trigger in tasks_with_session.items():
+            async def wrapper(task_method=task_method):
+                async with AsyncSession() as session:
+                    async with session.begin():
+                        try:
+                            await task_method(session)
+                        except Exception as e:
+                            print(f"Error in {task_method.__name__}: {e}")
+            self.scheduler.add_job(wrapper, trigger)
 
-    workder.add_job(
-        test_updated,
-        CronTrigger(hour=11, minute=47)
-    )
+        for task_method, trigger in tasks_without_session.items():
+            async def wrapper(task_method=task_method):
+                try:
+                    await task_method()
+                except Exception as e:
+                    print(f"Error in {task_method.__name__}: {e}")
+            self.scheduler.add_job(wrapper, trigger)
 
-    workder.start()
+    def start(self):
+        self.scheduler.start()

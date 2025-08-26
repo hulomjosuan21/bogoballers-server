@@ -15,7 +15,7 @@ class TeamHandler:
     @staticmethod
     @team_bp.post('/create')
     @login_required
-    async def create_team():
+    async def create():
         try:
             user_id = request.args.get("user_id")
 
@@ -75,7 +75,7 @@ class TeamHandler:
     @staticmethod
     @team_bp.delete('/delete/<team_id>')
     @login_required
-    async def delete_team(team_id: str):
+    async def delete(team_id: str):
         try:
             user_id = current_user.auth_id
 
@@ -106,7 +106,7 @@ class TeamHandler:
     @staticmethod
     @team_bp.get('/all')
     @login_required
-    async def get_teams():
+    async def get_many():
         try:
             user_id = request.args.get("user_id")
 
@@ -130,7 +130,7 @@ class TeamHandler:
         
     @staticmethod
     @team_bp.get('/all-or')
-    async def fetch_all():
+    async def fetch_many():
         try:
             search = request.args.get("search", None)
 

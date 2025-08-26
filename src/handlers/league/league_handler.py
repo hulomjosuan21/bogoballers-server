@@ -217,7 +217,7 @@ class LeagueHandler:
     @staticmethod
     @league_bp.get("/active")
     @login_required
-    async def get_active_league():
+    async def get_active():
         try:
             league_admin = await get_league_administrator()
             if not league_admin:
@@ -240,7 +240,7 @@ class LeagueHandler:
 
     @staticmethod
     @league_bp.put("/<string:league_id>/update-field/<string:field_name>")
-    async def update_league_field(league_id: str, field_name: str):
+    async def update_league(league_id: str, field_name: str):
         try:
             IMAGE_KEYS = {
                 "league_courts": None,

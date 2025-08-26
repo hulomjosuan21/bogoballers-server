@@ -22,7 +22,7 @@ league_admin_bp = Blueprint("league_admin", __name__, url_prefix="/league-admini
 class LeagueAdministratorHandler:
     @staticmethod
     @league_admin_bp.put('/update')
-    async def update_league_admin():
+    async def update():
         try:
             user_id = request.args.get('user_id') or current_user.auth_id
             data = await request.get_json()
@@ -54,7 +54,7 @@ class LeagueAdministratorHandler:
         action_message="Logged in"
     )
     @rate_limit(login_limit)
-    async def login_league_administrator():
+    async def login():
         try:
             form = await request.form
             email = form.get("email")
@@ -102,7 +102,7 @@ class LeagueAdministratorHandler:
     @staticmethod
     @league_admin_bp.get("/auth")
     @login_required
-    async def get_league_administrator_profile():
+    async def auth():
         try:
             user_id = current_user.auth_id
 
@@ -143,7 +143,7 @@ class LeagueAdministratorHandler:
         
     @staticmethod
     @league_admin_bp.post("/register")
-    async def create_league_administrator():
+    async def create():
         try:
             form = await request.form
             files = await request.files

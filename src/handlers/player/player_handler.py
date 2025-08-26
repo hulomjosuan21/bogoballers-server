@@ -16,7 +16,7 @@ player_bp = Blueprint('player',__name__,url_prefix='/player')
 class PlayerHandler:
     @staticmethod
     @player_bp.post('/create')
-    async def create_player():
+    async def create():
         form = await request.form
         file = (await request.files).get("profile_image")
 
@@ -100,7 +100,7 @@ class PlayerHandler:
     @staticmethod
     @login_required
     @player_bp.get('/auth')
-    async def get_player():
+    async def auth():
         try:
             user_id = request.args.get("user_id")
 
@@ -130,7 +130,7 @@ class PlayerHandler:
         
     @staticmethod
     @player_bp.get('/all')
-    async def get_players():
+    async def get_many():
         try:
             search = request.args.get("search", None)
 

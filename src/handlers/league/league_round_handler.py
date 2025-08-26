@@ -9,7 +9,7 @@ round_bp = Blueprint('round',__name__,url_prefix="/league/round")
 class LeagueRoundHandler:
     @staticmethod
     @round_bp.put('/<round_id>')
-    async def update_round(round_id: str):
+    async def update(round_id: str):
         try:
             data = await request.get_json()
             async with AsyncSession() as session:

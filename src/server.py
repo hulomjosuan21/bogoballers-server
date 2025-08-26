@@ -43,9 +43,11 @@ async def main(init_scheduler_flag: bool = False):
     await check_db_connection()
     
     if init_scheduler_flag:
-        from src.worker import init_worker
-        init_worker()
-        print("[server] Scheduler initialized (worker mode)")
+        from src.worker import Worker
+        from src.task import Task
+        task_instance = Task()
+        worker = Worker(task_instance)
+        worker.start()
         
     app = create_app()
     hyper_conf = HyperConfig()
@@ -55,5 +57,5 @@ async def main(init_scheduler_flag: bool = False):
     hyper_conf.errorlog = "-"
     hyper_conf.worker_class = "asyncio"
     hyper_conf.workers = 1
-    print_debug_banner()
+    print_debug_banner(init_scheduler_flag)
     await serve(app, hyper_conf)
