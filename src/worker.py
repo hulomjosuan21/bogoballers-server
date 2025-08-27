@@ -53,27 +53,34 @@ class Worker:
         }
 
         tasks_without_session = {
-            self.task.task_without_session: IntervalTrigger(seconds=10)
+            # self.task.task_without_session: IntervalTrigger(seconds=10),
+            # self.task.task_without_session: CronTrigger(hour='18,18,18',minute='27,28,29')
         }
 
-        for task_method, trigger in tasks_with_session.items():
-            self.scheduler.add_job(
-                session_wrapper_job,
-                trigger, 
-                args=[self, task_method],
-                id=f"{task_method.__name__}_with_session",
-                replace_existing=True
-            )
+        if tasks_with_session:
+            for task_method, trigger in tasks_with_session.items():
+                self.scheduler.add_job(
+                    session_wrapper_job,
+                    trigger, 
+                    args=[self, task_method],
+                    id=f"{task_method.__name__}_with_session",
+                    replace_existing=True
+                )
+        else:
+            print("No tasks with session to register")
          
-        for task_method, trigger in tasks_without_session.items():
-            self.scheduler.add_job(
-                no_session_wrapper_job,
-                trigger,
-                args=[self, task_method],
-                id=f"{task_method.__name__}_no_session",
-                replace_existing=True
-            )
-
+        if tasks_without_session:
+            for task_method, trigger in tasks_without_session.items():
+                self.scheduler.add_job(
+                    no_session_wrapper_job,
+                    trigger,
+                    args=[self, task_method],
+                    id=f"{task_method.__name__}_no_session",
+                    replace_existing=True
+                )
+        else:
+            print("No tasks without session to register")
+            
     async def _is_leader(self):
         try:
             current_leader = await redis_client.get("worker_leader_lock")
