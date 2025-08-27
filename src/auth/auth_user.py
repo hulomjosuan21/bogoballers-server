@@ -1,11 +1,10 @@
-
-from quart_auth import AuthUser
+from quart_auth import AuthUser as BaseAuthUser
 from src.models.user import UserModel
 
-class AuthUser(AuthUser):
+class AuthUser(BaseAuthUser):
     def __init__(self, user: UserModel):
         super().__init__(user.user_id)
-        self.user = user
+        self.user_id = user.user_id
         self.account_type = user.account_type
         self.email = user.email
         self.is_verified = user.is_verified
@@ -14,7 +13,7 @@ class AuthUser(AuthUser):
     @property
     def auth_data(self):
         return {
-            "user_id": self.user.user_id,
-            "account_type": self.user.account_type,
-            "email": self.user.email,
+            "user_id": self.user_id,
+            "account_type": self.account_type,
+            "email": self.email,
         }
