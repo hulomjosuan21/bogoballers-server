@@ -18,7 +18,7 @@ async def create_route():
         contact_number = data.get("contact_number")
         display_name = data.get("display_name")
         
-        result = await service.create(email, password_str, contact_number, display_name)
+        result = await service.create_one(email, password_str, contact_number, display_name)
         return await ApiResponse.success(message=result, status_code=201)
     except Exception as e:
         traceback.print_exc()

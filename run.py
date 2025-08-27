@@ -1,9 +1,8 @@
-import sys
+import asyncio
 from watchfiles import run_process
+from src.server import main
 
 def start_server():
-    import asyncio
-    from src.server import main
     asyncio.run(main())
 
 if __name__ == "__main__":

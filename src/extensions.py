@@ -43,14 +43,14 @@ sio = socket_service.sio
 cred = credentials.Certificate(SERVICE_ACCOUNT_PATH)
 firebase_admin.initialize_app(cred)
 
-async def send_fcm_notification(token: str, title: str, body: str, data: dict):
+async def send_fcm_notification(token: str, title: str, body: str, data: dict | None):
     
     message = messaging.Message(
         notification=messaging.Notification(
             title=title,
             body=body,
         ),
-        data=data,
+        data=data or {},
         token=token
     )
 

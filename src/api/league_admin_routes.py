@@ -76,7 +76,7 @@ async def create_route():
         form = await request.form
         files = await request.files
         file = files.get("organization_logo")
-
+        
         try:
             email = form["email"]
             password_str = form["password_str"]

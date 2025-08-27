@@ -1,7 +1,7 @@
 from rich.console import Console
 from rich.panel import Panel
 from src.config import Config
-from src.extensions import engine
+from src.extensions import engine, settings
 from sqlalchemy import text
 from quart import send_from_directory
 from pathlib import Path
@@ -10,12 +10,12 @@ from src.utils.api_response import ApiException
 
 console = Console()
 
-def print_debug_banner(init_scheduler_flag: bool):
+def print_debug_banner():
     console.print(
         Panel.fit(
             f"[bold yellow]🚀 BogoBallers server running in DEBUG mode with auto‑reload\n"
             f"[green]Server: Hypercorn (ASGI)[/green]\n"
-            f"[violet]Worker: {'enabled' if init_scheduler_flag else 'disabled'}[/violet]\n"
+            f"[violet]Worker: {'enabled' if settings['enable_worker'] else 'disabled'}[/violet]\n"
             f"[cyan]Visit: http://{Config.HOST}:{Config.PORT}[/cyan]\n"
             "[dim]Press CTRL+C to stop[/dim]",
             border_style="bright_blue",

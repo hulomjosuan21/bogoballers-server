@@ -4,7 +4,7 @@ from src.models.user import UserModel
 from src.utils.api_response import ApiException
 
 class TeamManagerService:
-    async def create(self, email: str, password_str: str, contact_number: str, display_name: str):
+    async def create_one(self, email: str, password_str: str, contact_number: str, display_name: str):
         if not email or not password_str or not contact_number or not display_name:
             raise ApiException("Missing required fields")
             
