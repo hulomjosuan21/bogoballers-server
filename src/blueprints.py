@@ -8,7 +8,7 @@ from src.handlers.player.player_handler import player_bp
 from src.handlers.team_manager_handler import team_mananger_bp
 from src.handlers.team.player_team_handler import player_team_bp
 from src.handlers.team.team_handler import team_bp
-from src.handlers.category_handler import category_bp
+from src.api.category_routes import category_bp
 from src.handlers.league.league_round_handler import round_bp
 
 all_blueprints = [
@@ -22,6 +22,6 @@ all_blueprints = [
     team_mananger_bp,
     player_team_bp,
     team_bp,
-    category_bp,
-    round_bp
+    round_bp,
+    category_bp
 ]

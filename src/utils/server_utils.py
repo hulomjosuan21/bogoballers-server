@@ -6,6 +6,8 @@ from sqlalchemy import text
 from quart import send_from_directory
 from pathlib import Path
 
+from src.utils.api_response import ApiException
+
 console = Console()
 
 def print_debug_banner(init_scheduler_flag: bool):
@@ -39,3 +41,8 @@ def print_routes(app):
         methods = ",".join(sorted(rule.methods - {"HEAD", "OPTIONS"}))
         print(f"{methods:10s} {rule.rule}")
     print()
+    
+def validate_required_fields(data: dict, required_fields: list[str]):
+    missing_fields = [field for field in required_fields if not data.get(field)]
+    if missing_fields:
+        raise ApiException(f"Missing required fields: {', '.join(missing_fields)}",400)
