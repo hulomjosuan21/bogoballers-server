@@ -4,6 +4,7 @@ from src.models.user import UserModel
 class AuthUser(BaseAuthUser):
     def __init__(self, user: UserModel):
         super().__init__(user.user_id)
+        self.user = user
         self.user_id = user.user_id
         self.account_type = user.account_type
         self.email = user.email
