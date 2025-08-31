@@ -13,31 +13,30 @@ from src.utils.server_utils import validate_required_fields
 import traceback
 
 class PlayerService:
-    async def search_players(self, search: str, limit: int = 10) -> List[PlayerModel]:
-        async with AsyncSession() as session:
-            query = select(PlayerModel).options(selectinload(PlayerModel.user))
+    async def search_players(self, session, search: str, limit: int = 10) -> List[PlayerModel]:
+        query = select(PlayerModel).options(selectinload(PlayerModel.user))
 
-            search_term = f"%{search}%"
-            query = query.where(
-                or_(
-                    func.lower(PlayerModel.full_name).like(func.lower(search_term)),
-                    func.lower(PlayerModel.jersey_name).like(func.lower(search_term)),
-                    cast(PlayerModel.jersey_number, String).like(search_term),
-                    func.lower(cast(PlayerModel.position, String)).like(func.lower(search_term))
-                )
+        search_term = f"%{search}%"
+        query = query.where(
+            or_(
+                func.lower(PlayerModel.full_name).like(func.lower(search_term)),
+                func.lower(PlayerModel.jersey_name).like(func.lower(search_term)),
+                cast(PlayerModel.jersey_number, String).like(search_term),
+                func.lower(cast(PlayerModel.position, String)).like(func.lower(search_term))
             )
+        )
 
-            query = query.order_by(
-                case(
-                    (func.lower(PlayerModel.full_name) == func.lower(search), 1),
-                    (cast(PlayerModel.jersey_number, String) == search, 2),
-                    else_=3
-                ),
-                PlayerModel.full_name
-            ).limit(limit)
-                
-            result = await session.execute(query)
-            return result.scalars().all()
+        query = query.order_by(
+            case(
+                (func.lower(PlayerModel.full_name) == func.lower(search), 1),
+                (cast(PlayerModel.jersey_number, String) == search, 2),
+                else_=3
+            ),
+            PlayerModel.full_name
+        ).limit(limit)
+            
+        result = await session.execute(query)
+        return result.scalars().all()
     
     async def get_players(
         self,

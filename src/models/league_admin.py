@@ -151,6 +151,19 @@ class LeagueAdministratorModel(Base, UpdatableMixin):
     def categories_list(self) -> list:
         return [category.to_json() for category in getattr(self, "categories", [])]
     
+    def to_json_for_query_search(self) -> dict:
+        return {
+            "user_id": self.user_id,
+            "league_administrator_id": self.league_administrator_id,
+            "organization_name": self.organization_name,
+            "organization_type": self.organization_type,
+            "organization_address": self.organization_address,
+            "organization_logo_url": self.organization_logo_url,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+            "user": self.user.to_json(),
+        }
+    
     def to_json(self) -> dict:
         return {
             "user_id": self.user_id,

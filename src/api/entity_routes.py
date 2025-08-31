@@ -61,7 +61,7 @@ async def update_fcm_route():
         return await ApiResponse.error(e)
     
 @entity_bp.post('/search')
-async def search_team_or_player_route():
+async def search_entity_route():
     try:
         data = await request.get_json()
         query = data.get('query', '').strip()
@@ -69,7 +69,7 @@ async def search_team_or_player_route():
         if not query:
             return await ApiResponse.error("Query parameter is required")
         
-        result = await service.search_team_or_player(query)
+        result = await service.search_entity(query)
         return await ApiResponse.payload(result)
     except Exception as e:
         traceback.print_exc()

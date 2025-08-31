@@ -1,6 +1,7 @@
-from sqlalchemy import select
+from typing import List
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from src.models.notification import NotificationModel
 from src.auth.auth_user import AuthUser
 from src.services.cloudinary_service import CloudinaryService
@@ -11,8 +12,31 @@ from src.utils.api_response import ApiException
 import traceback
 from datetime import datetime, timezone
 
-
 class LeagueAdministratorService:
+    async def search_league_administrators(self, session, search: str, limit: int = 10) -> List[LeagueAdministratorModel]:
+        query = select(LeagueAdministratorModel).options(selectinload(LeagueAdministratorModel.user))
+
+        search_term = f"%{search}%"
+        query = query.where(
+            or_(
+                func.lower(LeagueAdministratorModel.organization_name).like(func.lower(search_term)),
+                func.lower(LeagueAdministratorModel.organization_type).like(func.lower(search_term)),
+                func.lower(LeagueAdministratorModel.organization_address).like(func.lower(search_term))
+            )
+        )
+        
+        query = query.order_by(
+            case(
+                (func.lower(LeagueAdministratorModel.organization_name) == func.lower(search), 1),
+                (func.lower(LeagueAdministratorModel.organization_name).like(func.lower(f"{search}%")), 2),
+                else_=3
+            ),
+            LeagueAdministratorModel.organization_name
+        ).limit(limit)
+            
+        result = await session.execute(query)
+        return result.scalars().all()
+    
     async def update_one(self, user_id: str, data: dict):
         async with AsyncSession() as session:
             try:

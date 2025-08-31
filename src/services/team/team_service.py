@@ -11,32 +11,31 @@ from src.extensions import AsyncSession
 from src.utils.server_utils import validate_required_fields
 
 class TeamService:
-    async def search_teams(self, search: str, limit: int = 10) -> List[TeamModel]:
-        async with AsyncSession() as session:
-            query = select(TeamModel).options(selectinload(TeamModel.user))
+    async def search_teams(self, session, search: str, limit: int = 10) -> List[TeamModel]:
+        query = select(TeamModel).options(selectinload(TeamModel.user))
 
-            search_term = f"%{search}%"
-            query = query.where(
-                or_(
-                    func.lower(TeamModel.team_name).like(func.lower(search_term)),
-                    func.lower(TeamModel.team_category).like(func.lower(search_term)),
-                    func.lower(TeamModel.coach_name).like(func.lower(search_term)),
-                    func.lower(TeamModel.team_address).like(func.lower(search_term)),
-                    func.lower(TeamModel.assistant_coach_name).like(func.lower(search_term))
-                )
+        search_term = f"%{search}%"
+        query = query.where(
+            or_(
+                func.lower(TeamModel.team_name).like(func.lower(search_term)),
+                func.lower(TeamModel.team_category).like(func.lower(search_term)),
+                func.lower(TeamModel.coach_name).like(func.lower(search_term)),
+                func.lower(TeamModel.team_address).like(func.lower(search_term)),
+                func.lower(TeamModel.assistant_coach_name).like(func.lower(search_term))
             )
+        )
+        
+        query = query.order_by(
+            case(
+                (func.lower(TeamModel.team_name) == func.lower(search), 1),
+                (func.lower(TeamModel.team_name).like(func.lower(f"{search}%")), 2),
+                else_=3
+            ),
+            TeamModel.team_name
+        ).limit(limit)
             
-            query = query.order_by(
-                case(
-                    (func.lower(TeamModel.team_name) == func.lower(search), 1),
-                    (func.lower(TeamModel.team_name).like(func.lower(f"{search}%")), 2),
-                    else_=3
-                ),
-                TeamModel.team_name
-            ).limit(limit)
-                
-            result = await session.execute(query)
-            return result.scalars().all()
+        result = await session.execute(query)
+        return result.scalars().all()
         
     async def fetch_many(self, search: str = None):
         async with AsyncSession() as session:
