@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 if TYPE_CHECKING:
     from src.models.user import UserModel
     from src.models.player import PlayerTeamModel
@@ -25,21 +25,21 @@ class TeamModel(Base, UpdatableMixin):
         ForeignKey("users_table.user_id", ondelete="CASCADE"),
         nullable=False
     )
-    team_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    team_name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     team_address: Mapped[str] = mapped_column(String(250), nullable=False)
+    team_category: Mapped[Optional[str]] = mapped_column(String(250), nullable=True)
     contact_number: Mapped[str] = mapped_column(String(15), nullable=False)
-    team_motto: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    team_motto: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     team_logo_url: Mapped[str] = mapped_column(Text, nullable=False)
     championships_won: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     coach_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    assistant_coach_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    assistant_coach_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
     total_wins: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     total_losses: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     total_draws: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     total_points: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_recruiting: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    team_category: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     created_at: Mapped[datetime] = CreatedAt()
     updated_at: Mapped[datetime] = UpdatedAt()
@@ -68,8 +68,19 @@ class TeamModel(Base, UpdatableMixin):
             'total_draws': self.total_draws,
             'total_points': self.total_points,
             'is_recruiting': self.is_recruiting,
-            'team_category': self.team_category if self.team_category else None,
-            'team_captain': self.team_captain.to_json_for_team() if self.team_captain else None,
+            'team_category': self.team_category or None,
+            'accepted_players': [
+                player_team.to_json_for_team() for player_team in self.players if player_team.is_accepted == "Accepted"
+            ],
+            'pending_players': [
+                player_team.to_json_for_team() for player_team in self.players if player_team.is_accepted == "Pending"
+            ],
+            'rejected_players': [
+                player_team.to_json_for_team() for player_team in self.players if player_team.is_accepted == "Rejected"
+            ],
+            'invited_players': [
+                player_team.to_json_for_team() for player_team in self.players if player_team.is_accepted == "Invited"
+            ],
         }
         
     def to_json(self) -> dict:
@@ -83,14 +94,14 @@ class TeamModel(Base, UpdatableMixin):
             'team_logo_url': self.team_logo_url,
             'championships_won': self.championships_won,
             'coach_name': self.coach_name,
+            'team_category': self.team_category or None,
             'assistant_coach_name': self.assistant_coach_name if self.assistant_coach_name else None,
             'total_wins': self.total_wins,
             'total_losses': self.total_losses,
             'total_draws': self.total_draws,
             'total_points': self.total_points,
             'is_recruiting': self.is_recruiting,
-            'team_category': self.team_category if self.team_category else None,
-            'user': self.user.to_json()
+            'user': self.user.to_json(),
         }
 
 payment_status_enum = SqlEnum(

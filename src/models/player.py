@@ -46,10 +46,11 @@ class PlayerModel(Base, UpdatableMixin):
     height_in: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     weight_kg: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
 
-    games_played: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    points_scored: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    assists: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    rebounds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_games_played: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_points_scored: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_assists: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_rebounds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_join_league: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     profile_image_url: Mapped[str] = mapped_column(Text, nullable=False)
 
@@ -83,12 +84,13 @@ class PlayerModel(Base, UpdatableMixin):
             "position": self.position,
             "height_in": self.height_in,
             "weight_kg": self.weight_kg,
-            "games_played": self.games_played,
-            "points_scored": self.points_scored,
-            "assists": self.assists,
-            "rebounds": self.rebounds,
+            "total_games_played": self.total_games_played,
+            "total_points_scored": self.total_points_scored,
+            "total_assists": self.total_assists,
+            "total_rebounds": self.total_rebounds,
+            "total_join_league": self.total_join_league,
             "profile_image_url": self.profile_image_url,
-            "user": self.user.to_json(),
+            "user": self.user.to_json_for_team(),
         }
 
         return data
@@ -106,10 +108,11 @@ class PlayerModel(Base, UpdatableMixin):
             "position": self.position,
             "height_in": self.height_in,
             "weight_kg": self.weight_kg,
-            "games_played": self.games_played,
-            "points_scored": self.points_scored,
-            "assists": self.assists,
-            "rebounds": self.rebounds,
+            "total_games_played": self.total_games_played,
+            "total_points_scored": self.total_points_scored,
+            "total_assists": self.total_assists,
+            "total_rebounds": self.total_rebounds,
+            "total_join_league": self.total_join_league,
             "profile_image_url": self.profile_image_url,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
@@ -127,7 +130,7 @@ player_is_accepted_enum = SqlEnum(
     create_type=True,
 )
 
-class PlayerTeamModel(Base):
+class PlayerTeamModel(Base, UpdatableMixin):
     __tablename__ = "player_team_table"
 
     player_team_id: Mapped[str] = UUIDGenerator("player-team")
@@ -200,7 +203,7 @@ class PlayerTeamModel(Base):
             "updated_at": self.updated_at.isoformat(),
         }
     
-class LeaguePlayerModel(Base):
+class LeaguePlayerModel(Base, UpdatableMixin):
     __tablename__ = "league_players_table"
 
     league_player_id: Mapped[str] = UUIDGenerator("league-player")

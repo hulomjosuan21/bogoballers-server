@@ -4,20 +4,18 @@ from src.models.user import UserModel
 from src.utils.api_response import ApiException
 
 class TeamManagerService:
-    async def create_one(self, email: str, password_str: str, contact_number: str, display_name: str):
-        if not email or not password_str or not contact_number or not display_name:
-            raise ApiException("Missing required fields")
-            
+    async def create_one(self, data: dict):
         async with AsyncSession() as session:
             try:
                 new_user = UserModel(
-                    email=email,
-                    contact_number=contact_number,
+                    email=data.get('email'),
+                    contact_number=data.get('contact_number'),
                     account_type="Team_Manager",
                     is_verified=True,
-                    display_name=display_name
+                    display_name=data.get('display_name'),
+                    fcm_token=data.get('fcm_token', None)
                 )
-                new_user.set_password(password_str)
+                new_user.set_password(data.get('password_str'))
                 
                 session.add(new_user)
                 await session.commit()

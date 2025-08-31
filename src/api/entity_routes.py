@@ -59,3 +59,16 @@ async def update_fcm_route():
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)
+    
+@entity_bp.post('/search')
+async def search_team_or_player_route():
+    try:
+        data = await request.get_json()
+        query = data.get('query')
+        
+        result = await service.seach_team_or_player(query)
+        
+        return await ApiResponse.payload(result)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)

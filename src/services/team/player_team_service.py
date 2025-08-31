@@ -9,6 +9,9 @@ from src.extensions import AsyncSession
 
 
 class PlayerTeamService:
+    async def get_player_team(self, session, player_team_id) -> PlayerTeamModel:
+        return await session.get(PlayerTeamModel, player_team_id)
+    
     async def invite_player(self, user_id: str, data: dict):
         async with AsyncSession() as session:
             try:
@@ -44,8 +47,8 @@ class PlayerTeamService:
                 )
                 
                 token = player.user.fcm_token
-                
-                await notif.send(token=token)
+                if token:
+                    await notif.send(token=token)
                 session.add(notif)
                 await session.commit()
                 
@@ -54,36 +57,18 @@ class PlayerTeamService:
                 await session.rollback()
                 raise
 
-    async def update_status(self, player_team_id: str = None, team_id: str = None, 
-                           player_id: str = None, new_status: str = None):
-        if not new_status:
-            raise ApiException("new_status is required")
-
-        if not player_team_id and not (team_id and player_id):
-            raise ApiException("You must provide either player_team_id OR both team_id and player_id")
-                
-        async with AsyncSession() as session:
-            try:
-                if player_team_id:
-                    player_team = await session.get(PlayerTeamModel, player_team_id)
-                elif team_id and player_id:
-                    stmt = select(PlayerTeamModel).where(
-                        PlayerTeamModel.team_id == team_id,
-                        PlayerTeamModel.player_id == player_id
-                    )
-                    result = await session.execute(stmt)
-                    player_team = result.scalar_one_or_none()
-                else:
-                    raise ApiException("Either player_team_id or both team_id and player_id are required")
+    async def update_one(self, player_team_id: str, data: dict):
+        try:
+            async with AsyncSession() as session:
+                player_team = await self.get_player_team(session=session,player_team_id=player_team_id)
 
                 if not player_team:
-                    raise ApiException("Player-Team relation not found")
-
-                player_team.is_accepted = new_status
-                session.add(player_team)
+                    raise ApiException("No Player found")
+                
+                player_team.copy_with(**data)
                 await session.commit()
-
-                return "Status updated."
-            except (IntegrityError, SQLAlchemyError):
-                await session.rollback()
-                raise
+                
+                return "Player updated successfully"
+        except (IntegrityError, SQLAlchemyError):
+            await session.rollback()
+            raise

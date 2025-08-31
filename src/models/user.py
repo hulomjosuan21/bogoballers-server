@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     from src.models.league_admin import LeagueAdministratorModel
     from src.models.player import PlayerModel
@@ -33,9 +33,9 @@ class UserModel(Base):
 
     account_type: Mapped[str] = mapped_column(account_type_enum, nullable=False)
 
-    fcm_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    fcm_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
-    verification_token_created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    verification_token_created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     created_at: Mapped[DateTime] = CreatedAt()
     updated_at: Mapped[DateTime] = UpdatedAt()
@@ -57,6 +57,15 @@ class UserModel(Base):
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
             "display_name": self.display_name
+        }
+        
+    def to_json_for_team(self) -> dict:
+        return {
+            "user_id": self.user_id,
+            "email": self.email,
+            "contact_number": self.contact_number,
+            "is_verified": self.is_verified,
+            "account_type": self.account_type,
         }
     
     def to_json(self) -> dict:

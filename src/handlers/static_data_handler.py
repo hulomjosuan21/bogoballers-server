@@ -1,4 +1,5 @@
-from quart import Blueprint, jsonify
+from quart import Blueprint, jsonify, request
+from src.services.cloudinary_service import CloudinaryService
 from src.extensions import DATA_DIR
 import json
 from typing import Any, Union
@@ -28,4 +29,11 @@ class StaticDataHandler:
     @static_data_bp.get('/organization-types')
     async def list_of_organization_types():
         data = StaticDataHandler.load_json("organization_types.json")
+        return jsonify(data)
+    
+    @staticmethod
+    @static_data_bp.post('/images')
+    async def list_images():
+        data = await request.get_json()
+        data = await CloudinaryService.get_folder_urls(data=data)
         return jsonify(data)

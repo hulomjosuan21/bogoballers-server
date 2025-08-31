@@ -3,6 +3,7 @@ from quart import Blueprint, request
 from quart_auth import login_required, current_user
 from src.utils.api_response import ApiResponse
 from src.services.team_manager_service import TeamManagerService
+from src.utils.server_utils import validate_required_fields
 
 team_mananger_bp = Blueprint("team_manager", __name__, url_prefix="/team-manager")
 
@@ -12,13 +13,8 @@ service = TeamManagerService()
 async def create_route():
     try:
         data = await request.get_json()
-        
-        email = data.get("email")
-        password_str = data.get("password_str")
-        contact_number = data.get("contact_number")
-        display_name = data.get("display_name")
-        
-        result = await service.create_one(email, password_str, contact_number, display_name)
+        validate_required_fields(data, ["email","password_str","contact_number","display_name"])
+        result = await service.create_one(data)
         return await ApiResponse.success(message=result, status_code=201)
     except Exception as e:
         traceback.print_exc()

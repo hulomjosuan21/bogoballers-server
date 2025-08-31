@@ -6,6 +6,8 @@ from src.extensions import settings
 import cloudinary
 import cloudinary.uploader
 from dotenv import load_dotenv
+from datetime import datetime
+import cloudinary.api
 
 load_dotenv()
 
@@ -15,6 +17,12 @@ cloudinary.config(
     api_secret=os.getenv("CLOUDINARY_API_SECRET"),
     secure=True,
 )
+
+class CloudinaryException(Exception):
+    def __init__(self, message="An error occurred", code=400):
+        self.message = message
+        self.status_code = code
+        super().__init__(message)
 
 class CloudinaryService:
     DEFAULT_FOLDER = "uploads"
@@ -32,7 +40,7 @@ class CloudinaryService:
             )
             return response["secure_url"]
         except Exception as e:
-            raise Exception(f"Upload failed: {str(e)}")
+            raise CloudinaryException(f"Upload failed")
 
     @staticmethod
     async def delete_file_by_url(file_url: str) -> bool:
@@ -76,4 +84,25 @@ class CloudinaryService:
 
             return result.get("result") == "ok"
         except Exception as e:
-            raise Exception(f"Delete failed: {str(e)}")
+            raise CloudinaryException(f"Delete failed")
+
+    @staticmethod
+    async def get_folder_urls(data: dict) -> list[str]:
+        try:
+            response = await asyncio.to_thread(
+                cloudinary.api.resources,
+                type="upload",
+                prefix=data.get('folder'),
+                max_results=data.get('limit'),
+                direction="desc"
+            )
+
+            resources = response.get("resources", [])
+            if data.get('start_datedata'):
+                start_datetime = datetime.strptime(data.get('start_datedata'), "%Y-%m-%d").isoformat()
+                resources = [r for r in resources if r["created_at"] >= start_datetime]
+
+            return [r["secure_url"] for r in resources]
+
+        except Exception as e:
+            raise CloudinaryException(f"Fetch folder URLs failed: {str(e)}")

@@ -1,3 +1,4 @@
+import traceback
 from quart import Blueprint, request
 from src.utils.api_response import ApiResponse
 from src.services.team.player_team_service import PlayerTeamService
@@ -17,21 +18,15 @@ async def invite_player_route():
         result = await service.invite_player(user_id, data)
         return await ApiResponse.success(message=result)
     except Exception as e:
+        traceback.print_exc()
         return await ApiResponse.error(e)
 
-@player_team_bp.put('/update-status')
-async def update_status_route():
+@player_team_bp.put('/update/<player_team_id>')
+async def update_one_route(player_team_id: str):
     try:
         data = await request.get_json()
-        
-        user_id = request.args.get('user_id')
-        team_id = request.args.get("team_id")
-        player_team_id = request.args.get("player_team_id")
-
-        player_id = data.get('player_id')
-        new_status = data.get("new_status")
-        
-        result = await service.update_status(player_team_id, team_id, player_id, new_status)
+    
+        result = await service.update_one(player_team_id=player_team_id, data=data)
         return await ApiResponse.success(message=result)
     except Exception as e:
         return await ApiResponse.error(e)

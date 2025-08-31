@@ -11,6 +11,14 @@ import jwt
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
 class EntityService:
+    async def seach_team_or_player(self, query: str):
+        async with AsyncSession() as session:
+            
+            return {
+                'result': 'the frontend must know what entity is found with query search',
+                'payload': []
+            }
+    
     async def login(self, form):
         email = form.get("email")
         password = form.get("password")
