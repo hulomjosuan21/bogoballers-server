@@ -1,5 +1,8 @@
+import asyncio
 from quart_auth import login_user
 from sqlalchemy import select
+from src.services.player.player_service import PlayerService
+from src.services.team.team_service import TeamService
 from src.config import Config
 from src.models.player import PlayerModel
 from src.models.user import UserModel
@@ -10,14 +13,83 @@ from datetime import datetime, timedelta, timezone
 import jwt
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
+player_service = PlayerService()
+team_service = TeamService()
 class EntityService:
-    async def seach_team_or_player(self, query: str):
-        async with AsyncSession() as session:
+    async def search_team_or_player(self, query: str):
+
+        players_task = player_service.search_players(query, limit=10)
+        teams_task = team_service.search_teams(query, limit=10)
+        
+        players, teams = await asyncio.gather(players_task, teams_task)
+        
+        results = []
+        
+        for player in players:
+            player_data = player.to_json_for_query_search()
+            results.append({
+                'type': 'player',
+                'data': player_data,
+                'relevance_score': self._calculate_player_relevance(player, query)
+            })
+        
+        for team in teams:
+            team_data = team.to_json_for_query_search()
+            results.append({
+                'type': 'team',
+                'data': team_data,
+                'relevance_score': self._calculate_team_relevance(team, query)
+            })
+        
+        results.sort(key=lambda x: x['relevance_score'], reverse=True)
+        
+        return {
+            'query': query,
+            'total_results': len(results),
+            'players_count': len(players),
+            'teams_count': len(teams),
+            'results': results[:20]
+        }
+    
+    def _calculate_player_relevance(self, player, query: str) -> float:
+        query_lower = query.lower()
+        score = 0.0
+        
+        if player.full_name.lower() == query_lower:
+            score += 10.0
+        elif query_lower in player.full_name.lower():
+            score += 5.0
             
-            return {
-                'result': 'the frontend must know what entity is found with query search',
-                'payload': []
-            }
+        if player.jersey_name and query_lower in player.jersey_name.lower():
+            score += 4.0
+            
+        if player.jersey_number and (str(int(player.jersey_number)) == query or str(player.jersey_number) == query):
+            score += 8.0
+            
+        if player.position and any(query_lower in pos.lower() for pos in player.position):
+            score += 3.0
+            
+        return score
+    
+    def _calculate_team_relevance(self, team, query: str) -> float:
+        query_lower = query.lower()
+        score = 0.0
+        
+        if team.team_name.lower() == query_lower:
+            score += 10.0
+        elif query_lower in team.team_name.lower():
+            score += 5.0
+            
+        if team.team_category and query_lower in team.team_category.lower():
+            score += 3.0
+            
+        if team.coach_name and query_lower in team.coach_name.lower():
+            score += 4.0
+            
+        if team.team_address and query_lower in team.team_address.lower():
+            score += 2.0
+            
+        return score
     
     async def login(self, form):
         email = form.get("email")

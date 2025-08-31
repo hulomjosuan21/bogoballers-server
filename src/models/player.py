@@ -71,6 +71,30 @@ class PlayerModel(Base, UpdatableMixin):
         passive_deletes=True
     )
     
+    def to_json_for_query_search(self):
+        data = {
+            "player_id": self.player_id,
+            "user_id": self.user_id,
+            "full_name": self.full_name,
+            "gender": self.gender,
+            "birth_date": self.birth_date.isoformat() if self.birth_date else None,
+            "player_address": self.player_address,
+            "jersey_name": self.jersey_name,
+            "jersey_number": self.jersey_number,
+            "position": self.position,
+            "height_in": self.height_in,
+            "weight_kg": self.weight_kg,
+            "total_games_played": self.total_games_played,
+            "total_points_scored": self.total_points_scored,
+            "total_assists": self.total_assists,
+            "total_rebounds": self.total_rebounds,
+            "total_join_league": self.total_join_league,
+            "profile_image_url": self.profile_image_url,
+            "user": self.user.to_json_for_team(),
+        }
+
+        return data
+    
     def to_json_for_team(self):
         data = {
             "player_id": self.player_id,

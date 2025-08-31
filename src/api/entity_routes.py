@@ -64,11 +64,13 @@ async def update_fcm_route():
 async def search_team_or_player_route():
     try:
         data = await request.get_json()
-        query = data.get('query')
+        query = data.get('query', '').strip()
         
-        result = await service.seach_team_or_player(query)
+        if not query:
+            return await ApiResponse.error("Query parameter is required")
         
+        result = await service.search_team_or_player(query)
         return await ApiResponse.payload(result)
     except Exception as e:
         traceback.print_exc()
-        return await ApiResponse.error(e)
+        return await ApiResponse.error(str(e))

@@ -2,7 +2,7 @@ from datetime import datetime
 import json
 from typing import List, Optional
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from sqlalchemy import String, cast, or_, select, asc, desc
+from sqlalchemy import String, case, cast, func, or_, select, asc, desc
 from sqlalchemy.orm import joinedload, selectinload
 from src.services.cloudinary_service import CloudinaryService
 from src.models.player import PlayerModel
@@ -13,6 +13,32 @@ from src.utils.server_utils import validate_required_fields
 import traceback
 
 class PlayerService:
+    async def search_players(self, search: str, limit: int = 10) -> List[PlayerModel]:
+        async with AsyncSession() as session:
+            query = select(PlayerModel).options(selectinload(PlayerModel.user))
+
+            search_term = f"%{search}%"
+            query = query.where(
+                or_(
+                    func.lower(PlayerModel.full_name).like(func.lower(search_term)),
+                    func.lower(PlayerModel.jersey_name).like(func.lower(search_term)),
+                    cast(PlayerModel.jersey_number, String).like(search_term),
+                    func.lower(cast(PlayerModel.position, String)).like(func.lower(search_term))
+                )
+            )
+
+            query = query.order_by(
+                case(
+                    (func.lower(PlayerModel.full_name) == func.lower(search), 1),
+                    (cast(PlayerModel.jersey_number, String) == search, 2),
+                    else_=3
+                ),
+                PlayerModel.full_name
+            ).limit(limit)
+                
+            result = await session.execute(query)
+            return result.scalars().all()
+    
     async def get_players(
         self,
         filters: Optional[dict] = None,
@@ -22,7 +48,9 @@ class PlayerService:
         limit: Optional[int] = None
     ) -> List[PlayerModel]:
         async with AsyncSession() as session:
-            query = select(PlayerModel).options(selectinload(PlayerModel.user))
+            query = select(PlayerModel).options(
+                selectinload(PlayerModel.user)
+            )
 
             if filters:
                 for field, value in filters.items():
@@ -33,13 +61,22 @@ class PlayerService:
                 search_term = f"%{search}%"
                 query = query.where(
                     or_(
-                        PlayerModel.full_name.ilike(search_term),
-                        PlayerModel.jersey_name.ilike(search_term),
-                        cast(PlayerModel.jersey_number, String).ilike(search_term)
+                        func.lower(PlayerModel.full_name).like(func.lower(search_term)),
+                        func.lower(PlayerModel.jersey_name).like(func.lower(search_term)),
+                        cast(PlayerModel.jersey_number, String).like(search_term)
                     )
                 )
 
-            if order_by and hasattr(PlayerModel, order_by):
+            if search and not order_by:
+                query = query.order_by(
+                    case(
+                        (func.lower(PlayerModel.full_name) == func.lower(search), 1),
+                        (PlayerModel.jersey_number == search, 2),
+                        else_=3
+                    ),
+                    PlayerModel.full_name
+                )
+            elif order_by and hasattr(PlayerModel, order_by):
                 column = getattr(PlayerModel, order_by)
                 query = query.order_by(desc(column) if descending else asc(column))
 
@@ -48,7 +85,6 @@ class PlayerService:
                 
             result = await session.execute(query)
             players = result.scalars().all()
-
             return players
     
     async def create_many(self, players):
