@@ -1,6 +1,7 @@
-import asyncio
+import asyncio, heapq
 from quart_auth import login_user
 from sqlalchemy import select
+from src.services.league.league_service import LeagueService
 from src.services.league_admin_service import LeagueAdministratorService
 from src.services.player.player_service import PlayerService
 from src.services.team.team_service import TeamService
@@ -17,55 +18,9 @@ from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 player_service = PlayerService()
 team_service = TeamService()
 league_admin_service = LeagueAdministratorService()
+league_service = LeagueService()
 
-class EntityService:
-    async def search_entity(self, query: str):
-        async with AsyncSession() as session:
-            players_task = player_service.search_players(session, query, limit=10)
-            teams_task = team_service.search_teams(session, query, limit=10)
-            league_admins_task = league_admin_service.search_league_administrators(session, query, limit=10)
-            
-            players, teams, league_admins = await asyncio.gather(
-                players_task, teams_task, league_admins_task
-            )
-            
-            results = []
-            
-            for player in players:
-                player_data = player.to_json_for_query_search()
-                results.append({
-                    'type': 'player',
-                    'data': player_data,
-                    'relevance_score': self._calculate_player_relevance(player, query)
-                })
-            
-            for team in teams:
-                team_data = team.to_json_for_query_search()
-                results.append({
-                    'type': 'team',
-                    'data': team_data,
-                    'relevance_score': self._calculate_team_relevance(team, query)
-                })
-                
-            for admin in league_admins:
-                admin_data = admin.to_json_for_query_search()
-                results.append({
-                    'type': 'league_administrator',
-                    'data': admin_data,
-                    'relevance_score': self._calculate_admin_relevance(admin, query)
-                })
-            
-            results.sort(key=lambda x: x['relevance_score'], reverse=True)
-            
-            return {
-                'query': query,
-                'total_results': len(results),
-                'players_count': len(players),
-                'teams_count': len(teams),
-                'league_administrators_count': len(league_admins),
-                'results': results[:20]
-            }
-    
+class CalculateEntityRelevance:
     def _calculate_player_relevance(self, player, query: str) -> float:
         query_lower = query.lower()
         score = 0.0
@@ -136,6 +91,73 @@ class EntityService:
             score += 2.0
             
         return score
+
+    def _calculate_league_relevance(self, league, query: str) -> float:
+        query_lower = query.lower()
+        score = 0.0
+        
+        if league.league_title.lower() == query_lower:
+            score += 10.0
+        elif query_lower in league.league_title.lower():
+            score += 5.0
+            
+        if league.status and league.status.lower() == query_lower:
+            score += 8.0
+        elif league.status and query_lower in league.status.lower():
+            score += 4.0
+            
+        if league.league_address and query_lower in league.league_address.lower():
+            score += 3.0
+            
+        from datetime import datetime
+        current_year = datetime.now().year
+        if league.season_year == current_year:
+            score += 2.0
+        elif abs(league.season_year - current_year) <= 1:
+            score += 1.0
+            
+        return score
+
+class EntityService(CalculateEntityRelevance):
+    async def search_entity(self, query: str):
+        async with AsyncSession() as session:
+            tasks = [
+                player_service.search_players(session, query, limit=10),
+                team_service.search_teams(session, query, limit=10),
+                league_admin_service.search_league_administrators(session, query, limit=10),
+                league_service.search_leagues(session, query, limit=10),
+            ]
+            players, teams, league_admins, leagues = await asyncio.gather(*tasks, return_exceptions=True)
+
+            results = [
+                {'type': 'player', 'data': p.to_json_for_query_search(),
+                 'relevance_score': super()._calculate_player_relevance(p, query)}
+                for p in players
+            ] + [
+                {'type': 'team', 'data': t.to_json_for_query_search(),
+                 'relevance_score': super()._calculate_team_relevance(t, query)}
+                for t in teams
+            ] + [
+                {'type': 'league_administrator', 'data': a.to_json_for_query_search(),
+                 'relevance_score': super()._calculate_admin_relevance(a, query)}
+                for a in league_admins
+            ] + [
+                {'type': 'league', 'data': l.to_json_for_query_search(),
+                 'relevance_score': super()._calculate_league_relevance(l, query)}
+                for l in leagues
+            ]
+
+            top_results = heapq.nlargest(20, results, key=lambda x: x['relevance_score'])
+
+            return {
+                'query': query,
+                'total_results': len(results),
+                'players_count': len(players),
+                'teams_count': len(teams),
+                'leagues_count': len(leagues),
+                'league_administrators_count': len(league_admins),
+                'results': top_results
+            }
     
     async def login(self, form):
         email = form.get("email")

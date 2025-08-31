@@ -5,9 +5,11 @@ import tempfile
 from datetime import datetime
 from io import BytesIO
 import re
+from typing import List
 from dateutil.relativedelta import relativedelta
 from docxtpl import DocxTemplate
-from sqlalchemy import select, update
+from sqlalchemy import  String, Text, case, cast, func, or_, select, update
+from src.models.league_admin import LeagueAdministratorModel
 from src.helpers.league_admin_helpers import get_active_league, get_league_administrator
 from src.models.league import LeagueModel, LeagueCategoryModel
 from src.services.cloudinary_service import CloudinaryService
@@ -15,14 +17,47 @@ from src.extensions import AsyncSession
 from src.utils.api_response import ApiException
 from src.extensions import TEMPLATE_PATH
 from sqlalchemy.orm.attributes import flag_modified
+from sqlalchemy.orm import selectinload
 
 ALLOWED_OPTION_KEYS = {
     "player_residency_certificate_required",
     "player_residency_certificate_valid_until"
 }
 
-
 class LeagueService:
+    async def search_leagues(self, session, search: str, limit: int = 10) -> list[LeagueModel]:
+        search_term = f"%{search}%"
+        search_lower = search.lower()
+
+        query = (
+            select(LeagueModel)
+            .options(
+                selectinload(LeagueModel.creator).selectinload(LeagueAdministratorModel.user),
+                selectinload(LeagueModel.categories).selectinload(LeagueCategoryModel.rounds),
+            )
+            .where(
+                or_(
+                    func.lower(LeagueModel.league_title).like(func.lower(search_term)),
+                    func.lower(LeagueModel.league_address).like(func.lower(search_term)),
+                    cast(LeagueModel.status, Text).ilike(search_term)
+                )
+            )
+            .order_by(
+                case(
+                    (func.lower(LeagueModel.league_title) == search_lower, 1),
+                    (cast(LeagueModel.status, Text).ilike(search), 2),
+                    else_=3
+                ),
+                LeagueModel.league_title
+            )
+            .limit(limit)
+        )
+
+        result = await session.execute(query)
+        leagues = result.scalars().unique().all()
+        return leagues
+
+    
     async def export_league_pdf(self, league_id: str):
         async with AsyncSession() as session:
             result = await session.execute(

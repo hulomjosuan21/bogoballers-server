@@ -75,7 +75,11 @@ class LeagueModel(Base, UpdatableMixin):
     created_at: Mapped[datetime] = CreatedAt()
     updated_at: Mapped[datetime] = UpdatedAt()
     
-    creator: Mapped["LeagueAdministratorModel"] = relationship("LeagueAdministratorModel")
+    creator: Mapped["LeagueAdministratorModel"] = relationship(
+        "LeagueAdministratorModel",
+        cascade="all, delete",
+        passive_deletes=True
+    )
 
     categories: Mapped[list["LeagueCategoryModel"]] = relationship(
         "LeagueCategoryModel",
@@ -83,40 +87,54 @@ class LeagueModel(Base, UpdatableMixin):
         cascade="all, delete-orphan"
     )
     
-    def to_json(self) -> dict:
-        def to_iso(value):
-            if isinstance(value, (datetime, date)):
-                return value.isoformat()
-            return value
+    def _league_schedule_serialized(self, value):
+        try:
+            return [
+                value[0].isoformat(),
+                value[1].isoformat()
+            ]
+        except (TypeError, AttributeError):
+            return [
+                value.lower.isoformat(),
+                value.upper.isoformat()
+            ]
 
-        league_schedule_serialized = None
-        if self.league_schedule:
-            try:
-                league_schedule_serialized = [
-                    to_iso(self.league_schedule[0]),
-                    to_iso(self.league_schedule[1])
-                ]
-            except (TypeError, AttributeError):
-                league_schedule_serialized = [
-                    to_iso(self.league_schedule.lower),
-                    to_iso(self.league_schedule.upper)
-                ]
-
+    def to_json_for_query_search(self) -> dict:
         return {
             "league_id": self.league_id,
             "league_administrator_id": self.league_administrator_id,
             "league_title": self.league_title,
             "league_description": self.league_description,
             "league_budget": self.league_budget,
-            "registration_deadline": to_iso(self.registration_deadline),
-            "opening_date": to_iso(self.opening_date),
-            "league_schedule": league_schedule_serialized,
+            "registration_deadline": self.registration_deadline.isoformat(),
+            "opening_date": self.opening_date.isoformat(),
+            "league_schedule": self._league_schedule_serialized(self.league_schedule),
             "banner_url": self.banner_url,
             "status": self.status,
             "season_year": self.season_year,
             "sportsmanship_rules": self.sportsmanship_rules,
-            "created_at": to_iso(self.created_at),
-            "updated_at": to_iso(self.updated_at),
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+            "categories": [category.to_json_for_query_search() for category in (self.categories or [])],
+            "creator": self.creator.to_json_for_query_search()
+        }
+    
+    def to_json(self) -> dict:
+        return {
+            "league_id": self.league_id,
+            "league_administrator_id": self.league_administrator_id,
+            "league_title": self.league_title,
+            "league_description": self.league_description,
+            "league_budget": self.league_budget,
+            "registration_deadline": self.registration_deadline.isoformat(),
+            "opening_date": self.opening_date.isoformat(),
+            "league_schedule": self._league_schedule_serialized(self.league_schedule),
+            "banner_url": self.banner_url,
+            "status": self.status,
+            "season_year": self.season_year,
+            "sportsmanship_rules": self.sportsmanship_rules,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
             "categories": [category.to_json() for category in (self.categories or [])],
             "option": self.option
         }
@@ -172,6 +190,16 @@ class LeagueCategoryModel(Base, UpdatableMixin):
         "CategoryModel",
         lazy="joined"
     )
+    
+    def to_json_for_query_search(self) -> dict:
+        return {
+            **self.category.to_json_league_category(),
+            "league_category_id": self.league_category_id,
+            "league_id": self.league_id,
+            "max_team": self.max_team,
+            "accept_teams": self.accept_teams,
+            "rounds": [round_.to_json() for round_ in (self.rounds or [])]
+        }
     
     def to_json(self) -> dict:
         return {

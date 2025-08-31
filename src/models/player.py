@@ -90,7 +90,9 @@ class PlayerModel(Base, UpdatableMixin):
             "total_rebounds": self.total_rebounds,
             "total_join_league": self.total_join_league,
             "profile_image_url": self.profile_image_url,
-            "user": self.user.to_json_for_team(),
+            "user": self.user.to_json(),
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat()
         }
 
         return data
