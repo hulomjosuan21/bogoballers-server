@@ -13,7 +13,7 @@ from src.models.league_admin import LeagueAdministratorModel
 from src.helpers.league_admin_helpers import get_active_league, get_league_administrator
 from src.models.league import LeagueModel, LeagueCategoryModel
 from src.services.cloudinary_service import CloudinaryService
-from src.extensions import AsyncSession
+from src.extensions import AsyncSession, settings
 from src.utils.api_response import ApiException
 from src.extensions import TEMPLATE_PATH
 from sqlalchemy.orm.attributes import flag_modified
@@ -163,7 +163,7 @@ class LeagueService:
         banner_file = files.get("banner_image")
         banner_image_url = form_data.get("banner_image")
         if banner_file:
-            banner_url = await CloudinaryService.upload_file(banner_file, folder="league_banners")
+            banner_url = await CloudinaryService.upload_file(banner_file, folder=settings["league_banners_folder"])
         elif banner_image_url and re.match(r'^https?://', banner_image_url):
             banner_url = banner_image_url
         else:

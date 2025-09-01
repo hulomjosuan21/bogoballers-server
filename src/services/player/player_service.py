@@ -7,7 +7,7 @@ from sqlalchemy.orm import joinedload, selectinload
 from src.services.cloudinary_service import CloudinaryService
 from src.models.player import PlayerModel
 from src.models.user import UserModel
-from src.extensions import AsyncSession
+from src.extensions import AsyncSession, settings
 from src.utils.api_response import ApiException
 from src.utils.server_utils import validate_required_fields
 import traceback
@@ -180,7 +180,7 @@ class PlayerService:
                 await session.commit()
                 await session.refresh(user)
 
-                profile_image_url = await CloudinaryService.upload_file(file, folder="players/profiles")
+                profile_image_url = await CloudinaryService.upload_file(file, folder=settings["player_profiles_folder"])
 
                 player = PlayerModel(
                     user_id=user.user_id,

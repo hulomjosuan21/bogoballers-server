@@ -1,3 +1,4 @@
+import json
 import traceback
 from quart import Blueprint, request
 from quart_auth import current_user, login_required
@@ -33,15 +34,10 @@ async def get_one_route(category_id: str):
 async def create_one_route(league_administrator_id: str):
     try:
         data = await request.get_json()
-        required_fields = [
-            "category_name", "check_player_age", "player_gender",
-            "check_address", "allowed_address", "allow_guest_team",
-            "allow_guest_player"
-        ]
-        validate_required_fields(data, required_fields)
         result = await service.create_one(league_administrator_id, data)
         return await ApiResponse.success(message=result)
     except Exception as e:
+        traceback.print_exc()
         return await ApiResponse.error(e)
 
 @category_bp.put("/<category_id>")

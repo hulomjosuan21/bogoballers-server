@@ -21,7 +21,7 @@ league_admin_service = LeagueAdministratorService()
 league_service = LeagueService()
 
 class CalculateEntityRelevance:
-    def _calculate_player_relevance(self, player, query: str) -> float:
+    def player_relevance(self, player, query: str) -> float:
         query_lower = query.lower()
         score = 0.0
         
@@ -55,7 +55,7 @@ class CalculateEntityRelevance:
             
         return score
     
-    def _calculate_team_relevance(self, team, query: str) -> float:
+    def team_relevance(self, team, query: str) -> float:
         query_lower = query.lower()
         score = 0.0
         
@@ -75,7 +75,7 @@ class CalculateEntityRelevance:
             
         return score
     
-    def _calculate_admin_relevance(self, admin, query: str) -> float:
+    def admin_relevance(self, admin, query: str) -> float:
         query_lower = query.lower()
         score = 0.0
         
@@ -92,7 +92,7 @@ class CalculateEntityRelevance:
             
         return score
 
-    def _calculate_league_relevance(self, league, query: str) -> float:
+    def league_relevance(self, league, query: str) -> float:
         query_lower = query.lower()
         score = 0.0
         
@@ -118,7 +118,7 @@ class CalculateEntityRelevance:
             
         return score
 
-class EntityService(CalculateEntityRelevance):
+class EntityService():
     async def search_entity(self, query: str):
         async with AsyncSession() as session:
             tasks = [
@@ -128,22 +128,24 @@ class EntityService(CalculateEntityRelevance):
                 league_service.search_leagues(session, query, limit=10),
             ]
             players, teams, league_admins, leagues = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            calculate = CalculateEntityRelevance()
 
             results = [
                 {'type': 'player', 'data': p.to_json_for_query_search(),
-                 'relevance_score': super()._calculate_player_relevance(p, query)}
+                 'relevance_score': calculate.player_relevance(p, query)}
                 for p in players
             ] + [
                 {'type': 'team', 'data': t.to_json_for_query_search(),
-                 'relevance_score': super()._calculate_team_relevance(t, query)}
+                 'relevance_score': calculate.team_relevance(t, query)}
                 for t in teams
             ] + [
                 {'type': 'league_administrator', 'data': a.to_json_for_query_search(),
-                 'relevance_score': super()._calculate_admin_relevance(a, query)}
+                 'relevance_score': calculate.admin_relevance(a, query)}
                 for a in league_admins
             ] + [
                 {'type': 'league', 'data': l.to_json_for_query_search(),
-                 'relevance_score': super()._calculate_league_relevance(l, query)}
+                 'relevance_score': calculate.league_relevance(l, query)}
                 for l in leagues
             ]
 
@@ -162,6 +164,7 @@ class EntityService(CalculateEntityRelevance):
     async def login(self, form):
         email = form.get("email")
         password = form.get("password")
+        fcm_token = form.get("fcm_token")
 
         async with AsyncSession() as session:
             result = await session.execute(
@@ -174,6 +177,10 @@ class EntityService(CalculateEntityRelevance):
 
             auth_user = AuthUser(user)
             login_user(auth_user)
+            
+            if fcm_token and user.fcm_token != fcm_token:
+                user.fcm_token = fcm_token
+                await session.commit()
 
             entity_id = user.user_id
             if user.account_type == "Player":

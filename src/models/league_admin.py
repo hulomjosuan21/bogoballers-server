@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 from src.utils.mixins import UpdatableMixin
 
@@ -8,10 +8,11 @@ if TYPE_CHECKING:
     from src.models.league import LeagueModel
     
 from datetime import datetime
-from sqlalchemy import Float, ForeignKey, Integer, String, Boolean, Text, text, Enum as SqlEnum
+from sqlalchemy import Date, Float, ForeignKey, Integer, String, Boolean, Text, text, Enum as SqlEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import inspect
-
+from sqlalchemy.dialects.postgresql import JSONB
+from datetime import date
 from src.extensions import Base
 from src.utils.db_utils import CreatedAt, UpdatedAt, UUIDGenerator
 
@@ -52,6 +53,10 @@ class CategoryModel(Base, UpdatableMixin):
     allow_guest_player: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     guest_player_fee_amount: Mapped[float] = mapped_column(Float, default=0.0, nullable=True)
     
+    requires_valid_document: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    allowed_documents: Mapped[Optional[List[str]]] = mapped_column(JSONB, nullable=True)
+    document_valid_until: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    
     created_at: Mapped[datetime] = CreatedAt()
     updated_at: Mapped[datetime] = UpdatedAt()
         
@@ -68,7 +73,10 @@ class CategoryModel(Base, UpdatableMixin):
             'allow_guest_team': self.allow_guest_team,
             'team_entrance_fee_amount': self.team_entrance_fee_amount,
             'allow_guest_player': self.allow_guest_player,
-            'guest_player_fee_amount': self.guest_player_fee_amount
+            'guest_player_fee_amount': self.guest_player_fee_amount,
+            'requires_valid_document': self.requires_valid_document,
+            'allowed_documents': self.allowed_documents if self.allowed_documents else None,
+            'document_valid_until': self.document_valid_until.isoformat() if self.document_valid_until else None
         }
         
     def to_json(self):
@@ -86,6 +94,9 @@ class CategoryModel(Base, UpdatableMixin):
             'team_entrance_fee_amount': self.team_entrance_fee_amount,
             'allow_guest_player': self.allow_guest_player,
             'guest_player_fee_amount': self.guest_player_fee_amount,
+            'requires_valid_document': self.requires_valid_document,
+            'allowed_documents': self.allowed_documents if self.allowed_documents else None,
+            'document_valid_until': self.document_valid_until.isoformat() if self.document_valid_until else None,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat(),
         }

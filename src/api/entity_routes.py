@@ -1,8 +1,10 @@
 import traceback
+from limits import RateLimitItemPerSecond
 from quart import Blueprint, request
 from quart_auth import current_user, login_required
 from src.services.entity_service import EntityService
 from src.utils.api_response import ApiResponse, ApiException
+from src.limiter import enforce_rate_limit, limiter
 
 entity_bp = Blueprint("entity", __name__, url_prefix="/entity")
 service = EntityService()
@@ -60,14 +62,17 @@ async def update_fcm_route():
         traceback.print_exc()
         return await ApiResponse.error(e)
     
+search_limit = RateLimitItemPerSecond(2)
+    
 @entity_bp.post('/search')
 async def search_entity_route():
     try:
+        await enforce_rate_limit(request, search_limit, key_prefix="search")
         data = await request.get_json()
         query = data.get('query', '').strip()
         
         if not query:
-            return await ApiResponse.error("Query parameter is required")
+            raise ApiException("Query parameter is required")
         
         result = await service.search_entity(query)
         return await ApiResponse.payload(result)
