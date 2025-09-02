@@ -6,10 +6,8 @@ from src.config import Config
 from pathlib import Path
 from argon2 import PasswordHasher
 from contextlib import asynccontextmanager
-from docxtpl import DocxTemplate
-from firebase_admin import credentials, messaging
-from asyncio import to_thread
-import firebase_admin
+# from docxtpl import DocxTemplate
+
 import json
 
 Base = declarative_base()
@@ -39,20 +37,3 @@ async def db_session():
 
 socket_service = SocketIOService(redis_url=Config.REDIS_URL)
 sio = socket_service.sio 
-
-cred = credentials.Certificate(SERVICE_ACCOUNT_PATH)
-firebase_admin.initialize_app(cred)
-
-async def send_fcm_notification(token: str, title: str, body: str, data: dict | None):
-    
-    message = messaging.Message(
-        notification=messaging.Notification(
-            title=title,
-            body=body,
-        ),
-        data=data or {},
-        token=token
-    )
-
-    response = await to_thread(messaging.send, message)
-    return response

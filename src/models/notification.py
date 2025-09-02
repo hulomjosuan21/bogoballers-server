@@ -1,4 +1,5 @@
 from __future__ import annotations
+from asyncio import to_thread
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
@@ -10,7 +11,12 @@ from sqlalchemy import String, ForeignKey, DateTime, Enum as SqlEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.models.user import account_type_enum
 from src.utils.db_utils import CreatedAt, UUIDGenerator
-from src.extensions import Base, send_fcm_notification
+from src.extensions import Base, SERVICE_ACCOUNT_PATH
+from firebase_admin import credentials, messaging
+import firebase_admin
+
+cred = credentials.Certificate(SERVICE_ACCOUNT_PATH)
+firebase_admin.initialize_app(cred)
 
 notification_action_enum = SqlEnum(
     "team_join_request",
@@ -62,17 +68,22 @@ class NotificationModel(Base):
     from_user: Mapped["UserModel"] = relationship("UserModel", foreign_keys=[from_id])
 
     async def send(self, token: str):
-        data = {
-            'image': str(self.image_url),
-            'link': 'https://josuan.bogoballers.site/payment-success'
+        message_kwargs = {
+            "notification": messaging.Notification(
+                title=self.title,
+                body=self.message
+            ),
+            "token": token
         }
 
-        return await send_fcm_notification(
-            token=str(token),
-            title=str(self.title),
-            body=str(self.message),
-            data=data,
-        )
+        if self.image_url:
+            message_kwargs["data"] = {"image": str(self.image_url)}
+
+        message = messaging.Message(**message_kwargs)
+        
+        response = await to_thread(messaging.send, message)
+        
+        return response
 
     def is_unread(self) -> bool:
         return self.status == "unread"

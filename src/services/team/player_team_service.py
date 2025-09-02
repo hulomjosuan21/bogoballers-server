@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import select, and_
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.orm import joinedload
 from src.models.team import TeamModel
@@ -11,11 +11,12 @@ from src.extensions import AsyncSession
 class PlayerTeamService:
     async def get_player_team(self, session, player_team_id) -> PlayerTeamModel:
         return await session.get(PlayerTeamModel, player_team_id)
-    
-    async def invite_player(self, user_id: str, data: dict):
+
+    async def add_player_to_team(self, user_id: str, data: dict):
         async with AsyncSession() as session:
             try:
                 team = await session.get(TeamModel, data.get('team_id'))
+                
                 player_result = await session.execute(
                     select(PlayerModel)
                     .options(joinedload(PlayerModel.user))
@@ -28,34 +29,57 @@ class PlayerTeamService:
                 if not player:
                     raise ApiException("No player found.")
                 
+                existing = await session.execute(
+                    select(PlayerTeamModel)
+                    .where(
+                        and_(
+                            PlayerTeamModel.team_id == data.get('team_id'),
+                            PlayerTeamModel.player_id == data.get('player_id')
+                        )
+                    )
+                )
+                if existing.scalars().first():
+                    raise ApiException(f"{player.full_name} is already in {team.team_name}.")
+                
+                status = data.get('status', 'Invited')
+                
                 new_player_team = PlayerTeamModel(
                     team_id=data.get('team_id'),
                     player_id=data.get('player_id'),
-                    is_accepted="Invited"
+                    is_accepted=status
                 )
-                
                 session.add(new_player_team)
                 
+                status_messages = {
+                    "Pending": f"Hang tight! Your request to join {team.team_name} is being reviewed.",
+                    "Accepted": f"Your request to join {team.team_name} has been accepted! Welcome to the team.",
+                    "Rejected": f"Your request to join {team.team_name} has been rejected.",
+                    "Invited": f"You have been invited to join {team.team_name}."
+                }
+
+                friendly_message = status_messages.get(status, f"Status: {status}")
+
                 notif = NotificationModel(
                     action_type="team_invitation",
                     action_id=data.get('team_id'),
-                    title="Team invitation",
-                    message=f"You have been invited to join team {team.team_name}",
+                    title="Team Invitation",
+                    message=friendly_message, 
                     from_id=user_id,
                     to_id=player.user_id,
-                    image_url="https://res.cloudinary.com/dod3lmxm6/image/upload/v1754626478/league_banners/ccu6bovxxiqfhtjp8io9.jpg"
+                    image_url=data.get("team_logo_url", None) 
                 )
-                
+
                 token = player.user.fcm_token
                 if token:
                     await notif.send(token=token)
+
                 session.add(notif)
                 await session.commit()
-                
-                return f"Invited Successfully. on {team.team_name}"
-            except (IntegrityError, SQLAlchemyError):
+                return "Success"
+            except (IntegrityError, SQLAlchemyError) as e:
                 await session.rollback()
                 raise
+
 
     async def update_one(self, player_team_id: str, data: dict):
         try:

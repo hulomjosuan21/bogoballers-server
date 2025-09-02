@@ -104,6 +104,27 @@ class TeamModel(Base, UpdatableMixin):
             ],
         }
         
+    def to_json_for_league_team(self):
+        return {
+            'team_id': self.team_id,
+            'user_id': self.user_id,
+            'team_name': self.team_name,
+            'team_address': self.team_address,
+            'contact_number': self.contact_number,
+            'team_motto': self.team_motto if self.team_motto else None,
+            'team_logo_url': self.team_logo_url,
+            'championships_won': self.championships_won,
+            'coach_name': self.coach_name,
+            'team_category': self.team_category or None,
+            'assistant_coach_name': self.assistant_coach_name if self.assistant_coach_name else None,
+            'total_wins': self.total_wins,
+            'total_losses': self.total_losses,
+            'total_draws': self.total_draws,
+            'total_points': self.total_points,
+            'is_recruiting': self.is_recruiting,
+            'user': self.user.to_json(),
+        }
+        
     def to_json(self) -> dict:
         return {
             'team_id': self.team_id,
@@ -199,6 +220,30 @@ class LeagueTeamModel(Base, UpdatableMixin):
     team: Mapped["TeamModel"] = relationship("TeamModel")
     league: Mapped["LeagueModel"] = relationship("LeagueModel")
 
+    def to_json(self) -> dict:
+        team_json = self.team.to_json_for_league_team()
+
+        team_json["accepted_players"] = [
+            player_team.to_json_for_team()
+            for player_team in self.team.players
+            if player_team.is_accepted == "Accepted"
+        ]
+
+        return {
+            **team_json,
+            "league_team_id": self.league_team_id,
+            "league_id": self.league_id,
+            "league_category_id": self.league_category_id,
+            "status": self.status,
+            "amount_paid": self.amount_paid,
+            "payment_status": self.payment_status,
+            "wins": self.wins,
+            "losses": self.losses,
+            "draws": self.draws,
+            "points": self.points,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
 
 _current_module = globals()
 __all__ = [
