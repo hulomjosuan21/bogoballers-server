@@ -8,7 +8,9 @@ import re
 from typing import List
 from dateutil.relativedelta import relativedelta
 from docxtpl import DocxTemplate
-from sqlalchemy import  String, Text, case, cast, func, or_, select, update
+from sqlalchemy import  Date, String, Text, case, cast, func, or_, select, update
+from src.models.player import LeaguePlayerModel
+from src.models.team import LeagueTeamModel
 from src.models.league_admin import LeagueAdministratorModel
 from src.helpers.league_admin_helpers import get_active_league, get_league_administrator
 from src.models.league import LeagueModel, LeagueCategoryModel
@@ -25,6 +27,121 @@ ALLOWED_OPTION_KEYS = {
 }
 
 class LeagueService:
+    async def analytics(self, league_id: str):
+        async with AsyncSession() as session:
+            stmt_league = (
+                select(LeagueModel)
+                .options(
+                    selectinload(LeagueModel.categories).selectinload(LeagueCategoryModel.rounds),
+                    selectinload(LeagueModel.categories).selectinload(LeagueCategoryModel.teams)
+                )
+                .where(
+                    LeagueModel.league_id == league_id,
+                    LeagueModel.status.in_(["Scheduled", "Ongoing"])
+                )
+            )
+            result = await session.execute(stmt_league)
+            active_league = result.scalar_one_or_none()
+            
+            if not active_league:
+                raise ApiException("No found league.")
+            stmt_teams = (
+                select(
+                    func.count(LeagueTeamModel.league_team_id).label("team_count"),
+                    func.max(LeagueTeamModel.updated_at).label("last_update")
+                )
+                .where(
+                    LeagueTeamModel.league_id == active_league.league_id,
+                    LeagueTeamModel.status == "Accepted",
+                    LeagueTeamModel.payment_status.in_(["Paid Online", "Paid On Site", "Waived"]),
+                )
+            )
+            result_teams = await session.execute(stmt_teams)
+            team_stats = result_teams.one()
+            total_accepted_teams = team_stats.team_count
+            teams_last_update = team_stats.last_update.isoformat() if team_stats.last_update else None
+
+            stmt_profit = (
+                select(
+                    func.coalesce(func.sum(LeagueTeamModel.amount_paid), 0).label("total_profit"),
+                    func.max(LeagueTeamModel.updated_at).label("last_update")
+                )
+                .where(
+                    LeagueTeamModel.league_id == active_league.league_id,
+                    LeagueTeamModel.status == "Accepted",
+                    LeagueTeamModel.payment_status.in_(["Paid Online", "Paid On Site", "Waived"]),
+                )
+            )
+            result_profit = await session.execute(stmt_profit)
+            profit_stats = result_profit.one()
+            total_profit = profit_stats.total_profit
+            profit_last_update = profit_stats.last_update.isoformat() if profit_stats.last_update else None
+
+            stmt_profit_chart = (
+                select(
+                    cast(LeagueTeamModel.updated_at, Date).label("date"),
+                    func.coalesce(func.sum(LeagueTeamModel.amount_paid), 0).label("amount")
+                )
+                .where(
+                    LeagueTeamModel.league_id == active_league.league_id,
+                    LeagueTeamModel.status == "Accepted",
+                    LeagueTeamModel.payment_status.in_(["Paid Online", "Paid On Site", "Waived"]),
+                )
+                .group_by(cast(LeagueTeamModel.updated_at, Date))
+                .order_by(cast(LeagueTeamModel.updated_at, Date))
+            )
+            result_chart = await session.execute(stmt_profit_chart)
+            profit_chart = [
+                {"date": row.date.isoformat(), "amount": float(row.amount)}
+                for row in result_chart.all()
+            ]
+
+            stmt_players = (
+                select(
+                    func.count(LeaguePlayerModel.league_player_id).label("player_count"),
+                    func.max(LeaguePlayerModel.updated_at).label("last_update")
+                )
+                .where(LeaguePlayerModel.league_id == active_league.league_id)
+            )
+            result_players = await session.execute(stmt_players)
+            player_stats = result_players.one()
+            total_players = player_stats.player_count
+            players_last_update = player_stats.last_update.isoformat() if player_stats.last_update else None
+
+            stmt_categories = (
+                select(
+                    func.count(LeagueCategoryModel.league_category_id).label("category_count"),
+                    func.max(LeagueCategoryModel.updated_at).label("last_update")
+                )
+                .where(LeagueCategoryModel.league_id == active_league.league_id)
+            )
+            result_categories = await session.execute(stmt_categories)
+            category_stats = result_categories.one()
+            total_categories = category_stats.category_count
+            categories_last_update = category_stats.last_update.isoformat() if category_stats.last_update else None
+
+            return {
+                "active_league": active_league.to_json_for_analytics(),
+                "total_accepted_teams": {
+                    "count": total_accepted_teams,
+                    "last_update": teams_last_update,
+                },
+                "total_categories": {
+                    "count": total_categories,
+                    "last_update": categories_last_update,
+                },
+                "total_profit": {
+                    "amount": total_profit,
+                    "last_update": profit_last_update,
+                    "chart": profit_chart,
+                },
+                "total_players": {
+                    "count": total_players,
+                    "last_update": players_last_update,
+                },
+            }
+
+        
     async def search_leagues(self, session, search: str, limit: int = 10) -> list[LeagueModel]:
         search_term = f"%{search}%"
         search_lower = search.lower()

@@ -141,6 +141,27 @@ class LeagueModel(Base, UpdatableMixin):
             "option": self.option
         }
         
+    def to_json_for_analytics(self) -> dict:
+        return {
+            "league_id": self.league_id,
+            "league_administrator_id": self.league_administrator_id,
+            "league_title": self.league_title,
+            "league_description": self.league_description,
+            "league_address": self.league_address,
+            "league_budget": self.league_budget,
+            "registration_deadline": self.registration_deadline.isoformat(),
+            "opening_date": self.opening_date.isoformat(),
+            "league_schedule": self._league_schedule_serialized(self.league_schedule),
+            "banner_url": self.banner_url,
+            "status": self.status,
+            "season_year": self.season_year,
+            "sportsmanship_rules": self.sportsmanship_rules,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+            "categories": [category.to_json_for_analytics() for category in (self.categories or [])],
+            "option": self.option            
+        }
+        
     def to_json_resource(self) -> dict:
         return {
             "league_id": self.league_id,
@@ -214,7 +235,17 @@ class LeagueCategoryModel(Base, UpdatableMixin):
             "updated_at": self.updated_at.isoformat(),
             "rounds": [round_.to_json() for round_ in (self.rounds or [])]
         }
-
+        
+    def to_json_for_analytics(self) -> dict:
+        return {
+            **self.category.to_json_league_category(),
+            "league_category_id": self.league_category_id,
+            "league_id": self.league_id,
+            "max_team": self.max_team,
+            "accept_teams": self.accept_teams,
+            "rounds": [round_.to_json_for_analytics() for round_ in (self.rounds or [])]
+        }
+        
 round_name_enum = SqlEnum(
     "Elimination",
     "Quarterfinal",
@@ -269,6 +300,18 @@ class LeagueCategoryRoundModel(Base, UpdatableMixin):
     updated_at: Mapped[datetime] = UpdatedAt()
 
     def to_json(self) -> dict:
+        return {
+            "round_id": self.round_id,
+            "league_category_id": self.league_category_id,
+            "round_name": self.round_name,
+            "round_order": self.round_order,
+            "round_status": self.round_status,
+            "round_format": self.round_format or None,
+            "position": self.position,
+            "next_round_id": self.next_round_id or None
+        }
+        
+    def to_json_for_analytics(self) -> dict:
         return {
             "round_id": self.round_id,
             "league_category_id": self.league_category_id,

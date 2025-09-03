@@ -176,7 +176,7 @@ class LeagueTeamModel(Base, UpdatableMixin):
     league_id: Mapped[str] = mapped_column(
         String,
         ForeignKey("leagues_table.league_id", ondelete="CASCADE"),
-        unique=True,
+        unique=False,
         nullable=False
     )
     

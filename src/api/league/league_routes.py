@@ -1,3 +1,4 @@
+import traceback
 from quart import Blueprint, request, send_file
 from quart_auth import login_required
 from src.services.league.league_service import LeagueService
@@ -7,6 +8,15 @@ league_bp = Blueprint("league", __name__, url_prefix="/league")
 
 service = LeagueService()
 
+@league_bp.get('/analytics/<league_id>')
+async def league_analytics_route(league_id: str):
+    try:
+       result = await service.analytics(league_id=league_id)
+       return await ApiResponse.payload(result)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)
+    
 @league_bp.get("/<league_id>/export-pdf")
 @login_required
 async def export_league_pdf_route(league_id: str):
