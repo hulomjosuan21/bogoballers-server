@@ -56,6 +56,8 @@ class PlayerModel(Base, UpdatableMixin):
 
     is_ban: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_allowed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    
+    valid_documents: Mapped[Optional[List[str]]] = mapped_column(JSONB, nullable=True)
 
     created_at: Mapped[datetime] = CreatedAt()
     updated_at: Mapped[datetime] = UpdatedAt()
@@ -87,6 +89,7 @@ class PlayerModel(Base, UpdatableMixin):
             "total_games_played": self.total_games_played,
             "total_points_scored": self.total_points_scored,
             "total_assists": self.total_assists,
+            "valid_documents": self.valid_documents or [],
             "total_rebounds": self.total_rebounds,
             "total_join_league": self.total_join_league,
             "profile_image_url": self.profile_image_url,
@@ -111,6 +114,7 @@ class PlayerModel(Base, UpdatableMixin):
             "height_in": self.height_in,
             "weight_kg": self.weight_kg,
             "total_games_played": self.total_games_played,
+            "valid_documents": self.valid_documents or [],
             "total_points_scored": self.total_points_scored,
             "total_assists": self.total_assists,
             "total_rebounds": self.total_rebounds,
@@ -135,6 +139,7 @@ class PlayerModel(Base, UpdatableMixin):
             "height_in": self.height_in,
             "weight_kg": self.weight_kg,
             "total_games_played": self.total_games_played,
+            "valid_documents": self.valid_documents or [],
             "total_points_scored": self.total_points_scored,
             "total_assists": self.total_assists,
             "total_rebounds": self.total_rebounds,

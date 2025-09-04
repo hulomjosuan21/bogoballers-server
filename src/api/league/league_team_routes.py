@@ -8,14 +8,34 @@ from src.utils.api_response import ApiException
 league_team_bp = Blueprint('league-team', __name__, url_prefix="/league-team")
 service = LeagueTeamService()
 
+@league_team_bp.get('/all/submission/<league_id>/<league_category_id>')
+async def get_teams_route(league_id: str, league_category_id: str):
+    try:
+        result = await service.get_all_submission(
+                                       league_id=league_id,
+                                       league_category_id=league_category_id
+                                    )
+        return await ApiResponse.payload([t.to_json() for t in result])
+    except Exception as e:
+        return await ApiResponse.error(e)
+    
 @league_team_bp.put('/update/<league_team_id>')
-async def update_one(league_team_id: str):
+async def update_one_route(league_team_id: str):
     try:
         data = await request.get_json()
         result = await service.update_one(league_team_id=league_team_id,data=data)
         return await ApiResponse.success(message=result)
     except Exception as e:
         return await ApiResponse.error(e)
+    
+@league_team_bp.delete('/delete/<league_team_id>')
+async def delete_one_route(league_team_id: str):
+    try:
+        result = await service.delete_one(league_team_id=league_team_id)
+        return await ApiResponse.success(message=result)
+    except Exception as e:
+        return await ApiResponse.error(e)    
+
 
 @league_team_bp.post('/register-team/free')
 async def register_team_no_payment_route():

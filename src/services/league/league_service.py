@@ -140,7 +140,6 @@ class LeagueService:
                     "last_update": players_last_update,
                 },
             }
-
         
     async def search_leagues(self, session, search: str, limit: int = 10) -> list[LeagueModel]:
         search_term = f"%{search}%"

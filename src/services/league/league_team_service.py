@@ -1,14 +1,62 @@
 from sqlalchemy import select
+from src.models.player import PlayerModel, PlayerTeamModel
 from src.services.paymongo_service import PayMongoService
-from src.models.team import LeagueTeamModel
+from src.models.team import LeagueTeamModel, TeamModel
 from src.extensions import AsyncSession
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from src.utils.api_response import ApiException
+from sqlalchemy.orm import selectinload
 from quart import request
 
 paymongo_service = PayMongoService()
 
 class LeagueTeamService:
+    async def get_all(self, status: str, league_id: str, league_category_id: str):
+        async with AsyncSession() as session:
+            stmt = (
+                select(LeagueTeamModel)
+                .options(
+                    selectinload(LeagueTeamModel.team).selectinload(TeamModel.user),
+                    selectinload(LeagueTeamModel.team)
+                        .selectinload(TeamModel.players)
+                        .selectinload(PlayerTeamModel.player)
+                        .selectinload(PlayerModel.user),
+                    selectinload(LeagueTeamModel.category),
+                    selectinload(LeagueTeamModel.league),
+                )
+                .where(
+                    LeagueTeamModel.status == status,
+                    LeagueTeamModel.league_id == league_id,
+                    LeagueTeamModel.league_category_id == league_category_id
+                )
+            )
+
+            result = await session.execute(stmt)
+            return result.scalars().all()
+        
+    async def get_all_submission(self, league_id: str, league_category_id: str):
+        async with AsyncSession() as session:
+            stmt = (
+                select(LeagueTeamModel)
+                .options(
+                    selectinload(LeagueTeamModel.team).selectinload(TeamModel.user),
+                    selectinload(LeagueTeamModel.team)
+                        .selectinload(TeamModel.players)
+                        .selectinload(PlayerTeamModel.player)
+                        .selectinload(PlayerModel.user),
+                    selectinload(LeagueTeamModel.category),
+                    selectinload(LeagueTeamModel.league),
+                )
+                .where(
+                    LeagueTeamModel.status != "Accepted",
+                    LeagueTeamModel.league_id == league_id,
+                    LeagueTeamModel.league_category_id == league_category_id
+                )
+            )
+
+            result = await session.execute(stmt)
+            return result.scalars().all()
+    
     async def initiate_payment_registration(self, session ,data: dict):
         try:
             existing_team = await session.execute(
@@ -93,7 +141,7 @@ class LeagueTeamService:
                 if not league_team:
                     raise ApiException("League team not found")
                 
-                league_team.copy_with(**data)
+                league_team.copy_with(raise_on_same=True, **data)
                 await session.commit()
                 
             return "League team update success"
