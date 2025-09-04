@@ -6,11 +6,32 @@ from src.extensions import AsyncSession
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from src.utils.api_response import ApiException
 from sqlalchemy.orm import selectinload
+from src.services.team_entry_service import get_league_team_for_validation, ValidateTeamEntry, get_league_category_for_validation
 from quart import request
 
 paymongo_service = PayMongoService()
 
 class LeagueTeamService:
+    async def validate_team_entry(self, league_team_id: str, league_category_id: str):
+        async with AsyncSession() as session:
+            league_team = await get_league_team_for_validation(session=session,league_team_id=league_team_id)
+            
+            if not league_team:
+                raise ApiException("No team found.")
+            
+            league_category = await get_league_category_for_validation(session=session, league_category_id=league_category_id)
+            
+            if not league_category:
+                raise ApiException("No category found.")
+            
+            validate_team = ValidateTeamEntry(league_category=league_category,league_team=league_team)
+            
+            player_team_ids = validate_team.validate()
+            print(f"Player ids: ${player_team_ids}")
+            
+        return "Validate success"
+                
+    
     async def get_all(self, status: str, league_id: str, league_category_id: str):
         async with AsyncSession() as session:
             stmt = (

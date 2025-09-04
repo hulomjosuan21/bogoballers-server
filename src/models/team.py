@@ -150,7 +150,7 @@ payment_status_enum = SqlEnum(
     "Pending",
     "Paid Online",
     "Paid On Site",
-    "Waived",
+    "No Charge",
     name="payment_status_enum",
     create_type=False
 )

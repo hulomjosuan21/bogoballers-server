@@ -49,9 +49,9 @@ class CategoryModel(Base, UpdatableMixin):
     allowed_address: Mapped[Optional[str]] = mapped_column(String(250), nullable=True)
     
     allow_guest_team: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    team_entrance_fee_amount: Mapped[float] = mapped_column(Float, default=0.0, nullable=True)
     allow_guest_player: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     guest_player_fee_amount: Mapped[float] = mapped_column(Float, default=0.0, nullable=True)
+    team_entrance_fee_amount: Mapped[float] = mapped_column(Float, default=0.0, nullable=True)
     
     requires_valid_document: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     allowed_documents: Mapped[Optional[List[str]]] = mapped_column(JSONB, nullable=True)
