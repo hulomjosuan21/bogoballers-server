@@ -1,6 +1,8 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, List, Optional
+
 if TYPE_CHECKING:
+    from src.models.player import LeaguePlayerModel
     from src.models.user import UserModel
     from src.models.player import PlayerTeamModel
     from src.models.league import LeagueModel, LeagueCategoryModel
@@ -221,6 +223,12 @@ class LeagueTeamModel(Base, UpdatableMixin):
     team: Mapped["TeamModel"] = relationship("TeamModel")
     league: Mapped["LeagueModel"] = relationship("LeagueModel")
 
+    league_players: Mapped[List["LeaguePlayerModel"]] = relationship(
+        "LeaguePlayerModel",
+        back_populates="league_team",
+        cascade="all, delete-orphan"
+    )
+
     def to_json(self) -> dict:
         team_json = self.team.to_json_for_league_team()
 
@@ -244,6 +252,46 @@ class LeagueTeamModel(Base, UpdatableMixin):
             "points": self.points,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat()
+        }
+    
+    def to_json_for_league(self) -> dict:
+        team_json = self.team.to_json_for_league_team()
+        
+        return {
+            **team_json,
+            "league_team_id": self.league_team_id,
+            "league_id": self.league_id,
+            "league_category_id": self.league_category_id,
+            "team": self.team.to_json_for_league_team(),
+            "status": self.status,
+            "amount_paid": self.amount_paid,
+            "payment_status": self.payment_status,
+            "wins": self.wins,
+            "losses": self.losses,
+            "draws": self.draws,
+            "points": self.points,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+            "league_players": [player.to_json() for player in self.league_players]
+        }
+        
+    def to_json_for_league_player(self) -> dict:
+        team_json = self.team.to_json_for_league_team()
+        
+        return {
+            **team_json,
+            "league_team_id": self.league_team_id,
+            "league_id": self.league_id,
+            "league_category_id": self.league_category_id,
+            "status": self.status,
+            "amount_paid": self.amount_paid,
+            "payment_status": self.payment_status,
+            "wins": self.wins,
+            "losses": self.losses,
+            "draws": self.draws,
+            "points": self.points,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
         }
 
 _current_module = globals()

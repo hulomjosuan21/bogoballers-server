@@ -55,7 +55,7 @@ async def get_league_category_for_validation(session, league_category_id: str):
     league_category: LeagueCategoryModel | None = result.scalar_one_or_none()
     return league_category
 
-class ValidateLeagueTeamEntry:
+class LeagueTeamEntryApproval:
     def __init__(self, league_category: LeagueCategoryModel, league_team: LeagueTeamModel):
         self.league_category = league_category
         self.category: CategoryModel = league_category.category

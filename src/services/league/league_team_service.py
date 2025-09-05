@@ -7,8 +7,8 @@ from src.extensions import AsyncSession
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from src.utils.api_response import ApiException
 from sqlalchemy.orm import selectinload
-from src.services.team_entry_service import get_league_team_for_validation, ValidateLeagueTeamEntry, get_league_category_for_validation
-from src.services.team_register_validation import get_team_for_register_validation, ValidateTeamEntry
+from src.services.team_validators.validate_league_team_entry import get_league_team_for_validation, LeagueTeamEntryApproval, get_league_category_for_validation
+from src.services.team_validators.validate_team_entry import get_team_for_register_validation, ValidateTeamEntry
 from quart import request
 
 paymongo_service = PayMongoService()
@@ -28,10 +28,13 @@ class LeagueTeamService:
             if not league_category:
                 raise ApiException("No category found.")
             
-            validate_team_entry = ValidateLeagueTeamEntry(league_category=league_category,league_team=league_team)
+            validate_team_entry = LeagueTeamEntryApproval(league_category=league_category,league_team=league_team)
             
             player_team_ids = validate_team_entry.validate()
-            players_count = await league_player_service.create_many(league_id=league_id,league_team_id=league_team.league_team_id, player_team_ids=player_team_ids)
+            players_count = await league_player_service.create_many(league_id=league_id,
+                                                                    league_team_id=league_team.league_team_id, 
+                                                                    league_category_id=league_category.league_category_id,
+                                                                    player_team_ids=player_team_ids)
             
             league_team.status = "Accepted"
             await session.commit()

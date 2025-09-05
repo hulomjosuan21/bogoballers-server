@@ -1,7 +1,9 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, List, Optional
 
+
 if TYPE_CHECKING:
+    from src.models.league import LeagueCategoryModel
     from src.models.user import UserModel
     from src.models.team import TeamModel
     from src.models.league import LeagueTeamModel, LeagueModel
@@ -252,7 +254,7 @@ class PlayerTeamModel(Base, UpdatableMixin):
             "updated_at": self.updated_at.isoformat(),
         }
         
-    def to_json_league_team(self):
+    def to_json_league_player(self):
         return {
             **self.player.to_json_league_team(),
             "team_id": self.team_id,
@@ -272,11 +274,26 @@ class LeaguePlayerModel(Base, UpdatableMixin):
         nullable=False
     )
 
+    league_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey("leagues_table.league_id", ondelete="CASCADE"),
+        nullable=False
+    )
+    league_category_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey("league_categories_table.league_category_id", ondelete="CASCADE"),
+        nullable=False
+    )
     # Optional link to PlayerTeamModel. Nullable to support players who join the league without being part of a team.
     player_team_id: Mapped[str] = mapped_column(
         String,
         ForeignKey("player_team_table.player_team_id", ondelete="CASCADE"),
         nullable=True
+    )
+    player_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey("players_table.player_id", ondelete="CASCADE"),
+        nullable=True  
     )
 
     # Optional link to LeagueTeamModel. Nullable to support unassigned players or future team assignments.
@@ -293,27 +310,41 @@ class LeaguePlayerModel(Base, UpdatableMixin):
     created_at: Mapped[datetime] = CreatedAt()
     updated_at: Mapped[datetime] = UpdatedAt()
 
+    player: Mapped[Optional["PlayerModel"]] = relationship("PlayerModel")
     player_team: Mapped[Optional["PlayerTeamModel"]] = relationship("PlayerTeamModel")
-    league_team: Mapped[Optional["LeagueTeamModel"]] = relationship("LeagueTeamModel")
-    
+    league_team: Mapped[Optional["LeagueTeamModel"]] = relationship(
+        "LeagueTeamModel",
+        back_populates="league_players"
+    )
+    league_category: Mapped["LeagueCategoryModel"] = relationship("LeagueCategoryModel")
     league: Mapped["LeagueModel"] = relationship("LeagueModel")
         
     __table_args__ = (
-        # note: Prevent same player being added multiple times in the same league
+        # Player joins via a team
         UniqueConstraint("league_id", "player_team_id", name="uq_league_player"),
-
-        # note: Prevent same player being added multiple times in the same league team
         UniqueConstraint("league_team_id", "player_team_id", name="uq_league_team_player"),
+        UniqueConstraint("league_category_id", "player_team_id", name="uq_league_category_player"),
+
+        # Player joins with NO team
+        UniqueConstraint("league_id", "player_id", name="uq_player_no_team_league"),
+        UniqueConstraint("league_category_id", "player_id", name="uq_player_no_team_league_category"),
     )
         
     def to_json(self) -> dict:
+        if self.player_team:
+            base_player = self.player_team.to_json_league_player()
+        else:
+            base_player = self.player.to_json_league_team()
+
         return {
-            **(self.player_team.to_json_league_team() if self.player_team else {}),
+            **base_player,
             "league_team": (
-                self.league_team.to_json() if self.league_team else None
+                self.league_team.to_json_for_league_player() if self.league_team else None
             ),
+            "league_category": self.league_category.to_json_for_league_player(),
             "league_player_id": self.league_player_id,
             "league_id": self.league_id,
+            "league_category_id": self.league_category_id,
             "league_team_id": self.league_team_id,
             "player_team_id": self.player_team_id,
             "total_points": self.total_points,

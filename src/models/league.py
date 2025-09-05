@@ -246,6 +246,13 @@ class LeagueCategoryModel(Base, UpdatableMixin):
             "rounds": [round_.to_json_for_analytics() for round_ in (self.rounds or [])]
         }
         
+    def to_json_for_league_player(self) -> dict:
+        return {
+            **self.category.to_json_league_category(),
+            "league_category_id": self.league_category_id,
+            "league_id": self.league_id,
+        }
+        
 round_name_enum = SqlEnum(
     "Elimination",
     "Quarterfinal",
