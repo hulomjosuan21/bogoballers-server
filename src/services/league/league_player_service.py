@@ -124,3 +124,7 @@ class LeaguePlayerService:
                 raise ApiException(
                     "Player is already registered for this league or category", 409
                 )
+
+    async def assign_player_to_team(self, league_team_id: str):
+        async with AsyncSession() as session:
+            ...
