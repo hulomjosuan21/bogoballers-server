@@ -1,19 +1,36 @@
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from src.models.player import PlayerTeamModel
 from src.models.league import LeagueCategoryModel
 from src.models.team import TeamModel
 from src.utils.api_response import ApiException
 from src.utils.server_utils import calculate_age
 
-class ValidateLeagueTeamJoining:
+async def get_team_for_register_validation(session, team_id: str) -> TeamModel | None:
+    result = await session.execute(
+        select(TeamModel)
+        .options(
+            selectinload(TeamModel.players)
+            .selectinload(PlayerTeamModel.player)
+        )
+        .where(TeamModel.team_id == team_id)
+    )
+
+    team: TeamModel | None = result.scalar_one_or_none()
+    return team
+
+class ValidateTeamEntry:
     def __init__(self, league_category: LeagueCategoryModel, team: TeamModel):
         self.league_category = league_category
         self.team = team
-        self.team = team.team
         self.category = league_category.category
 
     def validate(self):
         # 1. Check if league category already full
-        if self.league_category.max_team and len(self.league_category.teams) >= self.league_category.max_team:
+        accepted_teams_count = sum(
+            1 for team in self.league_category.teams if team.status == "Accepted"
+        )
+        if self.league_category.max_team and accepted_teams_count >= self.league_category.max_team:
             raise ApiException(
                 f"Cannot join: League category '{self.category.category_name}' already reached max teams ({self.league_category.max_team})."
             )
@@ -38,23 +55,31 @@ class ValidateLeagueTeamJoining:
         # 4. Player validations (only accepted players)
         for player_team in self.team.players:
             if player_team.is_accepted == "Accepted":
-                self._validate_player(player_team.player)
+                self._validate_player(player_team)
 
-    def _validate_player(self, player: PlayerTeamModel):
-        # note: Gender validation
+    def _validate_player(self, player_team: PlayerTeamModel):
+        player = player_team.player  # get the actual PlayerModel
+
+        # note: team-level ban check
+        if player_team.is_ban:
+            raise ApiException(f"Player {player.full_name} is banned in this team.")
+
+        # note: gender validation
         if self.category.player_gender != "Any" and player.gender != self.category.player_gender:
             raise ApiException(
                 f"Player {player.full_name} gender '{player.gender}' does not match required category gender '{self.category.player_gender}'."
             )
 
-        # note: Address validation
+        # note: address validation
         if self.category.check_address and not self.category.allow_guest_player:
             if not player.player_address:
                 raise ApiException(f"Player {player.full_name} missing address.")
             if self.category.allowed_address and player.player_address != self.category.allowed_address:
-               raise ApiException(f"Player {player.full_name} cannot join as an outsider or guest player in an not open league category")
-           
-        # note: Age validation
+                raise ApiException(
+                    f"Player {player.full_name} cannot join as an outsider or guest player in a non-open league category."
+                )
+
+        # note: age validation
         if self.category.check_player_age and player.birth_date:
             age = calculate_age(player.birth_date)
             if self.category.player_min_age and age < self.category.player_min_age:

@@ -8,10 +8,10 @@ from src.utils.api_response import ApiException
 league_team_bp = Blueprint('league-team', __name__, url_prefix="/league-team")
 service = LeagueTeamService()
 
-@league_team_bp.put('/validate-entry/<league_category_id>/<league_team_id>')
-async def validate_team_entry_route(league_category_id: str, league_team_id: str):
+@league_team_bp.put('/validate-entry/<league_id>/<league_category_id>/<league_team_id>')
+async def validate_team_entry_route(league_id: str, league_category_id: str, league_team_id: str):
     try:
-        result = await service.validate_team_entry(league_category_id=league_category_id,league_team_id=league_team_id)
+        result = await service.validate_team_entry(league_id=league_id, league_category_id=league_category_id,league_team_id=league_team_id)
         return await ApiResponse.success(message=result)
     except Exception as e:
         traceback.print_exc()
@@ -61,14 +61,10 @@ async def register_team_no_payment_route():
 async def register_team_route():
     try:
         data = await request.get_json()
-        validate_required_fields(data, ["team_id", "league_id", "league_category_id", "amount_paid", "payment_method"])
-
-        try:
-            data["amount_paid"] = float(data["amount_paid"])
-        except (ValueError, TypeError):
-            raise ApiException("Invalid amount format. Please provide a valid number.", 400)
-
-        result = await service.add_one(data=data)
+        validate_required_fields(data, ["team_id", "league_id", "league_category_id", "payment_method"])
+        
+        if await service.check_entry_one(data=data):
+            result = await service.add_one(data=data)
 
         if "checkout_url" in result:
             return await ApiResponse.success(
@@ -89,6 +85,7 @@ async def register_team_route():
             }
         )
     except Exception as e:
+        traceback.print_exc()
         return await ApiResponse.error(e)
 
 @league_team_bp.post('/update-payment-status')

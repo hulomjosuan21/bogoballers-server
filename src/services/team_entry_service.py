@@ -43,7 +43,11 @@ async def get_league_category_for_validation(session, league_category_id: str):
     result = await session.execute(
         select(LeagueCategoryModel)
         .options(
-            selectinload(LeagueCategoryModel.category)
+            selectinload(LeagueCategoryModel.category),
+            selectinload(LeagueCategoryModel.teams)
+            .selectinload(LeagueTeamModel.team)
+            .selectinload(TeamModel.players)
+            .selectinload(PlayerTeamModel.player)
         )
         .where(LeagueCategoryModel.league_category_id == league_category_id)
     )
@@ -104,10 +108,10 @@ class ValidateLeagueTeamPlayers:
 
     def validate(self):
         # note: Enforce 12–15 players
-        if len(self.players) < 12:
-            raise ApiException(f"Minimum 12 players required, got {len(self.players)}.")
-        if len(self.players) > 15:
-            raise ApiException(f"Maximum 15 players allowed, got {len(self.players)}.")
+        # if len(self.players) < 12:
+        #     raise ApiException(f"Minimum 12 players required, got {len(self.players)}.")
+        # if len(self.players) > 15:
+        #     raise ApiException(f"Maximum 15 players allowed, got {len(self.players)}.")
 
         # note: loops players
         for player_team in self.players:
@@ -134,7 +138,7 @@ class ValidatePlayerTeam:
         if self.category.check_player_age:
             if not self.player.birth_date:
                 raise ApiException(f"Player {self.player.full_name} missing birthdate.")
-            age = self.calculate_age(self.player.birth_date)
+            age = calculate_age(self.player.birth_date)
             if self.category.player_min_age and age < self.category.player_min_age:
                 raise ApiException(f"Player {self.player.full_name} is too young ({age}).")
             if self.category.player_max_age and age > self.category.player_max_age:

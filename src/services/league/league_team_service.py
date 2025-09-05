@@ -1,4 +1,5 @@
 from sqlalchemy import select
+from src.services.league.league_player_service import LeaguePlayerService
 from src.models.player import PlayerModel, PlayerTeamModel
 from src.services.paymongo_service import PayMongoService
 from src.models.team import LeagueTeamModel, TeamModel
@@ -7,12 +8,15 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from src.utils.api_response import ApiException
 from sqlalchemy.orm import selectinload
 from src.services.team_entry_service import get_league_team_for_validation, ValidateLeagueTeamEntry, get_league_category_for_validation
+from src.services.team_register_validation import get_team_for_register_validation, ValidateTeamEntry
 from quart import request
 
 paymongo_service = PayMongoService()
 
+league_player_service = LeaguePlayerService()
+
 class LeagueTeamService:
-    async def validate_team_entry(self, league_team_id: str, league_category_id: str):
+    async def validate_team_entry(self, league_id: str, league_team_id: str, league_category_id: str):
         async with AsyncSession() as session:
             league_team = await get_league_team_for_validation(session=session,league_team_id=league_team_id)
             
@@ -27,9 +31,12 @@ class LeagueTeamService:
             validate_team_entry = ValidateLeagueTeamEntry(league_category=league_category,league_team=league_team)
             
             player_team_ids = validate_team_entry.validate()
-            print(f"Player ids: ${player_team_ids}")
+            players_count = await league_player_service.create_many(league_id=league_id,league_team_id=league_team.league_team_id, player_team_ids=player_team_ids)
             
-        return "Validate success"
+            league_team.status = "Accepted"
+            await session.commit()
+            
+        return f"Team {league_team.team.team_name} validate successfully total players {players_count}"
                 
     
     async def get_all(self, status: str, league_id: str, league_category_id: str):
@@ -186,17 +193,38 @@ class LeagueTeamService:
             await session.rollback()
             raise
         
+    async def check_entry_one(self, data: dict):
+        async with AsyncSession() as session:
+            team_id = data.get("team_id")
+            league_category_id = data.get("league_category_id")
+            team = await get_team_for_register_validation(session=session,team_id=team_id)
+            
+            if not team:
+                raise ApiException("No team found.")
+
+            league_category = await get_league_category_for_validation(session=session, league_category_id=league_category_id)
+            
+            if not league_category:
+                raise ApiException("No category found.")
+
+            ValidateTeamEntry(league_category=league_category,team=team).validate()
+            
+        return True
+            
     async def add_one(self, data: dict):
         try:
             payment_method = data.get("payment_method")
             async with AsyncSession() as session:
+                team_id = data.get("team_id")
+                league_category_id = data.get("league_category_id")
+
                 if payment_method == "online":
                     return await self.initiate_payment_registration(session=session,data=data)
                 amount_paid = float(data.get("amount_paid", 0.0))
                 league_team = LeagueTeamModel(
-                    team_id=data.get("team_id"),
+                    team_id=team_id,
                     league_id=data.get("league_id"),
-                    league_category_id=data.get("league_category_id"),
+                    league_category_id=league_category_id,
                     status=data.get("status", "Pending"),
                     payment_status=data.get("payment_status", "Pending"),
                     amount_paid=amount_paid

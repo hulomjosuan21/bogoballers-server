@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     
 from datetime import datetime
 from sqlalchemy import (
-    CheckConstraint, Float, ForeignKey, String, Boolean, Integer, Enum as SqlEnum, Text
+    CheckConstraint, Float, ForeignKey, String, Boolean, Integer, Enum as SqlEnum, Text, UniqueConstraint
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import inspect
@@ -209,6 +209,7 @@ class LeagueTeamModel(Base, UpdatableMixin):
         CheckConstraint("losses >= 0", name="check_losses_positive"),
         CheckConstraint("draws >= 0", name="check_draws_positive"),
         CheckConstraint("points >= 0", name="check_points_positive"),
+        UniqueConstraint("team_id", "league_id", name="uq_team_per_league"),
     )
 
     created_at: Mapped[datetime] = CreatedAt()

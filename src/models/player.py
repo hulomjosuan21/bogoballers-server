@@ -79,7 +79,7 @@ class PlayerModel(Base, UpdatableMixin):
             "user_id": self.user_id,
             "full_name": self.full_name,
             "gender": self.gender,
-            "birth_date": self.birth_date.isoformat() if self.birth_date else None,
+            "birth_date": self.birth_date.isoformat(),
             "player_address": self.player_address,
             "jersey_name": self.jersey_name,
             "jersey_number": self.jersey_number,
@@ -106,7 +106,7 @@ class PlayerModel(Base, UpdatableMixin):
             "user_id": self.user_id,
             "full_name": self.full_name,
             "gender": self.gender,
-            "birth_date": self.birth_date.isoformat() if self.birth_date else None,
+            "birth_date": self.birth_date.isoformat(),
             "player_address": self.player_address,
             "jersey_name": self.jersey_name,
             "jersey_number": self.jersey_number,
@@ -131,7 +131,7 @@ class PlayerModel(Base, UpdatableMixin):
             "user_id": self.user_id,
             "full_name": self.full_name,
             "gender": self.gender,
-            "birth_date": self.birth_date.isoformat() if self.birth_date else None,
+            "birth_date": self.birth_date.isoformat(),
             "player_address": self.player_address,
             "jersey_name": self.jersey_name,
             "jersey_number": self.jersey_number,
@@ -151,7 +151,25 @@ class PlayerModel(Base, UpdatableMixin):
         }
 
         return data
+    
+    def to_json_league_team(self):
+        data = {
+            "player_id": self.player_id,
+            "user_id": self.user_id,
+            "full_name": self.full_name,
+            "gender": self.gender,
+            "birth_date": self.birth_date.isoformat(),
+            "player_address": self.player_address,
+            "jersey_name": self.jersey_name,
+            "jersey_number": self.jersey_number,
+            "position": self.position,
+            "height_in": self.height_in,
+            "weight_kg": self.weight_kg,
+            "profile_image_url": self.profile_image_url,
+            "user": self.user.to_json(),
+        }
 
+        return data
 player_is_accepted_enum = SqlEnum(
     "Pending",
     "Accepted",
@@ -233,6 +251,15 @@ class PlayerTeamModel(Base, UpdatableMixin):
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
+        
+    def to_json_league_team(self):
+        return {
+            **self.player.to_json_league_team(),
+            "team_id": self.team_id,
+            "is_ban": self.is_ban,
+            "is_accepted": self.is_accepted,
+            "is_team_captain": self.is_team_captain,
+        }
     
 class LeaguePlayerModel(Base, UpdatableMixin):
     __tablename__ = "league_players_table"
@@ -266,10 +293,35 @@ class LeaguePlayerModel(Base, UpdatableMixin):
     created_at: Mapped[datetime] = CreatedAt()
     updated_at: Mapped[datetime] = UpdatedAt()
 
-    player_team: Mapped["PlayerTeamModel"] = relationship("PlayerTeamModel")
-    league_team: Mapped["LeagueTeamModel"] = relationship("LeagueTeamModel")
+    player_team: Mapped[Optional["PlayerTeamModel"]] = relationship("PlayerTeamModel")
+    league_team: Mapped[Optional["LeagueTeamModel"]] = relationship("LeagueTeamModel")
     
     league: Mapped["LeagueModel"] = relationship("LeagueModel")
+        
+    __table_args__ = (
+        # note: Prevent same player being added multiple times in the same league
+        UniqueConstraint("league_id", "player_team_id", name="uq_league_player"),
+
+        # note: Prevent same player being added multiple times in the same league team
+        UniqueConstraint("league_team_id", "player_team_id", name="uq_league_team_player"),
+    )
+        
+    def to_json(self) -> dict:
+        return {
+            **(self.player_team.to_json_league_team() if self.player_team else {}),
+            "league_team": (
+                self.league_team.to_json() if self.league_team else None
+            ),
+            "league_player_id": self.league_player_id,
+            "league_id": self.league_id,
+            "league_team_id": self.league_team_id,
+            "player_team_id": self.player_team_id,
+            "total_points": self.total_points,
+            "is_ban": self.is_ban,
+            "is_allowed": self.is_allowed,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+        }
     
 _current_module = globals()
 __all__ = [
