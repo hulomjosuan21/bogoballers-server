@@ -46,3 +46,10 @@ def validate_required_fields(data: dict, required_fields: list[str]):
     missing_fields = [field for field in required_fields if not data.get(field)]
     if missing_fields:
         raise ApiException(f"Missing required fields: {', '.join(missing_fields)}",400)
+    
+def calculate_age(birth_date):
+    from datetime import date
+    today = date.today()
+    return today.year - birth_date.year - (
+        (today.month, today.day) < (birth_date.month, birth_date.day)
+    )
