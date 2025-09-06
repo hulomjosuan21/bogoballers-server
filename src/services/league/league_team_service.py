@@ -1,6 +1,6 @@
 from sqlalchemy import select
 from src.services.league.league_player_service import LeaguePlayerService
-from src.models.player import PlayerModel, PlayerTeamModel
+from src.models.player import LeaguePlayerModel, PlayerModel, PlayerTeamModel
 from src.services.paymongo_service import PayMongoService
 from src.models.team import LeagueTeamModel, TeamModel
 from src.extensions import AsyncSession
@@ -40,49 +40,68 @@ class LeagueTeamService:
             await session.commit()
             
         return f"Team {league_team.team.team_name} validate successfully total players {players_count}"
-                
     
-    async def get_all(self, status: str, league_id: str, league_category_id: str):
-        async with AsyncSession() as session:
-            stmt = (
-                select(LeagueTeamModel)
-                .options(
-                    selectinload(LeagueTeamModel.team).selectinload(TeamModel.user),
-                    selectinload(LeagueTeamModel.team)
-                        .selectinload(TeamModel.players)
-                        .selectinload(PlayerTeamModel.player)
-                        .selectinload(PlayerModel.user),
-                    selectinload(LeagueTeamModel.category),
-                    selectinload(LeagueTeamModel.league),
-                )
-                .where(
-                    LeagueTeamModel.status == status,
-                    LeagueTeamModel.league_id == league_id,
-                    LeagueTeamModel.league_category_id == league_category_id
-                )
+    async def get_all_loaded(self):
+        return (
+            select(LeagueTeamModel)
+            .options(
+                # Team + its user
+                selectinload(LeagueTeamModel.team).selectinload(TeamModel.user),
+
+                # Team → PlayerTeam → Player → User
+                selectinload(LeagueTeamModel.team)
+                    .selectinload(TeamModel.players)
+                    .selectinload(PlayerTeamModel.player)
+                    .selectinload(PlayerModel.user),
+
+                # Category + League
+                selectinload(LeagueTeamModel.category),
+                selectinload(LeagueTeamModel.league),
+
+                # LeaguePlayers → Player + User
+                selectinload(LeagueTeamModel.league_players)
+                    .selectinload(LeaguePlayerModel.player)
+                    .selectinload(PlayerModel.user),
+
+                # LeaguePlayers → PlayerTeam → Player + User
+                selectinload(LeagueTeamModel.league_players)
+                    .selectinload(LeaguePlayerModel.player_team)
+                    .selectinload(PlayerTeamModel.player)
+                    .selectinload(PlayerModel.user),
+
+                # LeaguePlayers → Category + League + LeagueTeam
+                selectinload(LeagueTeamModel.league_players).selectinload(LeaguePlayerModel.league_category),
+                selectinload(LeagueTeamModel.league_players).selectinload(LeaguePlayerModel.league),
+                selectinload(LeagueTeamModel.league_players).selectinload(LeaguePlayerModel.league_team),
             )
+        )
+            
+    
+    async def get_all(self, status: str | None, league_id: str, league_category_id: str):
+        async with AsyncSession() as session:
+            stmt = await self.get_all_loaded()
+            
+            conditions = [
+                LeagueTeamModel.league_id == league_id,
+                LeagueTeamModel.league_category_id == league_category_id,
+            ]
+
+            if status:
+                conditions.append(LeagueTeamModel.status == status)
+
+            stmt = stmt.where(*conditions)
 
             result = await session.execute(stmt)
             return result.scalars().all()
         
     async def get_all_submission(self, league_id: str, league_category_id: str):
         async with AsyncSession() as session:
-            stmt = (
-                select(LeagueTeamModel)
-                .options(
-                    selectinload(LeagueTeamModel.team).selectinload(TeamModel.user),
-                    selectinload(LeagueTeamModel.team)
-                        .selectinload(TeamModel.players)
-                        .selectinload(PlayerTeamModel.player)
-                        .selectinload(PlayerModel.user),
-                    selectinload(LeagueTeamModel.category),
-                    selectinload(LeagueTeamModel.league),
-                )
-                .where(
-                    LeagueTeamModel.status != "Accepted",
-                    LeagueTeamModel.league_id == league_id,
-                    LeagueTeamModel.league_category_id == league_category_id
-                )
+            stmt = await self.get_all_loaded()
+            
+            stmt = stmt.where(
+                LeagueTeamModel.status != "Accepted",
+                LeagueTeamModel.league_id == league_id,
+                LeagueTeamModel.league_category_id == league_category_id
             )
 
             result = await session.execute(stmt)

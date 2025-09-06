@@ -293,6 +293,26 @@ class LeagueTeamModel(Base, UpdatableMixin):
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
+        
+    def to_json_for_match(self) -> dict:
+        team_json = self.team.to_json_for_league_team()
+        
+        return {
+            **team_json,
+            "league_team_id": self.league_team_id,
+            "league_id": self.league_id,
+            "league_category_id": self.league_category_id,
+            "status": self.status,
+            "amount_paid": self.amount_paid,
+            "payment_status": self.payment_status,
+            "wins": self.wins,
+            "losses": self.losses,
+            "league_players": [player.to_json() for player in self.league_players],
+            "draws": self.draws,
+            "points": self.points,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+        }
 
 _current_module = globals()
 __all__ = [

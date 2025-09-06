@@ -1,10 +1,10 @@
 from __future__ import annotations
 from datetime import datetime
 from sqlalchemy import String, Boolean, Integer, DateTime, Enum as SqlEnum, Text, ARRAY, ForeignKey, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, object_session
+from src.models.team import LeagueTeamModel, TeamModel
 from src.extensions import Base
 from src.utils.db_utils import CreatedAt, UUIDGenerator, UpdatedAt
-from src.models.league import round_name_enum
 from sqlalchemy.dialects.postgresql import JSONB
 
 match_status_enum = SqlEnum(
@@ -21,7 +21,7 @@ match_status_enum = SqlEnum(
 class MatchModel(Base):
     __tablename__ = "matches_table"
 
-    # 🏷️ Identifiers & Relations
+    # note: Identifiers & Relations
     match_id: Mapped[str] = UUIDGenerator("match")
 
     league_id: Mapped[str | None] = mapped_column(
@@ -40,9 +40,18 @@ class MatchModel(Base):
         nullable=True
     )
 
-    # 👥 Teams & Results
+    # note: Teams & Results
     home_team_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    home_team_type: Mapped[str | None] = mapped_column(
+        String,  # "league" or "team"
+        nullable=True
+    )
+
     away_team_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    away_team_type: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True
+    )
 
     home_team_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
     away_team_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -50,13 +59,17 @@ class MatchModel(Base):
     winner_team_id: Mapped[str | None] = mapped_column(String, nullable=True)
     loser_team_id: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    # 📅 Scheduling & Logistics
+    # note: Scheduling & Logistics
     scheduled_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     duration_minutes: Mapped[int] = mapped_column(Integer, default=40)
     court: Mapped[str | None] = mapped_column(String, nullable=True)
-    referees: Mapped[list[str]] = mapped_column(JSONB, default=[])
+    referees: Mapped[list[str]] = mapped_column(
+        JSONB,
+        default=list,
+        nullable=False
+    )
 
-    # ⚙️ Format & Rules
+    # note: Format & Rules
     match_format: Mapped[str] = mapped_column(
         String,  # e.g. "RoundRobin", "Knockout", "DoubleElim", "BestOf"
         default="Knockout",
@@ -67,13 +80,8 @@ class MatchModel(Base):
         default=dict,
         nullable=False
     )
-    # Examples:
-    # Round Robin:   { "group": "A", "rounds": 1 }
-    # Knockout:      { "elimination_side": "winner" }
-    # Best of Three: { "best_of": 3, "current_game": 1 }
-    # Twice to Beat: { "advantage_team_id": "team123" }
 
-    # 🔀 Progression / Bracket Flow
+    # note: Progression / Bracket Flow
     previous_match_ids: Mapped[list[str]] = mapped_column(ARRAY(String), default=[])
     next_match_id: Mapped[str | None] = mapped_column(String, nullable=True)
     next_match_slot: Mapped[str | None] = mapped_column(String, nullable=True)  # "home" or "away"
@@ -81,15 +89,15 @@ class MatchModel(Base):
     loser_next_match_id: Mapped[str | None] = mapped_column(String, nullable=True)
     loser_next_match_slot: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    # 📝 Meta & Display
+    # note: Meta & Display
     round_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     bracket_side: Mapped[str | None] = mapped_column(String, nullable=True)   # "Winners", "Losers"
     bracket_position: Mapped[str | None] = mapped_column(String, nullable=True)
-    pairing_method: Mapped[str | None] = mapped_column(String, nullable=False, default='random') # "seeded", "random", "manual"
+    pairing_method: Mapped[str | None] = mapped_column(String, nullable=False, default='random')
     generated_by: Mapped[str | None] = mapped_column(String, nullable=True)
     display_name: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    # ✅ Flags & Status
+    # note: Flags & Status
     is_final: Mapped[bool] = mapped_column(Boolean, default=False)
     is_third_place: Mapped[bool] = mapped_column(Boolean, default=False)
     is_exhibition: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -99,11 +107,28 @@ class MatchModel(Base):
         nullable=False,
         default="Unscheduled"
     )
+    
+    @property
+    def home_team(self):
+        if self.home_team_type == "league":
+            return object_session(self).get(LeagueTeamModel, self.home_team_id)
+        elif self.home_team_type == "team":
+            return object_session(self).get(TeamModel, self.home_team_id)
+        return None
 
-    # 🕒 Audit
+    @property
+    def away_team(self):
+        if self.away_team_type == "league":
+            return object_session(self).get(LeagueTeamModel, self.away_team_id)
+        elif self.away_team_type == "team":
+            return object_session(self).get(TeamModel, self.away_team_id)
+        return None
+
+    # note: Audit
     created_at: Mapped[datetime] = CreatedAt()
     updated_at: Mapped[datetime] = UpdatedAt()
 
+    # note: Constraints
     __table_args__ = (
         UniqueConstraint(
             "league_id",
@@ -112,17 +137,5 @@ class MatchModel(Base):
             "home_team_id",
             "away_team_id",
             name="unique_match_per_round"
-        ),
-    )
-
-    __table_args__ = (
-        UniqueConstraint(
-            "league_id",
-            "category",
-            "division_id",
-            "round_number",
-            "home_team_id",
-            "away_team_id",
-            name="unique_match_per_category_and_division"
         ),
     )

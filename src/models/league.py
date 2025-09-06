@@ -285,15 +285,15 @@ class LeagueCategoryRoundModel(Base, UpdatableMixin):
     )
 
     round_name: Mapped[str] = mapped_column(round_name_enum, nullable=False)
-
     round_order: Mapped[int] = mapped_column(Integer, nullable=False)
-    
+
+    format_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
     round_format: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True, default=None)
-    
     position: Mapped[dict] = mapped_column(JSONB, nullable=True)
 
     round_status: Mapped[str] = mapped_column(round_status_enum, default="Upcoming", nullable=False)
-    
+
     next_round_id: Mapped[Optional[str]] = mapped_column(
         String, ForeignKey("league_category_rounds_table.round_id", ondelete="SET NULL"), nullable=True
     )

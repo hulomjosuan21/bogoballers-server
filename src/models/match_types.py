@@ -1,6 +1,5 @@
+from typing import Dict, List, Literal, Optional, Union
 from dataclasses import dataclass, asdict
-from typing import Optional, Literal, List, Dict
-
 
 # note: Round-level Configs
 @dataclass
@@ -13,7 +12,6 @@ class RoundRobinConfig:
     def to_dict(self) -> Dict:
         return asdict(self)
 
-
 @dataclass
 class KnockoutConfig:
     type: Literal["Knockout"] = "Knockout"
@@ -24,7 +22,6 @@ class KnockoutConfig:
     def to_dict(self) -> Dict:
         return asdict(self)
 
-
 @dataclass
 class BestOfConfig:
     type: Literal["BestOf"] = "BestOf"
@@ -33,7 +30,6 @@ class BestOfConfig:
 
     def to_dict(self) -> Dict:
         return asdict(self)
-
 
 @dataclass
 class DoubleEliminationConfig:
@@ -49,7 +45,15 @@ class DoubleEliminationConfig:
     def to_dict(self) -> Dict:
         return asdict(self)
 
-# note: Match-level Configs
+
+# Union of all possible round configs
+RoundConfig = Union[
+    RoundRobinConfig,
+    KnockoutConfig,
+    BestOfConfig,
+    DoubleEliminationConfig,
+]
+
 @dataclass
 class MatchBestOfConfig:
     type: Literal["BestOf"] = "BestOf"
@@ -62,7 +66,6 @@ class MatchBestOfConfig:
     def to_dict(self) -> Dict:
         return asdict(self)
 
-
 @dataclass
 class MatchKnockoutConfig:
     type: Literal["Knockout"] = "Knockout"
@@ -72,3 +75,8 @@ class MatchKnockoutConfig:
 
     def to_dict(self) -> Dict:
         return asdict(self)
+
+MatchConfig = Union[
+    MatchBestOfConfig,
+    MatchKnockoutConfig,
+]

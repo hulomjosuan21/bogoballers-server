@@ -8,6 +8,16 @@ from src.utils.api_response import ApiException
 league_team_bp = Blueprint('league-team', __name__, url_prefix="/league-team")
 service = LeagueTeamService()
 
+@league_team_bp.get('/all/<league_id>/<league_category_id>')
+async def get_all_route(league_id: str, league_category_id: str):
+    try:
+        status = request.args.get('status', None)
+        
+        result = await service.get_all(status=status,league_id=league_id,league_category_id=league_category_id)
+        return await ApiResponse.payload([t.to_json_for_match() for t in result])
+    except Exception as e:
+        return await ApiResponse.error(e)
+
 @league_team_bp.put('/validate-entry/<league_id>/<league_category_id>/<league_team_id>')
 async def validate_team_entry_route(league_id: str, league_category_id: str, league_team_id: str):
     try:
