@@ -51,9 +51,9 @@ class CategoryService:
                 session.add(new_category)
                 await session.commit()
                 return "Category created successfully."
-            except (IntegrityError, SQLAlchemyError):
+            except (IntegrityError, SQLAlchemyError) as e:
                 await session.rollback()
-                raise
+                raise e
 
     async def update_one(self, category_id: str, data: dict):
         async with AsyncSession() as session:
@@ -76,9 +76,9 @@ class CategoryService:
 
                 await session.commit()
                 return "Category updated successfully."
-            except (IntegrityError, SQLAlchemyError):
+            except (IntegrityError, SQLAlchemyError) as e:
                 await session.rollback()
-                raise
+                raise e
 
     async def delete_one(self, category_id: str):
         async with AsyncSession() as session:
@@ -89,6 +89,6 @@ class CategoryService:
                 await session.delete(category)
                 await session.commit()
                 return "Category deleted successfully."
-            except (IntegrityError, SQLAlchemyError):
+            except (IntegrityError, SQLAlchemyError) as e:
                 await session.rollback()
-                raise
+                raise e

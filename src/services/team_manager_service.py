@@ -21,9 +21,9 @@ class TeamManagerService:
                 await session.commit()
                 
                 return "Register successfully"
-            except (IntegrityError, SQLAlchemyError):
+            except (IntegrityError, SQLAlchemyError) as e:
                 await session.rollback()
-                raise
+                raise e
 
     async def get_authenticated_user(self, user_id: str = None, current_user_id: str = None):
         async with AsyncSession() as session:

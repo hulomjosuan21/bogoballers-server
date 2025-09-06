@@ -78,7 +78,7 @@ class PlayerTeamService:
                 return "Success"
             except (IntegrityError, SQLAlchemyError) as e:
                 await session.rollback()
-                raise
+                raise e
 
 
     async def update_one(self, player_team_id: str, data: dict):
@@ -93,6 +93,6 @@ class PlayerTeamService:
                 await session.commit()
                 
                 return "Player updated successfully"
-        except (IntegrityError, SQLAlchemyError):
+        except (IntegrityError, SQLAlchemyError) as e:
             await session.rollback()
-            raise
+            raise e

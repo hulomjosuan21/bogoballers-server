@@ -12,6 +12,8 @@ from src.api.league.league_routes import league_bp
 from src.api.league.league_category_routes import league_category_bp
 from src.api.league.league_team_routes import league_team_bp
 from src.api.league.league_player_routes import league_player
+from src.api.message_routes import message_bp
+
 all_blueprints = [
     static_data_bp,
     league_admin_bp,
@@ -26,5 +28,6 @@ all_blueprints = [
     round_bp,
     category_bp,
     league_team_bp,
-    league_player
+    league_player,
+    message_bp
 ]

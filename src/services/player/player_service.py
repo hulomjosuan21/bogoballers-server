@@ -131,9 +131,9 @@ class PlayerService:
 
                 return f"{len(new_players)} players successfully created"
 
-        except (IntegrityError, SQLAlchemyError):
+        except (IntegrityError, SQLAlchemyError) as e:
             await session.rollback()
-            raise
+            raise e
         
     async def create_one(self, form_data: dict, file):
         required_fields = [
@@ -198,9 +198,9 @@ class PlayerService:
 
                 return 'Register successfully'
 
-        except (IntegrityError, SQLAlchemyError):
+        except (IntegrityError, SQLAlchemyError) as e:
             await session.rollback()
-            raise
+            raise e
 
     async def get_authenticated_player(self, user_id: str = None, current_user_id: str = None):
         async with AsyncSession() as session:

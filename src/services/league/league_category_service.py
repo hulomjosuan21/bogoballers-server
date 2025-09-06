@@ -196,9 +196,9 @@ class LeagueCategoryService:
 
                 await session.commit()
                 return "Categories added successfully"
-            except (IntegrityError, SQLAlchemyError):
+            except (IntegrityError, SQLAlchemyError) as e:
                 await session.rollback()
-                raise
+                raise e 
 
     async def get_league_categories(self, league_id: str):
         if not league_id:
@@ -228,9 +228,9 @@ class LeagueCategoryService:
                 await session.commit()
                 
                 return "Category deleted successfully"
-            except (IntegrityError, SQLAlchemyError):
+            except (IntegrityError, SQLAlchemyError) as e:
                 await session.rollback()
-                raise
+                raise e 
 
     async def update_league_category(self, league_category_id: str, data: dict):
         async with AsyncSession() as session:
@@ -243,6 +243,6 @@ class LeagueCategoryService:
                 await session.commit()
                 
                 return "Update success"
-            except (IntegrityError, SQLAlchemyError):
+            except (IntegrityError, SQLAlchemyError) as e:
                 await session.rollback()
-                raise
+                raise e

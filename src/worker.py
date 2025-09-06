@@ -53,7 +53,7 @@ class Worker:
         }
 
         tasks_without_session = {
-            # self.task.task_without_session: IntervalTrigger(seconds=10),
+            self.task.task_without_session: IntervalTrigger(seconds=5),
             # self.task.task_without_session: CronTrigger(hour='13,13',minute='31,32')
         }
 

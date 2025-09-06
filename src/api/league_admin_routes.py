@@ -1,6 +1,5 @@
 from quart import Blueprint, jsonify, make_response, request
 from quart_auth import login_user, login_required, current_user, logout_user
-from src.logging.log_entity_action import log_action
 from src.config import get_jwt_cookie_settings
 from src.auth.auth_user import AuthUser
 from src.models.league_admin import LeagueAdministratorModel
@@ -23,11 +22,6 @@ async def update_route():
         return await ApiResponse.error(e)
 
 @league_admin_bp.post("/login")
-@log_action(
-    model_class=LeagueAdministratorModel,
-    match_column=LeagueAdministratorModel.user_id,
-    action_message="Logged in"
-)
 @rate_limit(login_limit)
 async def login_route():
     try:

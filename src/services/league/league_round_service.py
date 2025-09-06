@@ -15,6 +15,6 @@ class LeagueRoundService:
                 await session.commit()
                 
                 return "Update success."
-            except (IntegrityError, SQLAlchemyError):
+            except (IntegrityError, SQLAlchemyError) as e:
                 await session.rollback()
-                raise
+                raise e 

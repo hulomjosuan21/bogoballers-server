@@ -165,9 +165,9 @@ class TeamService:
                 await CloudinaryService.delete_file_by_url(team_logo_url)
 
                 return "Team deleted successfully"
-            except (IntegrityError, SQLAlchemyError, CloudinaryException):
+            except (IntegrityError, SQLAlchemyError, CloudinaryException) as e:
                 await session.rollback()
-                raise
+                raise e
 
     async def get_many(self, user_id: str):
         async with AsyncSession() as session:
@@ -204,6 +204,6 @@ class TeamService:
                 await session.commit()
             
             return "Team updated successfully."
-        except (IntegrityError, SQLAlchemyError):
+        except (IntegrityError, SQLAlchemyError) as e:
             await session.rollback()
-            raise
+            raise e

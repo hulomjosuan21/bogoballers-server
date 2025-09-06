@@ -53,9 +53,9 @@ class LeagueAdministratorService:
 
                 await session.commit()
                 return "Update success."
-            except (IntegrityError, SQLAlchemyError):
+            except (IntegrityError, SQLAlchemyError) as e:
                 await session.rollback()
-                raise
+                raise e
 
     async def authenticate_login(self, email: str, password: str):
         async with AsyncSession() as session:
@@ -157,25 +157,3 @@ class LeagueAdministratorService:
             except (IntegrityError, SQLAlchemyError):
                 await session.rollback()
                 raise ApiException("Email already registered or league admin already exists.",409)
-
-    async def send_notification(self, title: str, message: str, from_id: str, to_id: str, image_url: str = None):
-        async with AsyncSession() as session:
-            try:
-                user = await session.get(UserModel, to_id)
-                new_notification = NotificationModel(
-                    title=title,
-                    message=message,
-                    image_url=image_url,
-                    from_id=from_id,
-                    to_id=to_id
-                )
-                
-                await new_notification.send(token=user.fcm_token)
-                session.add(new_notification)
-                await session.commit()
-                
-                return "Notification sent successfully."
-            except Exception as e:
-                await session.rollback()
-                traceback.print_exc()
-                raise

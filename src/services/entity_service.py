@@ -231,6 +231,6 @@ class EntityService():
                     session.add(user)
                     await session.commit()
                 return "FCM token updated"
-            except (IntegrityError, SQLAlchemyError):
+            except (IntegrityError, SQLAlchemyError) as e:
                 await session.rollback()
-                raise
+                raise e
