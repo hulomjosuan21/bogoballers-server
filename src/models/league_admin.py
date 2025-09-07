@@ -106,6 +106,8 @@ class LeagueAdministratorModel(Base, UpdatableMixin):
 
     league_administrator_id: Mapped[str] = UUIDGenerator("league_administrator")
 
+    organization_name: Mapped[str] = mapped_column(String(250), nullable=False)
+    organization_logo_url: Mapped[str | None] = mapped_column(String, nullable=True)
     is_allowed: Mapped[bool] = mapped_column(
         Boolean, 
         nullable=False, 
@@ -128,11 +130,9 @@ class LeagueAdministratorModel(Base, UpdatableMixin):
     )
 
     organization_type: Mapped[str] = mapped_column(String, nullable=False)
-    organization_name: Mapped[str] = mapped_column(String(250), nullable=False)
     organization_address: Mapped[str] = mapped_column(String(250), nullable=False)
 
     organization_photo_url: Mapped[str | None] = mapped_column(String, nullable=True)
-    organization_logo_url: Mapped[str | None] = mapped_column(String, nullable=True)
 
     created_at: Mapped[datetime] = CreatedAt()
     updated_at: Mapped[datetime] = UpdatedAt()

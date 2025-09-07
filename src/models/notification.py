@@ -53,8 +53,14 @@ class NotificationModel(Base):
     
     image_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
-    to_id: Mapped[str] = mapped_column(ForeignKey("users_table.user_id"), nullable=False)
-    from_id: Mapped[str] = mapped_column(ForeignKey("users_table.user_id"), nullable=False)
+    to_id: Mapped[str] = mapped_column(
+        ForeignKey("users_table.user_id", ondelete="CASCADE"), 
+        nullable=False
+    )
+    from_id: Mapped[str] = mapped_column(
+        ForeignKey("users_table.user_id", ondelete="CASCADE"), 
+        nullable=False
+    )
 
     status: Mapped[str] = mapped_column(
         notification_status_enum,

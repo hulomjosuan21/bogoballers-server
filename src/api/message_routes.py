@@ -11,46 +11,32 @@ service = MessageService()
 
 @message_bp.post('/send')
 async def send_message_route():
-    """
-    Send a message via HTTP API
-    """
     try:
         enable_notification = request.args.get("enable_notification", "true").lower() == "true"
         data = await request.get_json()
         
-        # Validate required fields
         validate_required_fields(data, ["sender_id", "receiver_id", "content"])
-        
-        # Send message
         result = await service.send_message_notification(
             data=data, 
             enable_notification=enable_notification
         )
         
         return await ApiResponse.success(message=result)
-        
     except Exception as e:
         traceback.print_exc()
-        return await ApiResponse.error(str(e))
+        return await ApiResponse.error(e)
 
 @message_bp.get('/conversations/<user_id>')
 async def get_conversations_route(user_id: str):
-    """
-    Get all conversations for a user via HTTP API
-    """
     try:
         conversations = await service.get_conversations(user_id)
-        return await ApiResponse.success(data=conversations)
-        
+        return await ApiResponse.payload(conversations)
     except Exception as e:
         traceback.print_exc()
-        return await ApiResponse.error(str(e))
+        return await ApiResponse.error(e)
 
 @message_bp.get('/conversation/<user_id>/<partner_id>')
 async def get_conversation_messages_route(user_id: str, partner_id: str):
-    """
-    Get messages between two users with pagination
-    """
     try:
         limit = int(request.args.get("limit", 50))
         offset = int(request.args.get("offset", 0))
@@ -61,92 +47,64 @@ async def get_conversation_messages_route(user_id: str, partner_id: str):
             limit=limit,
             offset=offset
         )
-        
-        return await ApiResponse.success(data=result)
+        return await ApiResponse.payload(result)
         
     except Exception as e:
         traceback.print_exc()
-        return await ApiResponse.error(str(e))
+        return await ApiResponse.error(e)
 
 @message_bp.post('/mark-read')
 async def mark_messages_read_route():
-    """
-    Mark messages as read
-    """
     try:
         data = await request.get_json()
         validate_required_fields(data, ["user_id", "partner_id"])
-        
         result = await service.mark_messages_as_read(
             user_id=data["user_id"],
             conversation_partner_id=data["partner_id"]
         )
-        
         return await ApiResponse.success(message=result)
-        
     except Exception as e:
         traceback.print_exc()
-        return await ApiResponse.error(str(e))
+        return await ApiResponse.error(e)
 
 @message_bp.get('/unread-count/<user_id>')
 async def get_unread_count_route(user_id: str):
-    """
-    Get unread message count for a user
-    """
     try:
         result = await service.get_unread_message_count(user_id)
-        return await ApiResponse.success(data=result)
-        
+        return await ApiResponse.payload(result)
     except Exception as e:
         traceback.print_exc()
-        return await ApiResponse.error(str(e))
+        return await ApiResponse.error(e)
 
 @message_bp.delete('/delete/<message_id>')
 async def delete_message_route(message_id: str):
-    """
-    Delete a message
-    """
     try:
         data = await request.get_json()
         validate_required_fields(data, ["user_id"])
-        
         result = await service.delete_message(
             message_id=message_id,
             user_id=data["user_id"]
         )
-        
         return await ApiResponse.success(message=result)
-        
     except Exception as e:
         traceback.print_exc()
-        return await ApiResponse.error(str(e))
+        return await ApiResponse.error(e)
 
 @message_bp.get('/health')
 async def health_check():
-    """
-    Health check endpoint
-    """
     return await ApiResponse.success(message="Message service is healthy")
 
-# WebSocket status endpoint
 @message_bp.get('/socket/status')
 async def socket_status():
-    """
-    Get socket connection status and stats
-    """
     try:
         from src.extensions import sio
-        
-        # Get basic stats (this might vary based on your socket.io setup)
         status = {
             "connected": True,
             "namespace": "/",
             "rooms_count": len(sio.manager.rooms.get("/", {})),
             "timestamp": sio.manager.clock.time()
         }
-        
-        return await ApiResponse.success(data=status)
-        
+        return await ApiResponse.payload(status)
     except Exception as e:
         traceback.print_exc()
-        return await ApiResponse.error(str(e))
+        return await ApiResponse.error(e)

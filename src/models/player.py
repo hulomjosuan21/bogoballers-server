@@ -30,13 +30,14 @@ class PlayerModel(Base, UpdatableMixin):
     player_id: Mapped[str] = UUIDGenerator("player")
 
     user_id: Mapped[str] = mapped_column(
-        String,
         ForeignKey("users_table.user_id", ondelete="CASCADE"),
         unique=True,
         nullable=False
     )
 
     full_name: Mapped[str] = mapped_column(String(250), nullable=False)
+    profile_image_url: Mapped[str] = mapped_column(Text, nullable=False)
+    
     gender: Mapped[str] = mapped_column(player_gender_enum, nullable=False)
     birth_date: Mapped[Date] = mapped_column(Date, nullable=False)
     player_address: Mapped[str] = mapped_column(String(250), nullable=False)
@@ -54,8 +55,6 @@ class PlayerModel(Base, UpdatableMixin):
     total_rebounds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     total_join_league: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
-    profile_image_url: Mapped[str] = mapped_column(Text, nullable=False)
-
     is_ban: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_allowed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     
@@ -70,9 +69,7 @@ class PlayerModel(Base, UpdatableMixin):
     )
     user: Mapped["UserModel"] = relationship(
         "UserModel",
-        back_populates="player",
-        cascade="all, delete",
-        passive_deletes=True
+        back_populates="player"
     )
     
     def to_json_for_query_search(self):

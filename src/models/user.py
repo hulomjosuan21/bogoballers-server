@@ -45,7 +45,13 @@ class UserModel(Base):
     league_administrator: Mapped["LeagueAdministratorModel"] = relationship(
         "LeagueAdministratorModel", back_populates="user", uselist=False
     )
-    player: Mapped["PlayerModel"] = relationship("PlayerModel", back_populates="user", uselist=False)
+    player: Mapped["PlayerModel"] = relationship(
+        "PlayerModel",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        uselist=False,
+        passive_deletes=True
+    )
    
     def to_json_for_team_manager(self) -> dict:
         return {
