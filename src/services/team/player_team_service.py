@@ -11,10 +11,30 @@ from src.extensions import AsyncSession
 class PlayerTeamService:
     async def get_player_team(self, session, player_team_id) -> PlayerTeamModel:
         return await session.get(PlayerTeamModel, player_team_id)
-
-    async def add_player_to_team(self, user_id: str, data: dict):
+    
+    async def add_many(self, data: dict):
         async with AsyncSession() as session:
             try:
+                new_player_teams = [
+                    PlayerTeamModel(
+                        team_id=data.get('team_id'),
+                        player_id=player_id,
+                        is_accepted="Accepted"
+                    )
+                    for player_id in data.get('player_ids')
+                ]
+                session.add_all(new_player_teams)
+
+                await session.commit()
+
+                return f"Total added players: {len(new_player_teams)}"
+            except (IntegrityError, SQLAlchemyError) as e:
+                await session.rollback()
+                raise e
+
+    async def add_player_to_team(self, user_id: str, data: dict):
+        try:
+            async with AsyncSession() as session:
                 team = await session.get(TeamModel, data.get('team_id'))
                 
                 player_result = await session.execute(
@@ -76,10 +96,9 @@ class PlayerTeamService:
                 session.add(notif)
                 await session.commit()
                 return "Success"
-            except (IntegrityError, SQLAlchemyError) as e:
-                await session.rollback()
-                raise e
-
+        except (IntegrityError, SQLAlchemyError) as e:
+            await session.rollback()
+            raise e
 
     async def update_one(self, player_team_id: str, data: dict):
         try:

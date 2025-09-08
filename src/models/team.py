@@ -92,6 +92,7 @@ class TeamModel(Base, UpdatableMixin):
             'total_points': self.total_points,
             'is_recruiting': self.is_recruiting,
             'team_category': self.team_category or None,
+            'user': self.user.to_json(),
             'accepted_players': [
                 player_team.to_json_for_team() for player_team in self.players if player_team.is_accepted == "Accepted"
             ],

@@ -13,6 +13,12 @@ from src.utils.server_utils import validate_required_fields
 import traceback
 
 class PlayerService:
+    async def get_all_players(self):
+        async with AsyncSession() as session:
+            query = select(PlayerModel).options(selectinload(PlayerModel.user))
+            result = await session.execute(query)
+            return result.scalars().all()
+    
     async def search_players(self, session, search: str, limit: int = 10) -> List[PlayerModel]:
         query = select(PlayerModel).options(selectinload(PlayerModel.user))
 
@@ -224,36 +230,21 @@ class PlayerService:
 
             return player.to_json()
         
-    async def get_player_leaderboard(self, order_by: Optional[str] = None, limit: int = 100):
+    async def get_player_leaderboard(self):
         async with AsyncSession() as session:
             query = select(PlayerModel).options(selectinload(PlayerModel.user))
 
-            if order_by:
-                if order_by not in {
-                    "total_points_scored",
-                    "total_assists",
-                    "total_rebounds",
-                    "total_games_played",
-                    "total_join_league"
-                }:
-                    raise ValueError(f"Invalid order by: {order_by}")
+            total_score = (
+                PlayerModel.total_points_scored +
+                PlayerModel.total_assists +
+                PlayerModel.total_rebounds +
+                PlayerModel.total_games_played +
+                PlayerModel.total_join_league
+            )
 
-                column = getattr(PlayerModel, order_by)
+            query = query.where(total_score > 0).order_by(desc(total_score))
 
-                query = query.where(column > 0).order_by(desc(column))
-
-            else:
-                total_score = (
-                    PlayerModel.total_points_scored +
-                    PlayerModel.total_assists +
-                    PlayerModel.total_rebounds +
-                    PlayerModel.total_games_played +
-                    PlayerModel.total_join_league
-                )
-
-                query = query.where(total_score > 0).order_by(desc(total_score))
-
-            query = query.limit(limit)
+            query = query.limit(100)
 
             result = await session.execute(query)
             players = result.scalars().all()

@@ -145,9 +145,10 @@ class ValidatePlayerTeam:
                 raise ApiException(f"Player {self.player.full_name} is too old ({age}).")
 
         # note: gender check
-        if self.category.player_gender != "Any":
-            if self.player.gender != self.category.player_gender:
-                raise ApiException(f"Player {self.player.full_name} gender {self.player.gender} not allowed.")
+        if self.category.player_gender != "Any" and self.player.gender != self.category.player_gender:
+            raise ApiException(
+                f"Player {self.player.full_name} gender '{self.player.gender}' does not match required category gender '{self.category.player_gender}'."
+            )
 
         # note: jersey number required
         if not self.player.jersey_number:

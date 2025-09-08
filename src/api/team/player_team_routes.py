@@ -30,3 +30,14 @@ async def update_one_route(player_team_id: str):
         return await ApiResponse.success(message=result)
     except Exception as e:
         return await ApiResponse.error(e)
+    
+@player_team_bp.post('/add/many')
+async def add_many_route():
+    try:
+        data = await request.get_json()
+    
+        result = await service.add_many(data=data)
+        return await ApiResponse.success(message=result)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)

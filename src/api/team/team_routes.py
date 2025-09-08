@@ -65,13 +65,19 @@ async def delete_one_route(team_id: str):
         traceback.print_exc()
         return await ApiResponse.error(e)
 
-@team_bp.get('/all')
-# @login_required
-async def get_many_route():
+@team_bp.get('/all/<user_id>')
+async def get_many_route(user_id: str):
     try:
-        user_id = request.args.get("user_id") or current_user.auth_id
-        
         result = await service.get_many(user_id)
+        return await ApiResponse.payload([team.to_json_for_team_manager() for team in result])
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)
+    
+@team_bp.get('/all')
+async def get_all_route():
+    try:
+        result = await service.get_all_teams()
         return await ApiResponse.payload([team.to_json_for_team_manager() for team in result])
     except Exception as e:
         traceback.print_exc()

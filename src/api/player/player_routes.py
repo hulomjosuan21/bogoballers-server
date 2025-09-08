@@ -39,25 +39,9 @@ async def auth_route():
         return await ApiResponse.error(e)
 
 @player_bp.get('/all')
-async def get_many_route():
+async def get_all_route():
     try:
-        search: Optional[str] = request.args.get("search", None)
-        
-        filters: Optional[dict] = await request.get_json(silent=True)
-
-        limit = request.args.get("limit")
-        limit = int(limit) if limit and limit.isdigit() else None
-        
-        order_by: Optional[str] = request.args.get("order_by", None)
-        descending: bool = request.args.get("descending", "false").lower() == "true"
-
-        result = await service.get_players(
-            filters=filters,
-            search=search,
-            order_by=order_by,
-            descending=descending,
-            limit=limit
-        )
+        result = await service.get_all_players()
 
         players_data = [p.to_json() for p in result]
         return await ApiResponse.payload(players_data)
@@ -67,16 +51,7 @@ async def get_many_route():
 @player_bp.get('/leaderboard')
 async def get_leaderboard():
     try:
-
-        limit = request.args.get("limit")
-        limit = int(limit) if limit and limit.isdigit() else None
-        order_by = request.args.get("order_by")
-
-        result = await service.get_player_leaderboard(
-            order_by=order_by,
-            limit=limit
-        )
-
+        result = await service.get_player_leaderboard()
         players_data = [p.to_json() for p in result]
         return await ApiResponse.payload(players_data)
     except Exception as e:

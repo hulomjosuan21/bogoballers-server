@@ -30,6 +30,7 @@ class ValidateTeamEntry:
         accepted_teams_count = sum(
             1 for team in self.league_category.teams if team.status == "Accepted"
         )
+        
         if self.league_category.max_team and accepted_teams_count >= self.league_category.max_team:
             raise ApiException(
                 f"Cannot join: League category '{self.category.category_name}' already reached max teams ({self.league_category.max_team})."

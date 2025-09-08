@@ -11,6 +11,18 @@ from src.extensions import AsyncSession
 from src.utils.server_utils import validate_required_fields
 
 class TeamService:
+    async def get_all_teams(self):
+        async with AsyncSession() as session:
+            query = select(TeamModel).options(
+                selectinload(TeamModel.players)
+                .selectinload(PlayerTeamModel.player)
+                .selectinload(PlayerModel.user),
+                selectinload(TeamModel.user)
+            )
+            
+            result = await session.execute(query)
+            return result.scalars().all()
+    
     async def search_teams(self, session, search: str, limit: int = 10) -> List[TeamModel]:
         query = select(TeamModel).options(selectinload(TeamModel.user))
 
