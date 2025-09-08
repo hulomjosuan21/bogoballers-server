@@ -53,3 +53,9 @@ def calculate_age(birth_date):
     return today.year - birth_date.year - (
         (today.month, today.day) < (birth_date.month, birth_date.day)
     )
+    
+def get_bool_arg(request, name: str, default: bool = False) -> bool:
+    value = request.args.get(name)
+    if value is None:
+        return default
+    return value.lower() in ("true", "1", "yes", "on")

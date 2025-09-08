@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Payment Result</title>
+  </head>
+  <body>
+    {% if status == "success" %}
+    <h1>Payment Successful</h1>
+    <p>Team ID: {{ league_team.team_id }}</p>
+    <p>Amount Paid: {{ league_team.amount_paid }}</p>
+    {% else %}
+    <h1>Payment Failed</h1>
+    <p>Error: {{ error }}</p>
+    {% endif %}
+  </body>
+</html>

@@ -12,6 +12,7 @@ from sqlalchemy import (
     CheckConstraint, Float, ForeignKey, String, Boolean, Integer, Enum as SqlEnum, Text, UniqueConstraint
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.dialects.postgresql import JSONB
 import inspect
 from src.extensions import Base
 from src.utils.db_utils import CreatedAt, UpdatedAt, UUIDGenerator
@@ -149,20 +150,21 @@ class TeamModel(Base, UpdatableMixin):
             'user': self.user.to_json(),
         }
 
-payment_status_enum = SqlEnum(
-    "Pending",
-    "Paid Online",
-    "Paid On Site",
-    "No Charge",
-    name="payment_status_enum",
-    create_type=False
-)
 
 league_team_status_enum = SqlEnum(
     "Pending",
     "Accepted",
     "Rejected",
     name="league_team_status_enum",
+    create_type=False
+)
+
+payment_status_enum = SqlEnum(
+    "Pending",
+    "Paid Online",
+    "Paid On Site",
+    "No Charge",
+    name="payment_status_enum",
     create_type=False
 )
 
@@ -201,6 +203,7 @@ class LeagueTeamModel(Base, UpdatableMixin):
         default="Pending",
         nullable=False
     )
+    payment_record: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
 
     wins: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     losses: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

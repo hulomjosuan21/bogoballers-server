@@ -321,7 +321,7 @@ class LeagueService:
             session.add(new_league)
             await session.commit()
 
-            return "League created successfully"
+            return f"League {league_title} as been create new start managing you league categories"
 
     async def get_active(self, resource_only: bool = False):
         league_admin = await get_league_administrator()
