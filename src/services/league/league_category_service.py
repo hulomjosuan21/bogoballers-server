@@ -37,7 +37,7 @@ class LeagueCategoryService:
                         round_order=round_order,
                         round_status=op_data.get("round_status", "Upcoming"),
                         position=op_data.get("position"),
-                        next_round_id=op_data.get("next_round_id")
+                        next_round_id=op_data.get("next_round_id"),
                     )
                     session.add(new_round)
                     results.append({
@@ -70,9 +70,15 @@ class LeagueCategoryService:
                 
                 elif op_type == "update_format":
                     round_id = op_data.get("round_id")
+                    print(f"Data: {op_data}")
                     round_format = op_data.get("round_format")
                     format_type = round_format['format_type']
-                    
+                    format_config = round_format.get('format_config', None)
+                    rount_order = round_format.get('round_order', 0)
+           
+                    if rount_order < 3 and format_type == "TwiceToBeat":
+                        raise ApiException("Twice to beat format only for final round")
+         
                     if not round_id:
                         continue
                     
@@ -84,8 +90,11 @@ class LeagueCategoryService:
                     round_obj = result.scalar_one_or_none()
                     
                     if round_obj:
+
+                        
                         round_obj.round_format = round_format
                         round_obj.format_type = format_type
+                        round_obj.format_config = format_config
                         
                         results.append({
                             "operation": "update_format",
