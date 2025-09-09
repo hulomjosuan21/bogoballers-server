@@ -6,7 +6,8 @@ from src.config import Config
 from pathlib import Path
 from argon2 import PasswordHasher
 from contextlib import asynccontextmanager
-
+import firebase_admin
+from firebase_admin import credentials, messaging
 import json
 
 Base = declarative_base()
@@ -36,3 +37,6 @@ async def db_session():
 
 socket_service = SocketIOService(redis_url=Config.REDIS_URL)
 sio = socket_service.sio 
+
+cred = credentials.Certificate(SERVICE_ACCOUNT_PATH)
+firebase_admin.initialize_app(cred)

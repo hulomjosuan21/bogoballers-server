@@ -14,7 +14,6 @@ register_service = RegisterLeagueService()
 async def register_team_route():
     try:
         data = await request.get_json()
-        host_url = request.host_url.rstrip("/")
 
         result = await register_service.register_team_request(
             team_id=data["team_id"],
@@ -22,8 +21,8 @@ async def register_team_route():
             league_category_id=data["league_category_id"],
             amount=data.get("amount"),
             payment_method=data["payment_method"],
-            success_url=f"{host_url}/league-team/payment-result/success",
-            cancel_url=f"{host_url}/league-team/payment-result/cancel",
+            success_url=f"https://api.bogoballers.site/league-team/payment-result/success",
+            cancel_url=f"https://api.bogoballers.site/league-team/payment-result/cancel",
         )
         return await ApiResponse.payload(result)
     except Exception as e:
@@ -81,15 +80,10 @@ async def refund_route():
         if not refund:
             return await ApiResponse.error("League team not found or refund failed", 404)
 
-        return await ApiResponse.payload(
-            {
-                "status": "refunded",
-                "refund_id": refund["data"]["id"],
-                "amount": amount,
-                "reason": refund["data"]["attributes"]["reason"],
-            }
-        )
+        msg = f"Refund successfully refundId: {refund["data"]["id"]}"
+        return await ApiResponse.success(message=msg)
     except Exception as e:
+        traceback.print_exc()
         return await ApiResponse.error(e)
 
 service = LeagueTeamService()

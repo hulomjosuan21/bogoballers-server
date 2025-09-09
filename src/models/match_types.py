@@ -45,8 +45,6 @@ class DoubleEliminationConfig:
     def to_dict(self) -> Dict:
         return asdict(self)
 
-
-# Union of all possible round configs
 RoundConfig = Union[
     RoundRobinConfig,
     KnockoutConfig,
@@ -72,6 +70,18 @@ class MatchKnockoutConfig:
     elimination_match: bool = True
     winner_advances_to: Optional[str] = None
     loser_eliminated: bool = True
+
+    def to_dict(self) -> Dict:
+        return asdict(self)
+    
+@dataclass
+class MatchTwiceToBeatConfig:
+    advantaged_team: str
+    challenger_team: str
+    type: Literal["TwiceToBeat"] = "TwiceToBeat"
+    current_game: int = 1
+    challenger_wins: int = 0
+    series_id: Optional[str] = None
 
     def to_dict(self) -> Dict:
         return asdict(self)

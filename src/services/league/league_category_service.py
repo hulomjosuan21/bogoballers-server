@@ -71,6 +71,7 @@ class LeagueCategoryService:
                 elif op_type == "update_format":
                     round_id = op_data.get("round_id")
                     round_format = op_data.get("round_format")
+                    format_type = round_format['format_type']
                     
                     if not round_id:
                         continue
@@ -84,6 +85,8 @@ class LeagueCategoryService:
                     
                     if round_obj:
                         round_obj.round_format = round_format
+                        round_obj.format_type = format_type
+                        
                         results.append({
                             "operation": "update_format",
                             "round_id": round_id,
@@ -157,28 +160,7 @@ class LeagueCategoryService:
             await session.commit()
             
             return f"Successfully processed {len(results)} operations", results
-
-    async def update_round_format(self, league_category_id: str, round_id: str, round_format: str):
-        async with AsyncSession() as session:
-            result = await session.execute(
-                select(LeagueCategoryRoundModel)
-                .where(LeagueCategoryRoundModel.league_category_id == league_category_id)
-                .where(LeagueCategoryRoundModel.round_id == round_id)
-            )
-            round_obj = result.scalar_one_or_none()
-
-            if not round_obj:
-                raise ApiException("Round not found")
-
-            round_obj.round_format = round_format
-            await session.commit()
-            await session.refresh(round_obj)
-
-            return "Round format updated successfully", {
-                "round_id": round_obj.round_id, 
-                "round_format": round_obj.round_format
-            }
-
+        
     async def add_league_category(self, league_id: str, category_ids: list):
         if not category_ids or not isinstance(category_ids, list):
             raise ApiException("Request body must be a non-empty list of category IDs")

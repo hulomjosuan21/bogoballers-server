@@ -7,16 +7,12 @@ if TYPE_CHECKING:
     
 from datetime import datetime
 import inspect
-from sqlalchemy import String, ForeignKey, DateTime, Enum as SqlEnum
+from sqlalchemy import String, ForeignKey, Enum as SqlEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from src.models.user import account_type_enum
+from src.extensions import Base
 from src.utils.db_utils import CreatedAt, UUIDGenerator
-from src.extensions import Base, SERVICE_ACCOUNT_PATH
-from firebase_admin import credentials, messaging
-import firebase_admin
-
-cred = credentials.Certificate(SERVICE_ACCOUNT_PATH)
-firebase_admin.initialize_app(cred)
+from sqlalchemy.dialects.postgresql import JSONB 
+from firebase_admin import messaging
 
 notification_action_enum = SqlEnum(
     "team_join_request",
@@ -46,22 +42,15 @@ class NotificationModel(Base):
         nullable=False,
         default="message_only"
     )
-    action_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    action_payload: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     
     title: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     message: Mapped[str] = mapped_column(String(255), nullable=False)
     
-    image_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-
     to_id: Mapped[str] = mapped_column(
         ForeignKey("users_table.user_id", ondelete="CASCADE"), 
         nullable=False
     )
-    from_id: Mapped[str] = mapped_column(
-        ForeignKey("users_table.user_id", ondelete="CASCADE"), 
-        nullable=False
-    )
-
     status: Mapped[str] = mapped_column(
         notification_status_enum,
         nullable=False,
@@ -71,32 +60,32 @@ class NotificationModel(Base):
     created_at: Mapped[datetime] = CreatedAt()
 
     to_user: Mapped["UserModel"] = relationship("UserModel", foreign_keys=[to_id])
-    from_user: Mapped["UserModel"] = relationship("UserModel", foreign_keys=[from_id])
 
-    async def send(self, token: str):
-        message_kwargs = {
-            "notification": messaging.Notification(
-                title=self.title,
-                body=self.message
-            ),
-            "token": token
+    async def send_notification(self, enable: bool = False):
+        receiver_token = getattr(self.to_user, "fcm_token", None)
+        
+        if enable and receiver_token:
+            message = messaging.Message(
+                notification=messaging.Notification(
+                    title=self.title,
+                    body=self.message
+                ),
+                token=receiver_token
+            )
+            await to_thread(messaging.send, message)
+            
+    def to_json(self):
+        return {
+            "notification_id": str(self.notification_id),
+            "action_type": self.action_type,
+            "action_payload": self.action_payload,
+            "title": self.title,
+            "message": self.message,
+            "to_id": str(self.to_id),
+            "status": self.status,
+            "created_at": self.created_at.isoformat()
         }
 
-        if self.image_url:
-            message_kwargs["data"] = {"image": str(self.image_url)}
-
-        message = messaging.Message(**message_kwargs)
-        
-        response = await to_thread(messaging.send, message)
-        
-        return response
-
-    def is_unread(self) -> bool:
-        return self.status == "unread"
-
-    def __repr__(self) -> str:
-        return f"<Notification(id={self.notification_id}, action_type={self.action_type}, to={self.to_id}, status={self.status})>"
-        
 _current_module = globals()
 __all__ = [
     name for name, obj in _current_module.items()

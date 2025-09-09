@@ -41,3 +41,13 @@ async def add_many_route():
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)
+    
+@player_team_bp.post('/add/many-to-team')
+async def add_many_to_teams_route():
+    try:
+        data = await request.get_json()
+        result = await service.add_players_to_teams(data)
+        return await ApiResponse.success(message=result)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)

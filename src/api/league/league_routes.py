@@ -68,14 +68,12 @@ async def get_active_route_route():
     except Exception as e:
         return await ApiResponse.error(e)
 
-@league_bp.put("/<string:league_id>/update-field/<string:field_name>")
-async def update_league_route(league_id: str, field_name: str):
+@league_bp.put("/update/<league_id>")
+async def update_league_route(league_id: str):
     try:
         form = await request.form
         files = await request.files
-        
-        json_data = form.get(field_name)
-        result = await service.update_league(league_id, field_name, json_data, files)
+        result = await service.update_current(league_id=league_id, form_data=form, files=files)
         return await ApiResponse.success(message=result)
     except Exception as e:
         return await ApiResponse.error(e)

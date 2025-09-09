@@ -69,18 +69,6 @@ class MatchModel(Base):
         nullable=False
     )
 
-    # note: Format & Rules
-    match_format: Mapped[str] = mapped_column(
-        String,  # e.g. "RoundRobin", "Knockout", "DoubleElim", "BestOf"
-        default="Knockout",
-        nullable=False
-    )
-    format_config: Mapped[dict] = mapped_column(
-        JSONB,
-        default=dict,
-        nullable=False
-    )
-
     # note: Progression / Bracket Flow
     previous_match_ids: Mapped[list[str]] = mapped_column(ARRAY(String), default=[])
     next_match_id: Mapped[str | None] = mapped_column(String, nullable=True)

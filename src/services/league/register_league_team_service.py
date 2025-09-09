@@ -4,9 +4,7 @@ from sqlalchemy import select
 from src.services.paymongo_service import PaymongoClient
 from src.models.team import LeagueTeamModel
 from src.extensions import AsyncSession
-from flask import Blueprint, request
-from src.utils.api_response import ApiResponse
-
+from quart_auth import current_user
 
 class RegisterLeagueService:
     def __init__(self):
@@ -46,7 +44,7 @@ class RegisterLeagueService:
                 return {
                     "league_team_id": league_team.league_team_id,
                     "payment_status": league_team.payment_status,
-                    "message": "Team registered successfully. Please pay on site.",
+                    "message": "Team submitted. Please pay on site.",
                 }
 
             checkout_session = await self.paymongo.create_checkout_session(
