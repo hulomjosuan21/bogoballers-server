@@ -1,7 +1,10 @@
 from typing import Dict, List, Literal, Optional, Union
 from dataclasses import dataclass, asdict
 
-# note: Round-level Configs
+# -------------------------------
+# 🟩 Round-Level Configs
+# -------------------------------
+
 @dataclass
 class RoundRobinConfig:
     type: Literal["RoundRobin"] = "RoundRobin"
@@ -18,40 +21,32 @@ class KnockoutConfig:
     single_elim: bool = True
     seeding: Literal["random", "ranking"] = "random"
     advances: int = 1
-
-    def to_dict(self) -> Dict:
-        return asdict(self)
+    total_matches: Optional[int] = None
 
 @dataclass
 class BestOfConfig:
     type: Literal["BestOf"] = "BestOf"
     games: int = 3
     advances: int = 1
-
-    def to_dict(self) -> Dict:
-        return asdict(self)
+    total_games: Optional[int] = None
 
 @dataclass
 class DoubleEliminationConfig:
     type: Literal["DoubleElimination"] = "DoubleElimination"
     max_loss: int = 2
-    brackets: List[str] = None
+    brackets: Optional[List[str]] = None
     advances: int = 1
+    total_matches: Optional[int] = None
 
     def __post_init__(self):
         if self.brackets is None:
             self.brackets = ["winners", "losers"]
-
-    def to_dict(self) -> Dict:
-        return asdict(self)
-
 @dataclass
-class MatchDoubleElimConfig:
-    bracket_side: Literal["winners", "losers"]
-    type: Literal["DoubleElimination"] = "DoubleElimination"
-    loss_count: int = 0
-    max_loss: int = 2
-    series_id: Optional[str] = None
+class TwiceToBeatConfig:
+    type: Literal["TwiceToBeat"] = "TwiceToBeat"
+    advantaged_team: Optional[str] = None
+    challenger_team: Optional[str] = None
+    max_games: int = 2
 
     def to_dict(self) -> Dict:
         return asdict(self)
@@ -61,7 +56,12 @@ RoundConfig = Union[
     KnockoutConfig,
     BestOfConfig,
     DoubleEliminationConfig,
+    TwiceToBeatConfig,
 ]
+
+# -------------------------------
+# 🟦 Match-Level Configs
+# -------------------------------
 
 @dataclass
 class MatchBestOfConfig:
@@ -84,13 +84,25 @@ class MatchKnockoutConfig:
 
     def to_dict(self) -> Dict:
         return asdict(self)
-    
+
 @dataclass
-class TwiceToBeatConfig:
+class MatchDoubleElimConfig:
+    bracket_side: Literal["winners", "losers"]  # ← non-default, must come first
+    loss_count: int = 0
+    max_loss: int = 2
+    series_id: Optional[str] = None
+    type: Literal["DoubleElimination"] = "DoubleElimination"  # ← default, move to end
+
+    def to_dict(self) -> Dict:
+        return asdict(self)
+
+@dataclass
+class MatchTwiceToBeatConfig:
     type: Literal["TwiceToBeat"] = "TwiceToBeat"
     advantaged_team: Optional[str] = None
     challenger_team: Optional[str] = None
-    max_games: int = 2
+    game_number: int = 1
+    series_id: Optional[str] = None
 
     def to_dict(self) -> Dict:
         return asdict(self)
@@ -99,5 +111,5 @@ MatchConfig = Union[
     MatchBestOfConfig,
     MatchKnockoutConfig,
     MatchDoubleElimConfig,
-    TwiceToBeatConfig,
+    MatchTwiceToBeatConfig,
 ]

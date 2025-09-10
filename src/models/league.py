@@ -290,8 +290,13 @@ class LeagueCategoryRoundModel(Base, UpdatableMixin):
     position: Mapped[dict] = mapped_column(JSONB, nullable=True)
 
     format_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)  # don't remove this
-    round_format: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True, default=None) # don't remove this
+    round_format: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True, default=None) # don't remove this this is for xyflow
     format_config: Mapped[dict] = mapped_column(
+        JSONB,
+        default=dict,
+        nullable=False
+    )
+    format_options: Mapped[dict] = mapped_column(
         JSONB,
         default=dict,
         nullable=False

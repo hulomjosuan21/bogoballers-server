@@ -77,15 +77,13 @@ class MatchModel(Base):
     loser_next_match_id: Mapped[str | None] = mapped_column(String, nullable=True)
     loser_next_match_slot: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    # note: Meta & Display
     round_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    bracket_side: Mapped[str | None] = mapped_column(String, nullable=True)   # "Winners", "Losers"
+    bracket_side: Mapped[str | None] = mapped_column(String, nullable=True)
     bracket_position: Mapped[str | None] = mapped_column(String, nullable=True)
     pairing_method: Mapped[str | None] = mapped_column(String, nullable=False, default='random')
     generated_by: Mapped[str | None] = mapped_column(String, nullable=True)
     display_name: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    # note: Flags & Status
     is_final: Mapped[bool] = mapped_column(Boolean, default=False)
     is_third_place: Mapped[bool] = mapped_column(Boolean, default=False)
     is_exhibition: Mapped[bool] = mapped_column(Boolean, default=False)

@@ -196,6 +196,8 @@ class LeagueTeamModel(Base, UpdatableMixin):
         default="Pending",
         nullable=False
     )
+    
+    is_eliminated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     amount_paid: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     payment_status: Mapped[str] = mapped_column(
