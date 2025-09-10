@@ -8,23 +8,6 @@ league_category_bp = Blueprint("league-category", __name__, url_prefix="/league/
 
 service = LeagueCategoryService()
 
-@league_category_bp.post("/<league_category_id>/save-changes")
-@login_required
-async def save_changes_route(league_category_id: str):
-    try:
-        data = await request.get_json()
-        if not data or "operations" not in data:
-            raise ApiException("Missing 'operations' in request body")
-        operations = data["operations"]
-        
-        for i, op in enumerate(operations):
-            print(f"Operation {i+1}: {op.get('type')} - {op.get('data', {})}")
-        
-        message, _ = await service.save_changes(league_category_id, operations)
-        return await ApiResponse.success(message=message)
-    except Exception as e:
-        return await ApiResponse.error(e)
-
 @league_category_bp.post("/<league_category_id>/round/<round_id>/update-format")
 @login_required
 async def update_round_format_route(league_category_id: str, round_id: str):

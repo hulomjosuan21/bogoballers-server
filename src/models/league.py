@@ -296,6 +296,8 @@ class LeagueCategoryRoundModel(Base, UpdatableMixin):
         default=dict,
         nullable=False
     )
+    
+    matches_generated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     round_status: Mapped[str] = mapped_column(round_status_enum, default="Upcoming", nullable=False)
 
@@ -318,6 +320,7 @@ class LeagueCategoryRoundModel(Base, UpdatableMixin):
             "round_name": self.round_name,
             "round_order": self.round_order,
             "round_status": self.round_status,
+            "matches_generated": self.matches_generated,
             "round_format": self.round_format or None,
             "format_config": self.format_config or None,
             "position": self.position,
@@ -329,6 +332,7 @@ class LeagueCategoryRoundModel(Base, UpdatableMixin):
             "round_id": self.round_id,
             "league_category_id": self.league_category_id,
             "round_name": self.round_name,
+            "matches_generated": self.matches_generated,
             "round_order": self.round_order,
             "round_status": self.round_status,
             "round_format": self.round_format or None,

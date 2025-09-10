@@ -45,6 +45,17 @@ class DoubleEliminationConfig:
     def to_dict(self) -> Dict:
         return asdict(self)
 
+@dataclass
+class MatchDoubleElimConfig:
+    bracket_side: Literal["winners", "losers"]
+    type: Literal["DoubleElimination"] = "DoubleElimination"
+    loss_count: int = 0
+    max_loss: int = 2
+    series_id: Optional[str] = None
+
+    def to_dict(self) -> Dict:
+        return asdict(self)
+
 RoundConfig = Union[
     RoundRobinConfig,
     KnockoutConfig,
@@ -75,13 +86,11 @@ class MatchKnockoutConfig:
         return asdict(self)
     
 @dataclass
-class MatchTwiceToBeatConfig:
-    advantaged_team: str
-    challenger_team: str
+class TwiceToBeatConfig:
     type: Literal["TwiceToBeat"] = "TwiceToBeat"
-    current_game: int = 1
-    challenger_wins: int = 0
-    series_id: Optional[str] = None
+    advantaged_team: Optional[str] = None
+    challenger_team: Optional[str] = None
+    max_games: int = 2
 
     def to_dict(self) -> Dict:
         return asdict(self)
@@ -89,4 +98,6 @@ class MatchTwiceToBeatConfig:
 MatchConfig = Union[
     MatchBestOfConfig,
     MatchKnockoutConfig,
+    MatchDoubleElimConfig,
+    TwiceToBeatConfig,
 ]
