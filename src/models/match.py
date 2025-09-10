@@ -125,3 +125,10 @@ class MatchModel(Base):
             name="unique_match_per_round"
         ),
     )
+    
+    def to_json_for_unscheduled(self) -> dict:
+        return {
+            "match_id": self.match_id,
+            "home_team": self.home_team.to_json_for_match(),
+            "away_team": self.away_team.to_json_for_match(),
+        }

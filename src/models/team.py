@@ -108,6 +108,30 @@ class TeamModel(Base, UpdatableMixin):
             ],
         }
         
+    def to_json_for_match(self) -> dict:
+        return {
+            'team_id': self.team_id,
+            'user_id': self.user_id,
+            'team_name': self.team_name,
+            'team_address': self.team_address,
+            'contact_number': self.contact_number,
+            'team_motto': self.team_motto if self.team_motto else None,
+            'team_logo_url': self.team_logo_url,
+            'championships_won': self.championships_won,
+            'coach_name': self.coach_name,
+            'assistant_coach_name': self.assistant_coach_name if self.assistant_coach_name else None,
+            'total_wins': self.total_wins,
+            'total_losses': self.total_losses,
+            'total_draws': self.total_draws,
+            'total_points': self.total_points,
+            'is_recruiting': self.is_recruiting,
+            'team_category': self.team_category or None,
+            'user': self.user.to_json(),
+            'accepted_players': [
+                player_team.to_json_for_team() for player_team in self.players if player_team.is_accepted == "Accepted"
+            ],
+        }
+        
     def to_json_for_league_team(self):
         return {
             'team_id': self.team_id,
