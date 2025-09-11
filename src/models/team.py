@@ -74,9 +74,11 @@ class TeamModel(Base, UpdatableMixin):
             'total_points': self.total_points,
             'is_recruiting': self.is_recruiting,   
             'creator': self.user.to_json(),
-            'players': [player.to_json() for player in self.players]
+            'players': [player.to_json() for player in self.players if player.is_accepted == "Accepted"]
         }
-    
+        
+    def to_json_players_unstaged(self) -> dict:
+        ... 
 
 league_team_status_enum = SqlEnum(
     "Pending",
