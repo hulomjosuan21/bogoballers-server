@@ -26,3 +26,10 @@ def UUIDGenerator(prefix: str) -> Mapped[str]:
         primary_key=True,
         default=generate_uid
     )
+    
+def PublicIDGenerator(prefix: str) -> Mapped[str]:
+    return mapped_column(
+        String(16),
+        unique=True,
+        default=lambda: f"{prefix}-{uuid.uuid4().hex[:6]}"
+    )

@@ -132,19 +132,19 @@ class EntityService():
             calculate = CalculateEntityRelevance()
 
             results = [
-                {'type': 'player', 'data': p.to_json_for_query_search(),
+                {'type': 'player', 'data': p.to_json(),
                  'relevance_score': calculate.player_relevance(p, query)}
                 for p in players
             ] + [
-                {'type': 'team', 'data': t.to_json_for_query_search(),
+                {'type': 'team', 'data': t.to_json(),
                  'relevance_score': calculate.team_relevance(t, query)}
                 for t in teams
             ] + [
-                {'type': 'league_administrator', 'data': a.to_json_for_query_search(),
+                {'type': 'league_administrator', 'data': a.to_json(),
                  'relevance_score': calculate.admin_relevance(a, query)}
                 for a in league_admins
             ] + [
-                {'type': 'league', 'data': l.to_json_for_query_search(),
+                {'type': 'league', 'data': l.to_json(),
                  'relevance_score': calculate.league_relevance(l, query)}
                 for l in leagues
             ]

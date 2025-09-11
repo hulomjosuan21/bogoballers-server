@@ -17,14 +17,7 @@ class CategoryService:
             )
             league_admin = result.scalar_one_or_none()
             return league_admin.categories_list() if league_admin else []
-
-    async def get_one(self, category_id: str):
-        async with AsyncSession() as session:
-            category = await session.get(CategoryModel, category_id)
-            if not category:
-                raise ApiException("Category not found")
-            return category
-
+        
     async def create_one(self, league_administrator_id: str, data: dict):
         async with AsyncSession() as session:
             try:
@@ -55,7 +48,7 @@ class CategoryService:
                 await session.rollback()
                 raise e
 
-    async def update_one(self, category_id: str, data: dict):
+    async def edit_one(self, category_id: str, data: dict):
         async with AsyncSession() as session:
             try:
                 category = await session.get(CategoryModel, category_id)

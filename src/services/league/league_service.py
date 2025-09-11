@@ -1,33 +1,27 @@
 import json
-import os
-import subprocess
-import tempfile
 from datetime import datetime
-from io import BytesIO
 import re
-from typing import List
 from dateutil.relativedelta import relativedelta
-from docxtpl import DocxTemplate
-from sqlalchemy import  Date, String, Text, case, cast, func, or_, select, update
+from sqlalchemy import  Date,Text, and_, case, cast, func, or_, select
+from src.services.league_admin_service import LeagueAdministratorService
 from src.models.player import LeaguePlayerModel
 from src.models.team import LeagueTeamModel
 from src.models.league_admin import LeagueAdministratorModel
-from src.helpers.league_admin_helpers import get_active_league, get_league_administrator
 from src.models.league import LeagueModel, LeagueCategoryModel
 from src.services.cloudinary_service import CloudinaryService
 from src.extensions import AsyncSession, settings
-from src.utils.api_response import ApiException
-from src.extensions import TEMPLATE_PATH
-from sqlalchemy.orm.attributes import flag_modified
-from sqlalchemy.orm import selectinload
+from src.utils.api_response import ApiException, ApiResponse
+from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-
+from sqlalchemy.exc import NoResultFound
 from src.utils.server_utils import validate_required_fields
 
 ALLOWED_OPTION_KEYS = {
     "player_residency_certificate_required",
     "player_residency_certificate_valid_until"
 }
+
+league_admin_service = LeagueAdministratorService()
 
 class LeagueService:
     async def analytics(self, league_id: str):
@@ -176,96 +170,15 @@ class LeagueService:
         leagues = result.scalars().unique().all()
         return leagues
 
-    
-    async def export_league_pdf(self, league_id: str):
-        async with AsyncSession() as session:
-            result = await session.execute(
-                select(LeagueModel).where(LeagueModel.league_id == league_id)
-            )
-            league = result.scalar_one_or_none()
-            if not league:
-                raise ApiException("League not found")
-
-            context = {
-                "league_title": league.league_title,
-                "league_description": league.league_description,
-                "league_budget": league.league_budget,
-                "league_schedule_start": league.league_schedule.lower.strftime("%B %d, %Y"),
-                "league_schedule_end": league.league_schedule.upper.strftime("%B %d, %Y"),
-                "sportsmanship_rules_list": "\n".join(
-                    f"{idx}. {rule}" for idx, rule in enumerate(league.sportsmanship_rules, start=1)
-                )
-            }
-
-            with tempfile.TemporaryDirectory() as tmpdir:
-                docx_path = os.path.join(tmpdir, "league.docx")
-                pdf_path = os.path.join(tmpdir, "league.pdf")
-
-                tpl = DocxTemplate(TEMPLATE_PATH)
-                tpl.render(context)
-                tpl.save(docx_path)
-
-                subprocess.run([
-                    "C:\Program Files\LibreOffice\program\soffice.exe",
-                    "--headless",
-                    "--convert-to", "pdf",
-                    "--outdir", tmpdir,
-                    docx_path
-                ], check=True)
-
-                with open(pdf_path, "rb") as f:
-                    pdf_bytes = f.read()
-
-            buffer = BytesIO(pdf_bytes)
-            buffer.seek(0)
-
-            return buffer, league.league_title
-
-    async def update_league_option(self, league_id: str, option_updates: dict):
-        if not isinstance(option_updates, dict):
-            raise ApiException("'option' must be an object")
-
-        filtered_updates = {
-            k: v for k, v in option_updates.items() if k in ALLOWED_OPTION_KEYS
-        }
-
-        if not filtered_updates:
-            raise ApiException("No valid option fields to update")
-
-        async with AsyncSession() as session:
-            result = await session.execute(
-                select(LeagueModel).where(LeagueModel.league_id == league_id)
-            )
-            league = result.scalar_one_or_none()
-            if not league:
-                raise ApiException("League not found")
-
-            if not isinstance(league.option, dict):
-                try:
-                    league.option = json.loads(league.option or "{}")
-                except Exception:
-                    league.option = {}
-
-            league.option.update(filtered_updates)
-            flag_modified(league, "option")
-            await session.commit()
-
-            return "League options updated successfully"
-
-    async def create_new_league(self, form_data: dict, files: dict):
+    async def create_one(self, user_id, form_data: dict, files: dict):
         required_fields = [
             "league_title", "league_budget", "league_description", "league_address", "sportsmanship_rules",
             "registration_deadline", "opening_date", "league_schedule", "banner_image", "categories"
         ]
         try:
             validate_required_fields(form_data, required_fields)
-
-            league_title = form_data['league_title']
-            league_budget = float(form_data['league_budget'])
-            league_description = form_data['league_description']
-            league_address = form_data['league_address']
-
-            league_schedule = json.loads(form_data['league_schedule'])
+            league_title=form_data['league_title'],
+            
             sportsmanship_rules = json.loads(form_data['sportsmanship_rules'])
             categories = json.loads(form_data['categories'])
 
@@ -283,18 +196,18 @@ class LeagueService:
                 raise ApiException("Invalid or missing banner image")
 
             async with AsyncSession() as session:
-                league_admin = await get_league_administrator()
+                league_admin = await league_admin_service.get_one(session=session,user_id=user_id)
                 if not league_admin:
                     raise ApiException("League administrator not found", 404)
 
-                league_schedule = tuple(datetime.fromisoformat(d[:10]).date() for d in league_schedule)
+                league_schedule = tuple(datetime.fromisoformat(d[:10]).date() for d in json.loads(form_data['league_schedule']))
 
                 new_league = LeagueModel(
                     league_administrator_id=league_admin.league_administrator_id,
                     league_title=league_title,
-                    league_budget=league_budget,
-                    league_description=league_description,
-                    league_address=league_address,
+                    league_budget=float(form_data['league_budget']),
+                    league_description=form_data['league_description'],
+                    league_address=form_data['league_address'],
                     registration_deadline=registration_deadline,
                     opening_date=opening_date,
                     league_schedule=league_schedule,
@@ -304,10 +217,6 @@ class LeagueService:
                     league_officials=[],
                     league_referees=[],
                     league_affiliates=[],
-                    option={
-                        "player_residency_certificate_valid_until": (datetime.today() - relativedelta(months=2)).strftime("%Y-%m-%d"),
-                        "player_residency_certificate_required": False
-                    },
                     categories=[
                         LeagueCategoryModel(
                             category_id=cat_id,
@@ -321,75 +230,64 @@ class LeagueService:
         except (IntegrityError, SQLAlchemyError) as e:
             await session.rollback()
             raise e 
-
-    async def update_current(self, league_id: str, form_data: dict, files: dict):
-        required_fields = [
-            "league_title", "league_budget", "league_description", "league_address", "sportsmanship_rules",
-            "registration_deadline", "opening_date", "league_schedule", "categories"
-        ]
         
-        try:
-            validate_required_fields(form_data, required_fields)
+    async def _get_one(self):
+        return (
+            select(LeagueModel)
+            .options(
+                joinedload(LeagueModel.creator),
+                selectinload(LeagueModel.categories)
+                    .joinedload(LeagueCategoryModel.category)
+                    .selectinload(LeagueCategoryModel.rounds)
+            )
+        )
+        
+    async def get_one(self, league_administrator_id: str, data: dict):
+        async with AsyncSession() as session:
+            conditions = [LeagueModel.league_administrator_id == league_administrator_id]
             
+            if data.get('status'):
+                conditions.append(LeagueModel.status == data["status"])
+
+            stmt = await self._get_one()
+            stmt = stmt.where(and_(*conditions))
+
+            try:
+                league = (await session.execute(stmt)).scalar_one()
+            except NoResultFound:
+                raise ApiException("No League found")
+
+            return league.to_json()
+        
+    async def edit_one(self, league_id: str, data: dict):
+        try:
             async with AsyncSession() as session:
-                league = await session.get(LeagueModel, league_id)
+                league_obj = await session.get(LeagueModel, league_id)
                 
-                if not league:
-                    raise ApiException("League not found.", 404)
+                if not league_obj:
+                    raise ApiException("No League found")
                 
-                league_title = form_data['league_title']
-                league_budget = float(form_data['league_budget'])
-                league_description = form_data['league_description']
-                league_address = form_data['league_address']
-
-                league_schedule = json.loads(form_data['league_schedule'])
-                sportsmanship_rules = json.loads(form_data['sportsmanship_rules'])
-
-                registration_deadline = datetime.fromisoformat(form_data['registration_deadline'].replace("Z", "+00:00"))
-                opening_date = datetime.fromisoformat(form_data['opening_date'].replace("Z", "+00:00"))
-
-                banner_url = league.banner_url
-                banner_file = files.get("banner_image")
-                banner_image_url = form_data.get("banner_image")
-                
-                if banner_file:
-                    banner_url = await CloudinaryService.upload_file(banner_file, folder=settings["league_banners_folder"])
-                elif banner_image_url and re.match(r'^https?://', banner_image_url) and banner_image_url != league.banner_url:
-                    banner_url = banner_image_url
-                league_schedule_dates = tuple(datetime.fromisoformat(d[:19]).date() if d else None for d in league_schedule if d)
-                league.league_title = league_title
-                league.league_budget = league_budget
-                league.league_description = league_description
-                league.league_address = league_address
-                league.registration_deadline = registration_deadline
-                league.opening_date = opening_date
-                league.league_schedule = league_schedule_dates
-                league.banner_url = banner_url
-                league.sportsmanship_rules = sportsmanship_rules
-                
-                from sqlalchemy import delete
-                await session.execute(
-                    delete(LeagueCategoryModel).where(LeagueCategoryModel.league_id == league_id)
-                )
+                league_obj.copy_with(**data)
                 
                 await session.commit()
-                return f"League '{league_title}' updated successfully."
                 
+                return f"League {league_obj.league_title} edited successfully"
         except (IntegrityError, SQLAlchemyError) as e:
             await session.rollback()
-            raise e
-
-    async def get_active(self, resource_only: bool = False):
-        league_admin = await get_league_administrator()
-        if not league_admin:
-            raise ApiException("League Administrator not found", 404)
-
-        active_league = await get_active_league(league_admin.league_administrator_id)
-
-        if not active_league:
-            return None
-
-        if resource_only:
-            return active_league.to_json_resource()
-        else:
-            return active_league.to_json()
+            raise e 
+        
+    async def delete_one(self, league_id: str):
+        try:
+            async with AsyncSession() as session:
+                league_obj = await session.get(LeagueModel, league_id)
+                
+                if not league_obj:
+                    raise ApiException("No League found")
+                
+                await session.delete(league_obj)
+                await session.commit()
+                
+                return f"League {league_obj.league_title} deleted successfully"
+        except (IntegrityError, SQLAlchemyError) as e:
+            await session.rollback()
+            raise e 

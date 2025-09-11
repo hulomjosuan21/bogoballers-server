@@ -3,7 +3,6 @@ from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.orm import joinedload
 from src.services.notification_service import NotificationService
 from src.models.team import TeamModel
-from src.models.notification import NotificationModel
 from src.utils.api_response import ApiException
 from src.models.player import PlayerModel, PlayerTeamModel
 from src.extensions import AsyncSession

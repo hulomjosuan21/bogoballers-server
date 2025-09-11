@@ -15,13 +15,14 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSONB
 import inspect
 from src.extensions import Base
-from src.utils.db_utils import CreatedAt, UpdatedAt, UUIDGenerator
+from src.utils.db_utils import CreatedAt, PublicIDGenerator, UpdatedAt, UUIDGenerator
 from src.utils.mixins import UpdatableMixin
 
 class TeamModel(Base, UpdatableMixin):
     __tablename__ = "teams_table"
 
     team_id: Mapped[str] = UUIDGenerator("team")
+    public_team_id: Mapped[str] = PublicIDGenerator("t")
 
     user_id: Mapped[str] = mapped_column(
         String,
@@ -58,6 +59,7 @@ class TeamModel(Base, UpdatableMixin):
     def to_json(self) -> dict:
         return {
             'team_id': self.team_id,
+            'public_team_id': self.public_team_id,
             'user_id':  self.user_id,
             'team_name':  self.team_name,
             'team_address': self.team_address,

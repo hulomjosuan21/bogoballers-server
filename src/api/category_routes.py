@@ -44,7 +44,7 @@ async def create_one_route(league_administrator_id: str):
 async def update_one_route(category_id: str):
     try:
         data = await request.get_json()
-        result = await service.update_one(category_id, data)
+        result = await service.edit_one(category_id, data)
         return await ApiResponse.success(message=result)
     except Exception as e:
         return await ApiResponse.error(e)

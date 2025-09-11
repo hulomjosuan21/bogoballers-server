@@ -13,6 +13,14 @@ import traceback
 from datetime import datetime, timezone
 
 class LeagueAdministratorService:
+    async def get_one(self, session, user_id: str):
+        stmt = (
+            select(LeagueAdministratorModel)
+            .where(LeagueAdministratorModel.user_id == user_id)
+        )
+        result = await session.execute(stmt)
+        return result.unique().scalar_one_or_none()
+    
     async def search_league_administrators(self, session, search: str, limit: int = 10) -> List[LeagueAdministratorModel]:
         query = select(LeagueAdministratorModel).options(selectinload(LeagueAdministratorModel.user))
 

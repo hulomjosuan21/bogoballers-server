@@ -14,7 +14,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 import inspect
 from datetime import date, datetime
 from src.extensions import Base
-from src.utils.db_utils import CreatedAt, UpdatedAt, UUIDGenerator
+from src.utils.db_utils import CreatedAt, PublicIDGenerator, UpdatedAt, UUIDGenerator
 from src.utils.mixins import UpdatableMixin
 
 player_gender_enum = SqlEnum(
@@ -28,6 +28,8 @@ class PlayerModel(Base, UpdatableMixin):
     __tablename__ = "players_table"
 
     player_id: Mapped[str] = UUIDGenerator("player")
+    
+    public_player_id: Mapped[str] = PublicIDGenerator("p")
 
     user_id: Mapped[str] = mapped_column(
         ForeignKey("users_table.user_id", ondelete="CASCADE"),
@@ -60,8 +62,8 @@ class PlayerModel(Base, UpdatableMixin):
     
     valid_documents: Mapped[Optional[List[str]]] = mapped_column(JSONB, nullable=True)
 
-    created_at: Mapped[datetime] = CreatedAt()
-    updated_at: Mapped[datetime] = UpdatedAt()
+    player_created_at: Mapped[datetime] = CreatedAt()
+    player_updated_at: Mapped[datetime] = UpdatedAt()
     
     player_teams: Mapped[List["PlayerTeamModel"]] = relationship(
         "PlayerTeamModel",
@@ -70,13 +72,13 @@ class PlayerModel(Base, UpdatableMixin):
     )
     user: Mapped["UserModel"] = relationship(
         "UserModel",
-        back_populates="player",
         lazy="joined"
     )
     
     def to_json(self) -> dict:
         return {
             'player_id': self.player_id,
+            'public_player_id': self.public_player_id,
             'user_id': self.user_id,
             'full_name': self.full_name,
             'profile_image_url': self.profile_image_url,
@@ -97,6 +99,8 @@ class PlayerModel(Base, UpdatableMixin):
             'is_allowed': self.is_allowed,
             'valid_documents': self.valid_documents,
             'user': self.user.to_json(),
+            'player_created_at': self.player_created_at.isoformat(),
+            'player_updated_at': self.player_updated_at.isoformat(),
         }
     
 player_is_accepted_enum = SqlEnum(
@@ -104,6 +108,8 @@ player_is_accepted_enum = SqlEnum(
     "Accepted",
     "Rejected",
     "Invited",
+    "Standby",
+    "Guest",
     name="player_is_accepted_enum",
     create_type=True,
 )
@@ -133,8 +139,8 @@ class PlayerTeamModel(Base, UpdatableMixin):
         nullable=False
     )
 
-    created_at: Mapped[datetime] = CreatedAt()
-    updated_at: Mapped[datetime] = UpdatedAt()
+    player_team_created_at: Mapped[datetime] = CreatedAt()
+    player_team_updated_at: Mapped[datetime] = UpdatedAt()
     
     __table_args__ = (
         UniqueConstraint("player_id", "team_id", name="unique_player_team"),
@@ -160,7 +166,9 @@ class PlayerTeamModel(Base, UpdatableMixin):
             'team_id': self.team_id,
             'is_ban': self.is_ban,
             'is_team_captain': self.is_team_captain,
-            'is_accepted': self.is_accepted
+            'is_accepted': self.is_accepted,
+            'player_team_created_at': self.player_team_created_at.isoformat(),
+            'player_team_updated_at': self.player_team_updated_at.isoformat()
         }
         
 class LeaguePlayerModel(Base, UpdatableMixin):
@@ -196,8 +204,8 @@ class LeaguePlayerModel(Base, UpdatableMixin):
     is_ban: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_allowed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
-    created_at: Mapped[datetime] = CreatedAt()
-    updated_at: Mapped[datetime] = UpdatedAt()
+    league_player_created_at: Mapped[datetime] = CreatedAt()
+    league_player_updated_at: Mapped[datetime] = UpdatedAt()
 
     player_team: Mapped["PlayerTeamModel"] = relationship(
         "PlayerTeamModel",
@@ -226,6 +234,8 @@ class LeaguePlayerModel(Base, UpdatableMixin):
             "is_allowed": self.is_allowed,
             **self.player_team.to_json(),
             "league_team": self.league_team.to_json(),
+            'league_player_created_at': self.league_player_created_at.isoformat(),
+            'league_player_updated_at': self.league_player_updated_at.isoformat()
         }
     
 _current_module = globals()

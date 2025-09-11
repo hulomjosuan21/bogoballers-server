@@ -1,17 +1,13 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Optional
-if TYPE_CHECKING:
-    from src.models.league_admin import LeagueAdministratorModel
-    from src.models.player import PlayerModel
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from typing import Optional
+from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import String, Boolean, Text, DateTime, Enum as SqlEnum
 from argon2.exceptions import HashingError
 import inspect
 from src.extensions import Base, ph
 from src.utils.db_utils import CreatedAt, UUIDGenerator, UpdatedAt
-from datetime import datetime, timezone
+from datetime import datetime
 
-# ! Don't change order
 account_type_enum = SqlEnum(
     "Player",
     "League_Administrator_Local",
@@ -37,43 +33,11 @@ class UserModel(Base):
     
     verification_token_created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    created_at: Mapped[DateTime] = CreatedAt()
-    updated_at: Mapped[DateTime] = UpdatedAt()
+    user_created_at: Mapped[DateTime] = CreatedAt()
+    user_updated_at: Mapped[DateTime] = UpdatedAt()
     
-    display_name: Mapped[str] = mapped_column(String(120), unique=True, nullable=True)
-        
-    league_administrator: Mapped["LeagueAdministratorModel"] = relationship(
-        "LeagueAdministratorModel", back_populates="user", uselist=False
-    )
-    player: Mapped["PlayerModel"] = relationship(
-        "PlayerModel",
-        back_populates="user",
-        cascade="all, delete-orphan",
-        uselist=False,
-        passive_deletes=True
-    )
+    display_name: Mapped[Optional[str]] = mapped_column(String(120), unique=True, nullable=True)
    
-    def to_json_for_team_manager(self) -> dict:
-        return {
-            "user_id": self.user_id,
-            "email": self.email,
-            "contact_number": self.contact_number,
-            "is_verified": self.is_verified,
-            "account_type": self.account_type,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
-            "display_name": self.display_name
-        }
-        
-    def to_json_for_team(self) -> dict:
-        return {
-            "user_id": self.user_id,
-            "email": self.email,
-            "contact_number": self.contact_number,
-            "is_verified": self.is_verified,
-            "account_type": self.account_type,
-        }
-    
     def to_json(self) -> dict:
         return {
             "user_id": self.user_id,
@@ -81,8 +45,9 @@ class UserModel(Base):
             "contact_number": self.contact_number,
             "is_verified": self.is_verified,
             "account_type": self.account_type,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat()
+            "display_name": self.display_name or None,
+            "user_created_at": self.user_created_at.isoformat(),
+            "user_updated_at": self.user_updated_at.isoformat()
         }
 
     def set_password(self, password_str: str) -> None:
