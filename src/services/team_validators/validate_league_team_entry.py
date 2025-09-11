@@ -1,7 +1,7 @@
 from typing import List
 
 from sqlalchemy import select
-from src.models.league_admin import CategoryModel
+from src.models.category import CategoryModel
 from src.models.player import PlayerModel, PlayerTeamModel
 from src.models.team import LeagueTeamModel, TeamModel
 from src.models.league import LeagueCategoryModel

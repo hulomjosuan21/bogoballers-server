@@ -235,7 +235,7 @@ class LeagueService:
         return (
             select(LeagueModel)
             .options(
-                joinedload(LeagueModel.creator),
+                joinedload(LeagueModel.creator).joinedload(LeagueAdministratorModel.account),
                 selectinload(LeagueModel.categories)
                     .joinedload(LeagueCategoryModel.category)
                     .selectinload(LeagueCategoryModel.rounds)

@@ -1,6 +1,6 @@
-import json
 from sqlalchemy import select
-from src.models.league_admin import CategoryModel, LeagueAdministratorModel
+from src.models.category import CategoryModel
+from src.models.league_admin import LeagueAdministratorModel
 from src.extensions import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
