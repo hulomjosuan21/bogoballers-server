@@ -65,110 +65,40 @@ class PlayerModel(Base, UpdatableMixin):
     
     player_teams: Mapped[List["PlayerTeamModel"]] = relationship(
         "PlayerTeamModel",
-        back_populates="player"
+        back_populates="player",
+        lazy="selectin"
     )
     user: Mapped["UserModel"] = relationship(
         "UserModel",
-        back_populates="player"
+        back_populates="player",
+        lazy="joined"
     )
     
-    def to_json_for_query_search(self):
-        data = {
-            "player_id": self.player_id,
-            "user_id": self.user_id,
-            "full_name": self.full_name,
-            "gender": self.gender,
-            "birth_date": self.birth_date.isoformat(),
-            "player_address": self.player_address,
-            "jersey_name": self.jersey_name,
-            "jersey_number": self.jersey_number,
-            "position": self.position,
-            "height_in": self.height_in,
-            "weight_kg": self.weight_kg,
-            "total_games_played": self.total_games_played,
-            "total_points_scored": self.total_points_scored,
-            "total_assists": self.total_assists,
-            "valid_documents": self.valid_documents or [],
-            "total_rebounds": self.total_rebounds,
-            "total_join_league": self.total_join_league,
-            "profile_image_url": self.profile_image_url,
-            "user": self.user.to_json(),
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat()
+    def to_json(self) -> dict:
+        return {
+            'player_id': self.player_id,
+            'user_id': self.user_id,
+            'full_name': self.full_name,
+            'profile_image_url': self.profile_image_url,
+            'gender': self.gender,
+            'birth_date': self.birth_date,
+            'player_address': self.player_address,
+            'jersey_name': self.jersey_name,
+            'jersey_number': self.jersey_number,
+            'position': self.position,
+            'height_in': self.height_in,
+            'weight_kg': self.weight_kg,
+            'total_games_played': self.total_games_played,
+            'total_points_scored': self.total_points_scored,
+            'total_assists': self.total_assists,
+            'total_rebounds': self.total_rebounds,
+            'total_join_league': self.total_join_league,
+            'is_ban': self.is_ban,
+            'is_allowed': self.is_allowed,
+            'valid_documents': self.valid_documents,
+            'user': self.user.to_json(),
         }
-
-        return data
     
-    def to_json_for_team(self):
-        data = {
-            "player_id": self.player_id,
-            "user_id": self.user_id,
-            "full_name": self.full_name,
-            "gender": self.gender,
-            "birth_date": self.birth_date.isoformat(),
-            "player_address": self.player_address,
-            "jersey_name": self.jersey_name,
-            "jersey_number": self.jersey_number,
-            "position": self.position,
-            "height_in": self.height_in,
-            "weight_kg": self.weight_kg,
-            "total_games_played": self.total_games_played,
-            "valid_documents": self.valid_documents or [],
-            "total_points_scored": self.total_points_scored,
-            "total_assists": self.total_assists,
-            "total_rebounds": self.total_rebounds,
-            "total_join_league": self.total_join_league,
-            "profile_image_url": self.profile_image_url,
-            "user": self.user.to_json_for_team(),
-        }
-
-        return data
-    
-    def to_json(self):
-        data = {
-            "player_id": self.player_id,
-            "user_id": self.user_id,
-            "full_name": self.full_name,
-            "gender": self.gender,
-            "birth_date": self.birth_date.isoformat(),
-            "player_address": self.player_address,
-            "jersey_name": self.jersey_name,
-            "jersey_number": self.jersey_number,
-            "position": self.position,
-            "height_in": self.height_in,
-            "weight_kg": self.weight_kg,
-            "total_games_played": self.total_games_played,
-            "valid_documents": self.valid_documents or [],
-            "total_points_scored": self.total_points_scored,
-            "total_assists": self.total_assists,
-            "total_rebounds": self.total_rebounds,
-            "total_join_league": self.total_join_league,
-            "profile_image_url": self.profile_image_url,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
-            "user": self.user.to_json(),
-        }
-
-        return data
-    
-    def to_json_league_team(self):
-        data = {
-            "player_id": self.player_id,
-            "user_id": self.user_id,
-            "full_name": self.full_name,
-            "gender": self.gender,
-            "birth_date": self.birth_date.isoformat(),
-            "player_address": self.player_address,
-            "jersey_name": self.jersey_name,
-            "jersey_number": self.jersey_number,
-            "position": self.position,
-            "height_in": self.height_in,
-            "weight_kg": self.weight_kg,
-            "profile_image_url": self.profile_image_url,
-            "user": self.user.to_json(),
-        }
-
-        return data
 player_is_accepted_enum = SqlEnum(
     "Pending",
     "Accepted",
@@ -203,63 +133,36 @@ class PlayerTeamModel(Base, UpdatableMixin):
         nullable=False
     )
 
+    created_at: Mapped[datetime] = CreatedAt()
+    updated_at: Mapped[datetime] = UpdatedAt()
+    
     __table_args__ = (
         UniqueConstraint("player_id", "team_id", name="unique_player_team"),
     )
 
-    created_at: Mapped[datetime] = CreatedAt()
-    updated_at: Mapped[datetime] = UpdatedAt()
-    
-
     player: Mapped["PlayerModel"] = relationship(
         "PlayerModel",
-        back_populates="player_teams"
+        back_populates="player_teams",
+        lazy="joined"
     )
 
     team: Mapped["TeamModel"] = relationship(
         "TeamModel",
         back_populates="players",
-        foreign_keys="[PlayerTeamModel.team_id]"
+        foreign_keys="[PlayerTeamModel.team_id]",
+        lazy="joined"
     )
-
-    def to_json_for_league(self):
-        return {
-            **self.player.to_json_for_team(),
-            "team_id": self.team_id,
-            "player_team_id": self.player_team_id,
-        }
-
-    def to_json_for_team(self):
-        return {
-            **self.player.to_json_for_team(),
-            "team_id": self.team_id,
-            "player_team_id": self.player_team_id,
-            "is_ban": self.is_ban,
-            "is_team_captain": self.is_team_captain,
-            "is_accepted": self.is_accepted
-        }
     
-    def to_json(self):
+    def to_json(self) -> dict:
         return {
-            **self.player.to_json_for_team(),
-            "player_team_id": self.player_team_id,
-            "team_id": self.team_id,
-            "is_ban": self.is_ban,
-            "is_accepted": self.is_accepted,
-            "is_team_captain": self.is_team_captain,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
+            **self.player.to_json(),
+            'player_team_id': self.player_team_id,
+            'team_id': self.team_id,
+            'is_ban': self.is_ban,
+            'is_team_captain': self.is_team_captain,
+            'is_accepted': self.is_accepted
         }
         
-    def to_json_league_player(self):
-        return {
-            **self.player.to_json_league_team(),
-            "team_id": self.team_id,
-            "is_ban": self.is_ban,
-            "is_accepted": self.is_accepted,
-            "is_team_captain": self.is_team_captain,
-        }
-    
 class LeaguePlayerModel(Base, UpdatableMixin):
     __tablename__ = "league_players_table"
 
@@ -271,30 +174,19 @@ class LeaguePlayerModel(Base, UpdatableMixin):
         nullable=False
     )
 
-    league_id: Mapped[str] = mapped_column(
-        String,
-        ForeignKey("leagues_table.league_id", ondelete="CASCADE"),
-        nullable=False
-    )
     league_category_id: Mapped[str] = mapped_column(
         String,
         ForeignKey("league_categories_table.league_category_id", ondelete="CASCADE"),
         nullable=False
     )
-    # Optional link to PlayerTeamModel. Nullable to support players who join the league without being part of a team.
+
     player_team_id: Mapped[str] = mapped_column(
         String,
         ForeignKey("player_team_table.player_team_id", ondelete="CASCADE"),
-        nullable=True
-    )
-    player_id: Mapped[str] = mapped_column(
-        String,
-        ForeignKey("players_table.player_id", ondelete="CASCADE"),
-        nullable=True  
+        nullable=False
     )
 
-    # Optional link to LeagueTeamModel. Nullable to support unassigned players or future team assignments.
-    league_team_id: Mapped[str] = mapped_column(
+    league_team_id: Mapped[Optional[str]] = mapped_column(
         String,
         ForeignKey("league_teams_table.league_team_id", ondelete="CASCADE"),
         nullable=True
@@ -307,48 +199,33 @@ class LeaguePlayerModel(Base, UpdatableMixin):
     created_at: Mapped[datetime] = CreatedAt()
     updated_at: Mapped[datetime] = UpdatedAt()
 
-    player: Mapped[Optional["PlayerModel"]] = relationship("PlayerModel")
-    player_team: Mapped[Optional["PlayerTeamModel"]] = relationship("PlayerTeamModel")
+    player_team: Mapped["PlayerTeamModel"] = relationship(
+        "PlayerTeamModel",
+        lazy="joined"
+    )
     league_team: Mapped[Optional["LeagueTeamModel"]] = relationship(
         "LeagueTeamModel",
-        back_populates="league_players"
+        back_populates="league_players",
+        lazy="joined"
     )
-    league_category: Mapped["LeagueCategoryModel"] = relationship("LeagueCategoryModel")
-    league: Mapped["LeagueModel"] = relationship("LeagueModel")
-        
+
     __table_args__ = (
-        # Player joins via a team
         UniqueConstraint("league_id", "player_team_id", name="uq_league_player"),
         UniqueConstraint("league_team_id", "player_team_id", name="uq_league_team_player"),
         UniqueConstraint("league_category_id", "player_team_id", name="uq_league_category_player"),
-
-        # Player joins with NO team
-        UniqueConstraint("league_id", "player_id", name="uq_player_no_team_league"),
-        UniqueConstraint("league_category_id", "player_id", name="uq_player_no_team_league_category"),
     )
         
     def to_json(self) -> dict:
-        if self.player_team:
-            base_player = self.player_team.to_json_league_player()
-        else:
-            base_player = self.player.to_json_league_team()
-
         return {
-            **base_player,
-            "league_team": (
-                self.league_team.to_json_for_league_player() if self.league_team else None
-            ),
-            "league_category": self.league_category.to_json_for_league_player(),
             "league_player_id": self.league_player_id,
             "league_id": self.league_id,
             "league_category_id": self.league_category_id,
             "league_team_id": self.league_team_id,
-            "player_team_id": self.player_team_id,
             "total_points": self.total_points,
             "is_ban": self.is_ban,
             "is_allowed": self.is_allowed,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
+            **self.player_team.to_json(),
+            "league_team": self.league_team.to_json(),
         }
     
 _current_module = globals()
