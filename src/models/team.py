@@ -78,7 +78,17 @@ class TeamModel(Base, UpdatableMixin):
         }
         
     def to_json_players_unstaged(self) -> dict:
-        ... 
+        return {
+            'pending_players': [
+                p.to_json_for_team() for p in self.players if p.is_accepted == "Pending"
+            ],
+            'rejected_players': [
+                p.to_json_for_team() for p in self.players if p.is_accepted == "Rejected"
+            ],
+            'invited_players': [
+                p.to_json_for_team() for p in self.players if p.is_accepted == "Invited"
+            ],
+        }
 
 league_team_status_enum = SqlEnum(
     "Pending",
