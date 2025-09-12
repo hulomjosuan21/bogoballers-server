@@ -8,11 +8,12 @@ league_category_bp = Blueprint("league-category", __name__, url_prefix="/league-
 
 service = LeagueCategoryService()
 
-@league_category_bp.get("/<league_id>")
+@league_category_bp.post("/all/<league_id>")
 async def get_league_categories_route(league_id: str):
     try:
-        result = await service.get_many(league_id)
-        return await ApiResponse.payload(result)
+        data = await request.get_json()
+        result = await service.get_many(league_id, data)
+        return await ApiResponse.payload([c.to_json() for c in result])
     except Exception as e:
         return await ApiResponse.error(e)
 

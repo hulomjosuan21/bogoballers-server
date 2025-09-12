@@ -6,21 +6,23 @@ from src.models.league import LeagueCategoryModel
 from src.utils.api_response import ApiException
 
 class LeagueCategoryService:
-    async def get_many(self, league_id: str):
+    async def get_many(self, league_id: str, data: dict):
         if not league_id:
             raise ApiException("No league id.")
         
         async with AsyncSession() as session:
+            conditions = [LeagueCategoryModel.league_id == league_id]
+            
             result = await session.execute(
                 select(LeagueCategoryModel)
                 .options(
                     joinedload(LeagueCategoryModel.rounds),
                 )
-                .where(LeagueCategoryModel.league_id == league_id)
+                .where(*conditions)
             )
 
             categories = result.unique().scalars().all()
-            return [c.to_json() for c in categories]
+            return categories
 
     async def delet_one(self, league_category_id: str):
         async with AsyncSession() as session:

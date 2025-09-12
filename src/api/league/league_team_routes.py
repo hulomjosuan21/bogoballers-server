@@ -86,14 +86,14 @@ async def refund_route():
 
 service = LeagueTeamService()
 
-@league_team_bp.get('/all/<league_id>/<league_category_id>')
-async def get_all_route(league_id: str, league_category_id: str):
+@league_team_bp.post('/all/<league_category_id>')
+async def get_all_route(league_category_id: str):
     try:
-        status = request.args.get('status', None)
-        
-        result = await service.get_all(status=status,league_id=league_id,league_category_id=league_category_id)
-        return await ApiResponse.payload([t.to_json_for_match() for t in result])
+        data = await request.get_json()
+        result = await service.get_all(league_category_id, data)
+        return await ApiResponse.payload([t.to_json() for t in result])
     except Exception as e:
+        traceback.print_exc()
         return await ApiResponse.error(e)
 
 @league_team_bp.put('/validate-entry/<league_id>/<league_category_id>/<league_team_id>')

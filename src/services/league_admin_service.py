@@ -1,9 +1,7 @@
 from typing import List
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from sqlalchemy.orm import joinedload, selectinload
-from src.models.notification import NotificationModel
-from src.auth.auth_user import AuthUser
+from sqlalchemy.orm import selectinload
 from src.services.cloudinary_service import CloudinaryService
 from src.extensions import AsyncSession
 from src.models.league_admin import LeagueAdministratorModel
@@ -13,16 +11,8 @@ import traceback
 from datetime import datetime, timezone
 
 class LeagueAdministratorService:
-    async def get_one(self, session, user_id: str) -> LeagueAdministratorModel | None:
-        stmt = (
-            select(LeagueAdministratorModel)
-            .where(LeagueAdministratorModel.user_id == user_id)
-        )
-        result = await session.execute(stmt)
-        return result.unique().scalar_one_or_none()
-    
     async def search_league_administrators(self, session, search: str, limit: int = 10) -> List[LeagueAdministratorModel]:
-        query = select(LeagueAdministratorModel).options(selectinload(LeagueAdministratorModel.user))
+        query = select(LeagueAdministratorModel)
 
         search_term = f"%{search}%"
         query = query.where(
@@ -44,6 +34,14 @@ class LeagueAdministratorService:
             
         result = await session.execute(query)
         return result.scalars().all()
+    
+    async def get_one(self, session, user_id: str) -> LeagueAdministratorModel | None:
+        stmt = (
+            select(LeagueAdministratorModel)
+            .where(LeagueAdministratorModel.user_id == user_id)
+        )
+        result = await session.execute(stmt)
+        return result.unique().scalar_one_or_none()
     
     async def update_one(self, user_id: str, data: dict):
         async with AsyncSession() as session:

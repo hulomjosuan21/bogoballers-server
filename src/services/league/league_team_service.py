@@ -41,49 +41,28 @@ class LeagueTeamService:
         return (
             select(LeagueTeamModel)
             .options(
-                # Team + its user
                 selectinload(LeagueTeamModel.team).selectinload(TeamModel.user),
-
-                # Team → PlayerTeam → Player → User
-                selectinload(LeagueTeamModel.team)
-                    .selectinload(TeamModel.players)
-                    .selectinload(PlayerTeamModel.player)
-                    .selectinload(PlayerModel.user),
-
-                # Category + League
-                selectinload(LeagueTeamModel.category),
-                selectinload(LeagueTeamModel.league),
-
-                # LeaguePlayers → Player + User
-                selectinload(LeagueTeamModel.league_players)
-                    .selectinload(LeaguePlayerModel.player)
-                    .selectinload(PlayerModel.user),
-
-                # LeaguePlayers → PlayerTeam → Player + User
-                selectinload(LeagueTeamModel.league_players)
-                    .selectinload(LeaguePlayerModel.player_team)
-                    .selectinload(PlayerTeamModel.player)
-                    .selectinload(PlayerModel.user),
-
-                # LeaguePlayers → Category + League + LeagueTeam
-                selectinload(LeagueTeamModel.league_players).selectinload(LeaguePlayerModel.league_category),
-                selectinload(LeagueTeamModel.league_players).selectinload(LeaguePlayerModel.league),
-                selectinload(LeagueTeamModel.league_players).selectinload(LeaguePlayerModel.league_team),
             )
         )
             
     
-    async def get_all(self, status: str | None, league_id: str, league_category_id: str):
+    async def get_all(self, league_category_id: str, data: dict):
         async with AsyncSession() as session:
             stmt = await self.get_all_loaded()
             
             conditions = [
-                LeagueTeamModel.league_id == league_id,
-                LeagueTeamModel.league_category_id == league_category_id,
+                LeagueTeamModel.league_category_id == league_category_id
             ]
 
-            if status:
-                conditions.append(LeagueTeamModel.status == status)
+            if data and data.get("type") == "Submission":
+                conditions.extend([
+                    LeagueTeamModel.status != "Accepted",
+                ])
+            elif data and data.get("type") == "Official":
+                conditions.extend([
+                    LeagueTeamModel.status == "Accepted",
+                    LeagueTeamModel.payment_status != "Pending",
+                ])
 
             stmt = stmt.where(*conditions)
 

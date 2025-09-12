@@ -150,8 +150,11 @@ class LeagueService:
         query = (
             select(LeagueModel)
             .options(
-                selectinload(LeagueModel.creator).selectinload(LeagueAdministratorModel.user),
-                selectinload(LeagueModel.categories).selectinload(LeagueCategoryModel.rounds),
+                joinedload(LeagueModel.creator).joinedload(LeagueAdministratorModel.account),
+                selectinload(LeagueModel.categories)
+                    .joinedload(LeagueCategoryModel.category),
+                selectinload(LeagueModel.categories)
+                    .selectinload(LeagueCategoryModel.rounds),
             )
             .where(
                 or_(

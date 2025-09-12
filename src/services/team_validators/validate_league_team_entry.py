@@ -15,23 +15,13 @@ async def get_league_team_for_validation(session, league_team_id: str):
     result = await session.execute(
         select(LeagueTeamModel)
         .options(
-            # note: LeagueTeam → Team
             selectinload(LeagueTeamModel.team)
             .options(
-                selectinload(TeamModel.players)  # note: Team → PlayerTeam list
+                selectinload(TeamModel.players)
                 .options(
-                    selectinload(PlayerTeamModel.player)  # note: PlayerTeam → Player
+                    selectinload(PlayerTeamModel.player)
                 )
             ),
-
-            # note: LeagueTeam → LeagueCategory → Category
-            selectinload(LeagueTeamModel.category)
-            .options(
-                selectinload(LeagueCategoryModel.category)  # note: Category linked to league category
-            ),
-
-            # note: LeagueTeam → League
-            selectinload(LeagueTeamModel.league)
         )
         .where(LeagueTeamModel.league_team_id == league_team_id)
     )
@@ -44,10 +34,6 @@ async def get_league_category_for_validation(session, league_category_id: str):
         select(LeagueCategoryModel)
         .options(
             selectinload(LeagueCategoryModel.category),
-            selectinload(LeagueCategoryModel.teams)
-            .selectinload(LeagueTeamModel.team)
-            .selectinload(TeamModel.players)
-            .selectinload(PlayerTeamModel.player)
         )
         .where(LeagueCategoryModel.league_category_id == league_category_id)
     )
