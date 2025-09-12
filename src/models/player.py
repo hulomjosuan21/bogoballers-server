@@ -72,6 +72,7 @@ class PlayerModel(Base, UpdatableMixin):
     )
     user: Mapped["UserModel"] = relationship(
         "UserModel",
+        back_populates="player",
         lazy="joined"
     )
     

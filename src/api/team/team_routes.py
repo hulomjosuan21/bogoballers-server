@@ -15,7 +15,7 @@ async def get_one_route(team_id: str):
             raise ApiException("No team found")
         
         result = await service.get_team_with_players(team_id=team_id)
-        return await ApiResponse.payload(result.to_json_for_team_manager())
+        return await ApiResponse.payload(result.to_json())
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)
@@ -69,7 +69,7 @@ async def delete_one_route(team_id: str):
 async def get_many_route(user_id: str):
     try:
         result = await service.get_many(user_id)
-        return await ApiResponse.payload([team.to_json_for_team_manager() for team in result])
+        return await ApiResponse.payload([team.to_json() for team in result])
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)
@@ -78,7 +78,7 @@ async def get_many_route(user_id: str):
 async def get_all_route():
     try:
         result = await service.get_all_teams()
-        return await ApiResponse.payload([team.to_json_for_team_manager() for team in result])
+        return await ApiResponse.payload([team.to_json() for team in result])
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)

@@ -1,6 +1,10 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from src.models.league_admin import LeagueAdministratorModel
+    from src.models.player import PlayerModel
 from typing import Optional
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import String, Boolean, Text, DateTime, Enum as SqlEnum
 from argon2.exceptions import HashingError
 import inspect
@@ -37,7 +41,14 @@ class UserModel(Base):
     user_updated_at: Mapped[DateTime] = UpdatedAt()
     
     display_name: Mapped[Optional[str]] = mapped_column(String(120), unique=True, nullable=True)
-   
+    
+    player: Mapped["PlayerModel"] = relationship("PlayerModel", back_populates="user", lazy="joined")
+    league_administrator: Mapped["LeagueAdministratorModel"] = relationship(
+        "LeagueAdministratorModel",
+        back_populates="account",
+        lazy="joined"
+    )
+    
     def to_json(self) -> dict:
         return {
             "user_id": self.user_id,

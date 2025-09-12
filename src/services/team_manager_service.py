@@ -35,4 +35,4 @@ class TeamManagerService:
             if not user:
                 raise ApiException("No user found", 400)
             
-            return user.to_json_for_team_manager()
+            return user.to_json()

@@ -161,10 +161,10 @@ class EntityService():
                 'results': top_results
             }
     
-    async def login(self, form):
-        email = form.get("email")
-        password = form.get("password")
-        fcm_token = form.get("fcm_token")
+    async def login(self, data: dict):
+        email = data.get("email")
+        password = data.get("password")
+        fcm_token = data.get("fcm_token")
 
         async with AsyncSession() as session:
             result = await session.execute(

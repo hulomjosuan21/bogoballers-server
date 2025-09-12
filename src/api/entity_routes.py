@@ -12,8 +12,8 @@ service = EntityService()
 @entity_bp.post("/login")
 async def login_route():
     try:
-        form = await request.form
-        result = await service.login(form)
+        data = await request.get_json()
+        result = await service.login(data)
         user = result["user"]
         access_token = result["access_token"]
 

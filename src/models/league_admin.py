@@ -51,8 +51,12 @@ class LeagueAdministratorModel(Base, UpdatableMixin):
     league_admin_created_at: Mapped[datetime] = CreatedAt()
     league_admin_updated_at: Mapped[datetime] = UpdatedAt()
     
-    account: Mapped["UserModel"] = relationship("UserModel", lazy="joined")
-    
+    account: Mapped["UserModel"] = relationship(
+        "UserModel",
+        back_populates="league_administrator",
+        lazy="joined"
+    )
+
     def to_json(self) -> dict:
         return {
             'league_administrator_id': self.league_administrator_id,
