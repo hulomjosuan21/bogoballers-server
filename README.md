@@ -1,10 +1,30 @@
-# BogoBalers
+# BogoBallers
 
 ## 🔹 Overview
-- *Backend*: Python with Quart and SocketIO
-- *Database*: PostgreSQL  
-- *Caching & Rate Limiting*: Redis  
-- *Background Tasks*: APScheduler  
-- *Frontend Web*: Vite React TypeScript 
-- *Containerization*: Docker + Docker Compose
-BogoBallers: Basketball League Management System aims to improve and assist league administrators, team managers, players, and spectators through the use of digital tools like a web system and application.
+BogoBallers is a **Basketball League Management System** designed to assist league administrators, team managers, players, and spectators by providing a comprehensive digital platform for league operations and management.
+
+## 🔹 Technology Stack
+
+- **Backend:** Python with Quart and SocketIO  
+- **Database:** PostgreSQL  
+- **Caching & Rate Limiting:** Redis  
+- **Background Tasks:** APScheduler  
+- **Frontend Web:** Vite, React, TypeScript  
+- **Containerization:** Docker + Docker Compose
+
+## 🔹 Features
+- Manage leagues, teams, and player registrations  
+- Real-time score updates and notifications  
+- Scheduling and match management  
+- Role-based access for administrators, managers, and players  
+- Live statistics and analytics  
+
+## 🔹 Getting Started
+
+### Prerequisites
+- Docker & Docker Compose installed  
+- PostgreSQL and Redis services  
+
+### Running the Project
+```bash
+docker-compose up --build
