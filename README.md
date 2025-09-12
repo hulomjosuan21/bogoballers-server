@@ -1,7 +1,9 @@
 # BogoBallers
 
 ## 🔹 Overview
-BogoBallers is a **Basketball League Management System** designed to assist league administrators, team managers, players, and spectators by providing a comprehensive digital platform for league operations and management.
+A centralised platform to manage basketball leagues & enhance player participation in **Bogo City**. This system aims to make all the processes of barangay and city-wide basketball leagues easier, improve the data process, and provide a better experience for **players**, **league administrators**, **coaches**, **basketball teams**, and **spectators**.
+
+**BogoBallers: Basketball League Management System** aims to improve and assist league administrators, team managers, players, and spectators through the use of digital tools like a web system and application.
 
 ## 🔹 Technology Stack
 
@@ -28,4 +30,8 @@ BogoBallers is a **Basketball League Management System** designed to assist leag
 
 ### Running the Project
 ```bash
-docker-compose up --build
+hypercorn src.server:app --bind 0.0.0.0:5000 --workers 4 --log-level info
+```
+```bash
+npm start
+```
