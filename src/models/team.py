@@ -45,8 +45,8 @@ class TeamModel(Base, UpdatableMixin):
     total_points: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_recruiting: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    created_at: Mapped[datetime] = CreatedAt()
-    updated_at: Mapped[datetime] = UpdatedAt()
+    team_created_at: Mapped[datetime] = CreatedAt()
+    team_updated_at: Mapped[datetime] = UpdatedAt()
     
     user: Mapped["UserModel"] = relationship("UserModel",lazy="joined")
     players: Mapped[List["PlayerTeamModel"]] = relationship(
@@ -63,28 +63,36 @@ class TeamModel(Base, UpdatableMixin):
             'user_id':  self.user_id,
             'team_name':  self.team_name,
             'team_address': self.team_address,
-            'team_category': self.team_category,
+            'team_category': self.team_category or None,
             'contact_number': self.contact_number,
-            'team_motto': self.team_motto,
+            'team_motto': self.team_motto or None,
             'team_logo_url': self.team_logo_url,
             'championships_won': self.championships_won,
             'coach_name': self.coach_name,
-            'assistant_coach_name': self.assistant_coach_name,
+            'assistant_coach_name': self.assistant_coach_name or None,
             'total_wins': self.total_wins,
             'total_losses': self.total_losses,
             'total_draws': self.total_draws,
             'total_points': self.total_points,
             'is_recruiting': self.is_recruiting,   
             'creator': self.user.to_json(),
+            'team_created_at': self.team_created_at.isoformat(),
+            'team_updated_at':self.team_updated_at.isoformat(),
             'accepted_players': [player.to_json() for player in self.players if player.is_accepted == "Accepted"],
             'pending_players': [
-                p.to_json_for_team() for p in self.players if p.is_accepted == "Pending"
+                p.to_json() for p in self.players if p.is_accepted == "Pending"
             ],
             'rejected_players': [
-                p.to_json_for_team() for p in self.players if p.is_accepted == "Rejected"
+                p.to_json() for p in self.players if p.is_accepted == "Rejected"
             ],
             'invited_players': [
-                p.to_json_for_team() for p in self.players if p.is_accepted == "Invited"
+                p.to_json() for p in self.players if p.is_accepted == "Invited"
+            ],
+            'stanby_players': [
+                p.to_json() for p in self.players if p.is_accepted == "Standby"
+            ],
+            'guest_players': [
+                p.to_json() for p in self.players if p.is_accepted == "Guest"
             ],
         }
         
@@ -157,8 +165,8 @@ class LeagueTeamModel(Base, UpdatableMixin):
         UniqueConstraint("team_id", "league_id", name="uq_team_per_league"),
     )
 
-    created_at: Mapped[datetime] = CreatedAt()
-    updated_at: Mapped[datetime] = UpdatedAt()
+    league_team_created_at: Mapped[datetime] = CreatedAt()
+    league_team_updated_at: Mapped[datetime] = UpdatedAt()
     
     team: Mapped["TeamModel"] = relationship("TeamModel", lazy="joined")
 
@@ -182,6 +190,8 @@ class LeagueTeamModel(Base, UpdatableMixin):
             'losses': self.losses,
             'draws': self.draws,
             'points': self.points,
+            'league_team_created_at': self.league_team_created_at.isoformat(),
+            'league_team_updated_at': self.league_team_updated_at.isoformat(),
             **self.team.to_json(),
             'league_players': [player.to_json() for player in self.league_players],
         }

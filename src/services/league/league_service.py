@@ -26,11 +26,11 @@ league_admin_service = LeagueAdministratorService()
 class LeagueService:
     async def analytics(self, league_id: str):
         async with AsyncSession() as session:
+            # Load active league with categories + rounds (no teams relationship anymore)
             stmt_league = (
                 select(LeagueModel)
                 .options(
-                    selectinload(LeagueModel.categories).selectinload(LeagueCategoryModel.rounds),
-                    selectinload(LeagueModel.categories).selectinload(LeagueCategoryModel.teams)
+                    selectinload(LeagueModel.categories).selectinload(LeagueCategoryModel.rounds)
                 )
                 .where(
                     LeagueModel.league_id == league_id,
@@ -42,15 +42,17 @@ class LeagueService:
             
             if not active_league:
                 raise ApiException("No found league.")
+            
+            # Count accepted teams for this league
             stmt_teams = (
                 select(
                     func.count(LeagueTeamModel.league_team_id).label("team_count"),
-                    func.max(LeagueTeamModel.updated_at).label("last_update")
+                    func.max(LeagueTeamModel.league_team_updated_at).label("last_update")
                 )
                 .where(
                     LeagueTeamModel.league_id == active_league.league_id,
                     LeagueTeamModel.status == "Accepted",
-                    LeagueTeamModel.payment_status.in_(["Paid Online", "Paid On Site", "Waived"]),
+                    LeagueTeamModel.payment_status.in_(["Paid Online", "Paid On Site"]),
                 )
             )
             result_teams = await session.execute(stmt_teams)
@@ -58,15 +60,16 @@ class LeagueService:
             total_accepted_teams = team_stats.team_count
             teams_last_update = team_stats.last_update.isoformat() if team_stats.last_update else None
 
+            # Profit calculation
             stmt_profit = (
                 select(
                     func.coalesce(func.sum(LeagueTeamModel.amount_paid), 0).label("total_profit"),
-                    func.max(LeagueTeamModel.updated_at).label("last_update")
+                    func.max(LeagueTeamModel.league_team_updated_at).label("last_update")
                 )
                 .where(
                     LeagueTeamModel.league_id == active_league.league_id,
                     LeagueTeamModel.status == "Accepted",
-                    LeagueTeamModel.payment_status.in_(["Paid Online", "Paid On Site", "Waived"]),
+                    LeagueTeamModel.payment_status.in_(["Paid Online", "Paid On Site"]),
                 )
             )
             result_profit = await session.execute(stmt_profit)
@@ -74,18 +77,19 @@ class LeagueService:
             total_profit = profit_stats.total_profit
             profit_last_update = profit_stats.last_update.isoformat() if profit_stats.last_update else None
 
+            # Profit chart (daily aggregation)
             stmt_profit_chart = (
                 select(
-                    cast(LeagueTeamModel.updated_at, Date).label("date"),
+                    cast(LeagueTeamModel.league_team_updated_at, Date).label("date"),
                     func.coalesce(func.sum(LeagueTeamModel.amount_paid), 0).label("amount")
                 )
                 .where(
                     LeagueTeamModel.league_id == active_league.league_id,
                     LeagueTeamModel.status == "Accepted",
-                    LeagueTeamModel.payment_status.in_(["Paid Online", "Paid On Site", "Waived"]),
+                    LeagueTeamModel.payment_status.in_(["Paid Online", "Paid On Site"]),
                 )
-                .group_by(cast(LeagueTeamModel.updated_at, Date))
-                .order_by(cast(LeagueTeamModel.updated_at, Date))
+                .group_by(cast(LeagueTeamModel.league_team_updated_at, Date))
+                .order_by(cast(LeagueTeamModel.league_team_updated_at, Date))
             )
             result_chart = await session.execute(stmt_profit_chart)
             profit_chart = [
@@ -96,7 +100,7 @@ class LeagueService:
             stmt_players = (
                 select(
                     func.count(LeaguePlayerModel.league_player_id).label("player_count"),
-                    func.max(LeaguePlayerModel.updated_at).label("last_update")
+                    func.max(LeaguePlayerModel.league_player_updated_at).label("last_update")
                 )
                 .where(LeaguePlayerModel.league_id == active_league.league_id)
             )
@@ -105,10 +109,11 @@ class LeagueService:
             total_players = player_stats.player_count
             players_last_update = player_stats.last_update.isoformat() if player_stats.last_update else None
 
+            # Categories count (now only directly from league_id)
             stmt_categories = (
                 select(
                     func.count(LeagueCategoryModel.league_category_id).label("category_count"),
-                    func.max(LeagueCategoryModel.updated_at).label("last_update")
+                    func.max(LeagueCategoryModel.league_category_updated_at).label("last_update")
                 )
                 .where(LeagueCategoryModel.league_id == active_league.league_id)
             )
@@ -118,7 +123,7 @@ class LeagueService:
             categories_last_update = category_stats.last_update.isoformat() if category_stats.last_update else None
 
             return {
-                "active_league": active_league.to_json_for_analytics(),
+                "active_league": active_league.to_json(),
                 "total_accepted_teams": {
                     "count": total_accepted_teams,
                     "last_update": teams_last_update,
@@ -177,7 +182,7 @@ class LeagueService:
         ]
         try:
             validate_required_fields(form_data, required_fields)
-            league_title=form_data['league_title'],
+            league_title=form_data['league_title']
             
             sportsmanship_rules = json.loads(form_data['sportsmanship_rules'])
             categories = json.loads(form_data['categories'])
@@ -236,18 +241,28 @@ class LeagueService:
             select(LeagueModel)
             .options(
                 joinedload(LeagueModel.creator).joinedload(LeagueAdministratorModel.account),
+                # load categories
                 selectinload(LeagueModel.categories)
-                    .joinedload(LeagueCategoryModel.category)
-                    .selectinload(LeagueCategoryModel.rounds)
+                    .joinedload(LeagueCategoryModel.category),
+                # load rounds (separate path)
+                selectinload(LeagueModel.categories)
+                    .selectinload(LeagueCategoryModel.rounds),
             )
         )
         
-    async def get_one(self, league_administrator_id: str, data: dict):
+    async def get_one(self, user_id: str, data: dict):
         async with AsyncSession() as session:
-            conditions = [LeagueModel.league_administrator_id == league_administrator_id]
+            league_admin = await league_admin_service.get_one(session=session,user_id=user_id)
             
-            if data.get('status'):
-                conditions.append(LeagueModel.status == data["status"])
+            if not league_admin:
+                raise ApiException("LeagueAdmin not found")
+            
+            conditions = [LeagueModel.league_administrator_id == league_admin.league_administrator_id]
+            
+            status = data.get('status')
+            
+            if status:
+                conditions.append(LeagueModel.status == status)
 
             stmt = await self._get_one()
             stmt = stmt.where(and_(*conditions))
@@ -257,7 +272,7 @@ class LeagueService:
             except NoResultFound:
                 raise ApiException("No League found")
 
-            return league.to_json()
+            return league
         
     async def edit_one(self, league_id: str, data: dict):
         try:

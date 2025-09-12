@@ -1,4 +1,5 @@
 from sqlalchemy import select
+from src.services.league_admin_service import LeagueAdministratorService
 from src.models.category import CategoryModel
 from src.models.league_admin import LeagueAdministratorModel
 from src.extensions import AsyncSession
@@ -7,16 +8,21 @@ from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from datetime import date, datetime
 from src.utils.api_response import ApiException
 
+league_admin_service = LeagueAdministratorService()
+
 class CategoryService:
     async def get_all(self, user_id: str):
         async with AsyncSession() as session:
+            league_admin = await league_admin_service.get_one(session=session,user_id=user_id)
+            
+            if not league_admin:
+                raise ApiException("No League admin found.")
+            
             result = await session.execute(
-                select(LeagueAdministratorModel)
-                .options(selectinload(LeagueAdministratorModel.categories))
-                .where(LeagueAdministratorModel.user_id == user_id)
+                select(CategoryModel)
+                .where(CategoryModel.league_administrator_id == league_admin.league_administrator_id)
             )
-            league_admin = result.scalar_one_or_none()
-            return league_admin.categories_list() if league_admin else []
+            return result.scalars().all()
         
     async def create_one(self, league_administrator_id: str, data: dict):
         async with AsyncSession() as session:

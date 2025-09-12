@@ -130,7 +130,6 @@ class PlayerTeamModel(Base, UpdatableMixin):
         nullable=False
     )
 
-    is_ban: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_team_captain: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     is_accepted: Mapped[str] = mapped_column(
@@ -164,7 +163,6 @@ class PlayerTeamModel(Base, UpdatableMixin):
             **self.player.to_json(),
             'player_team_id': self.player_team_id,
             'team_id': self.team_id,
-            'is_ban': self.is_ban,
             'is_team_captain': self.is_team_captain,
             'is_accepted': self.is_accepted,
             'player_team_created_at': self.player_team_created_at.isoformat(),
@@ -201,8 +199,8 @@ class LeaguePlayerModel(Base, UpdatableMixin):
     )
 
     total_points: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
-    is_ban: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    is_allowed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_ban_in_league: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_allowed_in_league: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     league_player_created_at: Mapped[datetime] = CreatedAt()
     league_player_updated_at: Mapped[datetime] = UpdatedAt()
@@ -225,15 +223,15 @@ class LeaguePlayerModel(Base, UpdatableMixin):
         
     def to_json(self) -> dict:
         return {
-            "league_player_id": self.league_player_id,
-            "league_id": self.league_id,
-            "league_category_id": self.league_category_id,
-            "league_team_id": self.league_team_id,
-            "total_points": self.total_points,
-            "is_ban": self.is_ban,
-            "is_allowed": self.is_allowed,
+            'league_player_id': self.league_player_id,
+            'league_id': self.league_id,
+            'league_category_id': self.league_category_id,
+            'league_team_id': self.league_team_id,
+            'total_points': self.total_points,
+            'is_ban_in_league': self.is_ban_in_league,
+            'is_allowed_in_league': self.is_allowed_in_league,
             **self.player_team.to_json(),
-            "league_team": self.league_team.to_json(),
+            'league_team': self.league_team.to_json(),
             'league_player_created_at': self.league_player_created_at.isoformat(),
             'league_player_updated_at': self.league_player_updated_at.isoformat()
         }

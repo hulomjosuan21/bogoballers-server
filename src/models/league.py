@@ -38,7 +38,6 @@ class LeagueModel(Base, UpdatableMixin):
     league_administrator_id: Mapped[str] = mapped_column(
         String,
         ForeignKey("league_administrator_table.league_administrator_id", ondelete="CASCADE"),
-        unique=True,
         nullable=False
     )
 
@@ -82,7 +81,6 @@ class LeagueModel(Base, UpdatableMixin):
 
     categories: Mapped[list["LeagueCategoryModel"]] = relationship(
         "LeagueCategoryModel",
-        back_populates="league",
         cascade="all, delete-orphan",
         lazy="selectin"
     )

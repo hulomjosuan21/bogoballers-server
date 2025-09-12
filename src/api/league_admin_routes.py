@@ -1,3 +1,4 @@
+import traceback
 from quart import Blueprint, jsonify, make_response, request
 from quart_auth import login_user, login_required, current_user, logout_user
 from src.config import get_jwt_cookie_settings
@@ -52,6 +53,7 @@ async def auth_route():
         payload = await service.get_authenticated_admin(user_id)
         return await ApiResponse.payload(payload)
     except Exception as e:
+        traceback.print_exc()
         return await ApiResponse.error(e)
 
 @league_admin_bp.post("/logout")
@@ -97,6 +99,7 @@ async def create_route():
             status_code=201
         )
     except Exception as e:
+        traceback.print_exc()
         return await ApiResponse.error(e)
 
 @league_admin_bp.post('/send/notification')
