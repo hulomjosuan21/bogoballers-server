@@ -9,7 +9,8 @@ A centralised platform to manage basketball leagues & enhance player participati
 
 - **Backend:** Python with Quart and SocketIO  
 - **Database:** PostgreSQL  
-- **Caching & Rate Limiting:** Redis  
+- **Caching:** Redis
+- **Rate Limiting:** Limiter
 - **Background Tasks:** APScheduler  
 - **Frontend Web:** Vite, React, TypeScript
 - **Frontend Mobile:** Flutter, Dart 
