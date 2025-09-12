@@ -22,3 +22,13 @@ async def save_changes_route(league_category_id: str):
         return await ApiResponse.success(message=message)
     except Exception as e:
         return await ApiResponse.error(e)
+    
+@round_bp.put('/progression/<round_id>')
+async def progression_route(round_id: str):
+    try:
+        data = await request.get_json()
+        result = await service.round_progression(round_id, data)
+        return await ApiResponse.success(message=result)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)
