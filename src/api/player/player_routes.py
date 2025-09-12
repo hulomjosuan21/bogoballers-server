@@ -9,7 +9,7 @@ player_bp = Blueprint('player', __name__, url_prefix='/player')
 service = PlayerService()
 
 @player_bp.post('/create')
-async def create__one_route():
+async def create_one_route():
     try:
         form = await request.form
         file = (await request.files).get("profile_image")

@@ -4,7 +4,7 @@ from sqlalchemy import String, Boolean, Integer, DateTime, Enum as SqlEnum, Text
 from sqlalchemy.orm import Mapped, mapped_column, object_session
 from src.models.team import LeagueTeamModel, TeamModel
 from src.extensions import Base
-from src.utils.db_utils import CreatedAt, UUIDGenerator, UpdatedAt
+from src.utils.db_utils import CreatedAt, PublicIDGenerator, UUIDGenerator, UpdatedAt
 from sqlalchemy.dialects.postgresql import JSONB
 
 match_status_enum = SqlEnum(
@@ -18,103 +18,55 @@ match_status_enum = SqlEnum(
     create_type=False
 )
 
-class MatchModel(Base):
-    __tablename__ = "matches_table"
+from typing import List, Optional
 
-    # note: Identifiers & Relations
-    match_id: Mapped[str] = UUIDGenerator("match")
+class LeagueMatchModel(Base):
+    __tablename__ = "league_matches_table"
+    league_match_id: Mapped[str] = UUIDGenerator("lmatch")
+    public_league_match_id: Mapped[str] = PublicIDGenerator("lm")
 
-    league_id: Mapped[str | None] = mapped_column(
-        String,
-        ForeignKey("leagues_table.league_id", ondelete="CASCADE"),
-        nullable=True
-    )
-    league_category_id: Mapped[str | None] = mapped_column(
-        String,
-        ForeignKey("league_categories_table.league_category_id", ondelete="CASCADE"),
-        nullable=True
-    )
-    round_id: Mapped[str | None] = mapped_column(
-        String,
-        ForeignKey("league_category_rounds_table.round_id", ondelete="CASCADE"),
-        nullable=True
-    )
+    league_id: Mapped[str] = mapped_column(String, ForeignKey("leagues_table.league_id", ondelete="CASCADE"), nullable=False)
+    league_category_id: Mapped[str] = mapped_column(String, ForeignKey("league_categories_table.league_category_id", ondelete="CASCADE"), nullable=False)
+    round_id: Mapped[str] = mapped_column(String, ForeignKey("league_category_rounds_table.round_id", ondelete="CASCADE"), nullable=False)
 
-    # note: Teams & Results
-    home_team_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    home_team_type: Mapped[str | None] = mapped_column(
-        String,  # "league" or "team"
-        nullable=True
-    )
+    home_team_id: Mapped[str] = mapped_column(String, ForeignKey("league_teams_table.league_team_id"), nullable=False)
+    away_team_id: Mapped[str] = mapped_column(String, ForeignKey("league_teams_table.league_team_id"), nullable=False)
 
-    away_team_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    away_team_type: Mapped[str | None] = mapped_column(
-        String,
-        nullable=True
-    )
+    home_team_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    away_team_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
-    home_team_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    away_team_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    winner_team_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    loser_team_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
-    winner_team_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    loser_team_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    scheduled_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    quarters: Mapped[int] = mapped_column(Integer, default=4)
+    minutes_per_quarter: Mapped[int] = mapped_column(Integer, default=10)
+    court: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    referees: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
 
-    # note: Scheduling & Logistics
-    scheduled_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    duration_minutes: Mapped[int] = mapped_column(Integer, default=40)
-    court: Mapped[str | None] = mapped_column(String, nullable=True)
-    referees: Mapped[list[str]] = mapped_column(
-        JSONB,
-        default=list,
-        nullable=False
-    )
-
-    # note: Progression / Bracket Flow
     previous_match_ids: Mapped[list[str]] = mapped_column(ARRAY(String), default=[])
-    next_match_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    next_match_slot: Mapped[str | None] = mapped_column(String, nullable=True)  # "home" or "away"
+    next_match_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    next_match_slot: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
-    loser_next_match_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    loser_next_match_slot: Mapped[str | None] = mapped_column(String, nullable=True)
+    loser_next_match_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    loser_next_match_slot: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
-    round_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    bracket_side: Mapped[str | None] = mapped_column(String, nullable=True)
-    bracket_position: Mapped[str | None] = mapped_column(String, nullable=True)
-    pairing_method: Mapped[str | None] = mapped_column(String, nullable=False, default='random')
-    generated_by: Mapped[str | None] = mapped_column(String, nullable=True)
-    display_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    round_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    bracket_side: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    bracket_position: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    pairing_method: Mapped[str] = mapped_column(String, nullable=False, default="random")
+    generated_by: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    display_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     is_final: Mapped[bool] = mapped_column(Boolean, default=False)
     is_third_place: Mapped[bool] = mapped_column(Boolean, default=False)
     is_exhibition: Mapped[bool] = mapped_column(Boolean, default=False)
 
-    status: Mapped[str] = mapped_column(
-        match_status_enum,
-        nullable=False,
-        default="Unscheduled"
-    )
-    
-    @property
-    def home_team(self):
-        if self.home_team_type == "league":
-            return object_session(self).get(LeagueTeamModel, self.home_team_id)
-        elif self.home_team_type == "team":
-            return object_session(self).get(TeamModel, self.home_team_id)
-        return None
+    status: Mapped[str] = mapped_column(match_status_enum, nullable=False, default="Unscheduled")
 
-    @property
-    def away_team(self):
-        if self.away_team_type == "league":
-            return object_session(self).get(LeagueTeamModel, self.away_team_id)
-        elif self.away_team_type == "team":
-            return object_session(self).get(TeamModel, self.away_team_id)
-        return None
+    league_match_created_at: Mapped[datetime] = CreatedAt()
+    league_match_updated_at: Mapped[datetime] = UpdatedAt()
 
-    # note: Audit
-    created_at: Mapped[datetime] = CreatedAt()
-    updated_at: Mapped[datetime] = UpdatedAt()
-
-    # note: Constraints
     __table_args__ = (
         UniqueConstraint(
             "league_id",
@@ -122,13 +74,86 @@ class MatchModel(Base):
             "round_number",
             "home_team_id",
             "away_team_id",
-            name="unique_match_per_round"
+            name="unique_league_match_per_round"
         ),
     )
-    
-    def to_json_for_unscheduled(self) -> dict:
+
+    def to_json(self) -> dict:
         return {
-            "match_id": self.match_id,
-            "home_team": self.home_team.to_json_for_match(),
-            "away_team": self.away_team.to_json_for_match(),
+            'league_match_id': self.league_match_id,
+            'public_league_match_id': self.public_league_match_id,
+            'league_id': self.league_id,
+            'league_category_id': self.league_category_id,
+            'round_id': self.round_id,
+            'home_team_id': self.home_team_id,
+            'away_team_id': self.away_team_id,
+            'home_team_score': self.home_team_score or None,
+            'away_team_score': self.away_team_score or None,
+            'winner_team_id': self.winner_team_id or None,
+            'loser_team_id': self.loser_team_id or None,
+            'scheduled_date': self.scheduled_date.isoformat() if self.scheduled_date else None,
+            'quarters': self.quarters,
+            'minutes_per_quarter': self.minutes_per_quarter,
+            'court': self.court or None,
+            'referees': self.referees,
+            'previous_match_ids': self.previous_match_ids,
+            'next_match_id': self.next_match_id or None,
+            'next_match_slot': self.next_match_slot or None,
+            'loser_next_match_id': self.loser_next_match_id or None,
+            'loser_next_match_slot': self.loser_next_match_slot or None,
+            'round_number': self.round_number or None,
+            'bracket_side': self.bracket_side or None,
+            'bracket_position': self.bracket_position or None,
+            'pairing_method': self.pairing_method,
+            'generated_by': self.generated_by or None,
+            'display_name': self.display_name or None,
+            'is_final': self.is_final,
+            'is_third_place': self.is_third_place,
+            'is_exhibition': self.is_exhibition,
+            'status': self.status,
+            'league_match_created_at': self.league_match_created_at.isoformat(),
+            'league_match_updated_at': self.league_match_updated_at.isoformat()
+        }
+
+class MatchModel(Base):
+    __tablename__ = "matches_table"
+    
+    match_id: Mapped[str] = UUIDGenerator("match")
+    public_match_id: Mapped[str] = PublicIDGenerator("m")
+
+    home_team_id: Mapped[str] = mapped_column(String, ForeignKey("teams_table.team_id"), nullable=False)
+    away_team_id: Mapped[str] = mapped_column(String, ForeignKey("teams_table.team_id"), nullable=False)
+
+    home_team_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    away_team_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    scheduled_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    quarters: Mapped[int] = mapped_column(Integer, default=4)
+    minutes_per_quarter: Mapped[int] = mapped_column(Integer, default=10)
+    court: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    referees: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
+
+    is_exhibition: Mapped[bool] = mapped_column(Boolean, default=True)
+    status: Mapped[str] = mapped_column(match_status_enum, nullable=False, default="Unscheduled")
+
+    match_created_at: Mapped[datetime] = CreatedAt()
+    match_updated_at: Mapped[datetime] = UpdatedAt()
+
+    def to_json(self) -> dict:
+        return {
+            'match_id': self.match_id,
+            'public_match_id': self.public_match_id,
+            'home_team_id': self.home_team_id,
+            'away_team_id': self.away_team_id,
+            'home_team_score': self.home_team_score or None,
+            'away_team_score': self.away_team_score or None,
+            'scheduled_date': self.scheduled_date.isoformat() if self.scheduled_date else None,
+            'quarters': self.quarters,
+            'minutes_per_quarter': self.minutes_per_quarter,
+            'court': self.court or None,
+            'referees': self.referees,
+            'is_exhibition': self.is_exhibition,
+            'status': self.status,
+            'match_created_at': self.match_created_at.isoformat(),
+            'match_updated_at': self.match_updated_at.isoformat()
         }

@@ -8,7 +8,6 @@ from src.utils.api_response import ApiException
 from sqlalchemy.orm import selectinload
 from src.services.team_validators.validate_league_team_entry import get_league_team_for_validation, LeagueTeamEntryApproval, get_league_category_for_validation
 from src.services.team_validators.validate_team_entry import get_team_for_register_validation, ValidateTeamEntry
-from quart import request
 
 league_player_service = LeaguePlayerService()
 

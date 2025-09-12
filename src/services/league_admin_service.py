@@ -13,6 +13,14 @@ import traceback
 from datetime import datetime, timezone
 
 class LeagueAdministratorService:
+    async def get_one(self, session, user_id: str) -> LeagueAdministratorModel | None:
+        stmt = (
+            select(LeagueAdministratorModel)
+            .where(LeagueAdministratorModel.user_id == user_id)
+        )
+        result = await session.execute(stmt)
+        return result.unique().scalar_one_or_none()
+    
     async def search_league_administrators(self, session, search: str, limit: int = 10) -> List[LeagueAdministratorModel]:
         query = select(LeagueAdministratorModel).options(selectinload(LeagueAdministratorModel.user))
 
@@ -88,7 +96,6 @@ class LeagueAdministratorService:
         async with AsyncSession() as session:
             league_admin_result = (
                 select(LeagueAdministratorModel)
-                .options(joinedload(LeagueAdministratorModel.user))
                 .where(LeagueAdministratorModel.user_id == user_id)
             )
             result = await session.execute(league_admin_result)
@@ -97,7 +104,7 @@ class LeagueAdministratorService:
             if not league_admin:
                 raise ApiException("League Administrator not found", 404)
 
-            if league_admin.user.account_type not in (
+            if league_admin.account.account_type not in (
                 "League_Administrator_Local",
                 "League_Administrator_LGU",
             ):

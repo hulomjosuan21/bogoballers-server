@@ -1,14 +1,12 @@
 import traceback
-from quart import Blueprint, request, render_template
+from quart import Blueprint, request
 from src.services.league.register_league_team_service import RegisterLeagueService
 from src.services.league.league_team_service import LeagueTeamService
 from src.utils.api_response import ApiResponse
-from src.utils.server_utils import get_bool_arg, validate_required_fields
-from src.utils.api_response import ApiException
+from src.utils.server_utils import get_bool_arg
 
 league_team_bp = Blueprint("league-team", __name__, url_prefix="/league-team")
 register_service = RegisterLeagueService()
-
 
 @league_team_bp.post("/register")
 async def register_team_route():

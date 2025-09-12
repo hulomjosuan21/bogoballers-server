@@ -6,7 +6,7 @@ from src.models.league import LeagueCategoryModel
 from src.utils.api_response import ApiException
 
 class LeagueCategoryService:
-    async def get_league_categories(self, league_id: str):
+    async def get_many(self, league_id: str):
         if not league_id:
             raise ApiException("No league id.")
         
@@ -22,7 +22,7 @@ class LeagueCategoryService:
             categories = result.unique().scalars().all()
             return [c.to_json() for c in categories]
 
-    async def delete_league_category(self, league_category_id: str):
+    async def delet_one(self, league_category_id: str):
         async with AsyncSession() as session:
             try:
                 category = await session.get(LeagueCategoryModel, league_category_id)
@@ -38,7 +38,7 @@ class LeagueCategoryService:
                 await session.rollback()
                 raise e 
 
-    async def update_league_category(self, league_category_id: str, data: dict):
+    async def edit_one(self, league_category_id: str, data: dict):
         async with AsyncSession() as session:
             try:
                 category = await session.get(LeagueCategoryModel, league_category_id)

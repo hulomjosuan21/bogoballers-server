@@ -15,13 +15,14 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSONB
 import inspect
 from src.extensions import Base
-from src.utils.db_utils import CreatedAt, UpdatedAt, UUIDGenerator
+from src.utils.db_utils import CreatedAt, PublicIDGenerator, UpdatedAt, UUIDGenerator
 from src.utils.mixins import UpdatableMixin
 
 class TeamModel(Base, UpdatableMixin):
     __tablename__ = "teams_table"
 
     team_id: Mapped[str] = UUIDGenerator("team")
+    public_team_id: Mapped[str] = PublicIDGenerator("t")
 
     user_id: Mapped[str] = mapped_column(
         String,
@@ -44,137 +45,57 @@ class TeamModel(Base, UpdatableMixin):
     total_points: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_recruiting: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    created_at: Mapped[datetime] = CreatedAt()
-    updated_at: Mapped[datetime] = UpdatedAt()
+    team_created_at: Mapped[datetime] = CreatedAt()
+    team_updated_at: Mapped[datetime] = UpdatedAt()
     
-    user: Mapped["UserModel"] = relationship("UserModel")
+    user: Mapped["UserModel"] = relationship("UserModel",lazy="joined")
     players: Mapped[List["PlayerTeamModel"]] = relationship(
         "PlayerTeamModel",
         back_populates="team",
-        foreign_keys="[PlayerTeamModel.team_id]"
+        foreign_keys="[PlayerTeamModel.team_id]",
+        lazy="selectin"
     )
     
-    def to_json_for_query_search(self) -> dict:
-        return {
-            'team_id': self.team_id,
-            'user_id': self.user_id,
-            'team_name': self.team_name,
-            'team_address': self.team_address,
-            'contact_number': self.contact_number,
-            'team_motto': self.team_motto if self.team_motto else None,
-            'team_logo_url': self.team_logo_url,
-            'championships_won': self.championships_won,
-            'coach_name': self.coach_name,
-            'assistant_coach_name': self.assistant_coach_name if self.assistant_coach_name else None,
-            'total_wins': self.total_wins,
-            'total_losses': self.total_losses,
-            'total_draws': self.total_draws,
-            'total_points': self.total_points,
-            'is_recruiting': self.is_recruiting,
-            'team_category': self.team_category or None,
-            'user': self.user.to_json(),
-        }
-    
-    def to_json_for_team_manager(self) -> dict:
-        return {
-            'team_id': self.team_id,
-            'user_id': self.user_id,
-            'team_name': self.team_name,
-            'team_address': self.team_address,
-            'contact_number': self.contact_number,
-            'team_motto': self.team_motto if self.team_motto else None,
-            'team_logo_url': self.team_logo_url,
-            'championships_won': self.championships_won,
-            'coach_name': self.coach_name,
-            'assistant_coach_name': self.assistant_coach_name if self.assistant_coach_name else None,
-            'total_wins': self.total_wins,
-            'total_losses': self.total_losses,
-            'total_draws': self.total_draws,
-            'total_points': self.total_points,
-            'is_recruiting': self.is_recruiting,
-            'team_category': self.team_category or None,
-            'user': self.user.to_json(),
-            'accepted_players': [
-                player_team.to_json_for_team() for player_team in self.players if player_team.is_accepted == "Accepted"
-            ],
-            'pending_players': [
-                player_team.to_json_for_team() for player_team in self.players if player_team.is_accepted == "Pending"
-            ],
-            'rejected_players': [
-                player_team.to_json_for_team() for player_team in self.players if player_team.is_accepted == "Rejected"
-            ],
-            'invited_players': [
-                player_team.to_json_for_team() for player_team in self.players if player_team.is_accepted == "Invited"
-            ],
-        }
-        
-    def to_json_for_match(self) -> dict:
-        return {
-            'team_id': self.team_id,
-            'user_id': self.user_id,
-            'team_name': self.team_name,
-            'team_address': self.team_address,
-            'contact_number': self.contact_number,
-            'team_motto': self.team_motto if self.team_motto else None,
-            'team_logo_url': self.team_logo_url,
-            'championships_won': self.championships_won,
-            'coach_name': self.coach_name,
-            'assistant_coach_name': self.assistant_coach_name if self.assistant_coach_name else None,
-            'total_wins': self.total_wins,
-            'total_losses': self.total_losses,
-            'total_draws': self.total_draws,
-            'total_points': self.total_points,
-            'is_recruiting': self.is_recruiting,
-            'team_category': self.team_category or None,
-            'user': self.user.to_json(),
-            'accepted_players': [
-                player_team.to_json_for_team() for player_team in self.players if player_team.is_accepted == "Accepted"
-            ],
-        }
-        
-    def to_json_for_league_team(self):
-        return {
-            'team_id': self.team_id,
-            'user_id': self.user_id,
-            'team_name': self.team_name,
-            'team_address': self.team_address,
-            'contact_number': self.contact_number,
-            'team_motto': self.team_motto if self.team_motto else None,
-            'team_logo_url': self.team_logo_url,
-            'championships_won': self.championships_won,
-            'coach_name': self.coach_name,
-            'team_category': self.team_category or None,
-            'assistant_coach_name': self.assistant_coach_name if self.assistant_coach_name else None,
-            'total_wins': self.total_wins,
-            'total_losses': self.total_losses,
-            'total_draws': self.total_draws,
-            'total_points': self.total_points,
-            'is_recruiting': self.is_recruiting,
-            'user': self.user.to_json(),
-        }
-        
     def to_json(self) -> dict:
         return {
             'team_id': self.team_id,
-            'user_id': self.user_id,
-            'team_name': self.team_name,
+            'public_team_id': self.public_team_id,
+            'user_id':  self.user_id,
+            'team_name':  self.team_name,
             'team_address': self.team_address,
+            'team_category': self.team_category or None,
             'contact_number': self.contact_number,
-            'team_motto': self.team_motto if self.team_motto else None,
+            'team_motto': self.team_motto or None,
             'team_logo_url': self.team_logo_url,
             'championships_won': self.championships_won,
             'coach_name': self.coach_name,
-            'team_category': self.team_category or None,
-            'assistant_coach_name': self.assistant_coach_name if self.assistant_coach_name else None,
+            'assistant_coach_name': self.assistant_coach_name or None,
             'total_wins': self.total_wins,
             'total_losses': self.total_losses,
             'total_draws': self.total_draws,
             'total_points': self.total_points,
-            'is_recruiting': self.is_recruiting,
-            'user': self.user.to_json(),
+            'is_recruiting': self.is_recruiting,   
+            'creator': self.user.to_json(),
+            'team_created_at': self.team_created_at.isoformat(),
+            'team_updated_at':self.team_updated_at.isoformat(),
+            'accepted_players': [player.to_json() for player in self.players if player.is_accepted == "Accepted"],
+            'pending_players': [
+                p.to_json() for p in self.players if p.is_accepted == "Pending"
+            ],
+            'rejected_players': [
+                p.to_json() for p in self.players if p.is_accepted == "Rejected"
+            ],
+            'invited_players': [
+                p.to_json() for p in self.players if p.is_accepted == "Invited"
+            ],
+            'stanby_players': [
+                p.to_json() for p in self.players if p.is_accepted == "Standby"
+            ],
+            'guest_players': [
+                p.to_json() for p in self.players if p.is_accepted == "Guest"
+            ],
         }
-
-
+        
 league_team_status_enum = SqlEnum(
     "Pending",
     "Accepted",
@@ -244,104 +165,35 @@ class LeagueTeamModel(Base, UpdatableMixin):
         UniqueConstraint("team_id", "league_id", name="uq_team_per_league"),
     )
 
-    created_at: Mapped[datetime] = CreatedAt()
-    updated_at: Mapped[datetime] = UpdatedAt()
+    league_team_created_at: Mapped[datetime] = CreatedAt()
+    league_team_updated_at: Mapped[datetime] = UpdatedAt()
     
-    category: Mapped["LeagueCategoryModel"] = relationship(
-        "LeagueCategoryModel", back_populates="teams"
-    )
-    team: Mapped["TeamModel"] = relationship("TeamModel")
-    league: Mapped["LeagueModel"] = relationship("LeagueModel")
+    team: Mapped["TeamModel"] = relationship("TeamModel", lazy="joined")
 
     league_players: Mapped[List["LeaguePlayerModel"]] = relationship(
         "LeaguePlayerModel",
         back_populates="league_team",
-        cascade="all, delete-orphan"
+        cascade="all, delete-orphan",
+        lazy="selectin"
     )
-
-    def to_json(self) -> dict:
-        team_json = self.team.to_json_for_league_team()
-
-        team_json["accepted_players"] = [
-            player_team.to_json_for_team()
-            for player_team in self.team.players
-            if player_team.is_accepted == "Accepted"
-        ]
-
-        return {
-            **team_json,
-            "league_team_id": self.league_team_id,
-            "league_id": self.league_id,
-            "league_category_id": self.league_category_id,
-            "status": self.status,
-            "amount_paid": self.amount_paid,
-            "payment_status": self.payment_status,
-            "wins": self.wins,
-            "losses": self.losses,
-            "draws": self.draws,
-            "points": self.points,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat()
-        }
     
-    def to_json_for_league(self) -> dict:
-        team_json = self.team.to_json_for_league_team()
-        
+    def to_json(self) -> dict:
         return {
-            **team_json,
-            "league_team_id": self.league_team_id,
-            "league_id": self.league_id,
-            "league_category_id": self.league_category_id,
-            "team": self.team.to_json_for_league_team(),
-            "status": self.status,
-            "amount_paid": self.amount_paid,
-            "payment_status": self.payment_status,
-            "wins": self.wins,
-            "losses": self.losses,
-            "draws": self.draws,
-            "points": self.points,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
-            "league_players": [player.to_json() for player in self.league_players]
-        }
-        
-    def to_json_for_league_player(self) -> dict:
-        team_json = self.team.to_json_for_league_team()
-        
-        return {
-            **team_json,
-            "league_team_id": self.league_team_id,
-            "league_id": self.league_id,
-            "league_category_id": self.league_category_id,
-            "status": self.status,
-            "amount_paid": self.amount_paid,
-            "payment_status": self.payment_status,
-            "wins": self.wins,
-            "losses": self.losses,
-            "draws": self.draws,
-            "points": self.points,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
-        }
-        
-    def to_json_for_match(self) -> dict:
-        team_json = self.team.to_json_for_league_team()
-        
-        return {
-            **team_json,
-            "league_team_id": self.league_team_id,
-            "league_id": self.league_id,
-            "league_category_id": self.league_category_id,
-            "status": self.status,
-            "amount_paid": self.amount_paid,
-            "payment_status": self.payment_status,
-            "wins": self.wins,
-            "losses": self.losses,
-            "league_players": [player.to_json() for player in self.league_players],
-            "draws": self.draws,
-            "points": self.points,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
+            'league_team_id': self.league_team_id,
+            'league_id': self.league_id,
+            'league_category_id': self.league_category_id,
+            'status': self.status,
+            'is_eliminated': self.is_eliminated,
+            'amount_paid': self.amount_paid,
+            'payment_status': self.payment_status,
+            'wins': self.wins,
+            'losses': self.losses,
+            'draws': self.draws,
+            'points': self.points,
+            'league_team_created_at': self.league_team_created_at.isoformat(),
+            'league_team_updated_at': self.league_team_updated_at.isoformat(),
+            **self.team.to_json(),
+            'league_players': [player.to_json() for player in self.league_players],
         }
 
 _current_module = globals()

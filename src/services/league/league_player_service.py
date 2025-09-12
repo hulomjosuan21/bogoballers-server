@@ -36,31 +36,6 @@ class LeaguePlayerService:
         except (IntegrityError, SQLAlchemyError):
             await session.rollback()
             raise ApiException("Players is already registered for this league from other team", 409)
-        
-    async def get_many_loaded(self):
-        return (
-            select(LeaguePlayerModel)
-            .options(
-                # player_team -> player -> user
-                selectinload(LeaguePlayerModel.player_team)
-                .selectinload(PlayerTeamModel.player)
-                .selectinload(PlayerModel.user),
-
-                # player_team -> team -> user
-                selectinload(LeaguePlayerModel.player_team)
-                .selectinload(PlayerTeamModel.team)
-                .selectinload(TeamModel.user),
-
-                # league_team -> team -> user
-                selectinload(LeaguePlayerModel.league_team)
-                .selectinload(LeagueTeamModel.team)
-                .selectinload(TeamModel.user),
-
-                # other relationships
-                selectinload(LeaguePlayerModel.league),
-                selectinload(LeaguePlayerModel.league_category)
-            )
-        )
             
     async def get_all(self, league_id: str, league_category_id: str):
         async with AsyncSession() as session:

@@ -1,8 +1,8 @@
+import traceback
 from quart import Blueprint, jsonify, make_response, request
 from quart_auth import login_user, login_required, current_user, logout_user
 from src.config import get_jwt_cookie_settings
 from src.auth.auth_user import AuthUser
-from src.models.league_admin import LeagueAdministratorModel
 from src.utils.api_response import ApiResponse, ApiException
 from src.utils.rate_limiter import rate_limit, login_limit
 from src.services.league_admin_service import LeagueAdministratorService
@@ -53,6 +53,7 @@ async def auth_route():
         payload = await service.get_authenticated_admin(user_id)
         return await ApiResponse.payload(payload)
     except Exception as e:
+        traceback.print_exc()
         return await ApiResponse.error(e)
 
 @league_admin_bp.post("/logout")
@@ -98,6 +99,7 @@ async def create_route():
             status_code=201
         )
     except Exception as e:
+        traceback.print_exc()
         return await ApiResponse.error(e)
 
 @league_admin_bp.post('/send/notification')

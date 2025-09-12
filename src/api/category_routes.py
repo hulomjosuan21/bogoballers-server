@@ -17,16 +17,18 @@ async def get_all_route():
         if not user_id:
             raise ApiException("No user found.")
         result = await service.get_all(user_id=user_id)
-        return await ApiResponse.payload(result)
+        return await ApiResponse.payload([c.to_json() for c in result])
     except Exception as e:
+        traceback.print_exc()
         return await ApiResponse.error(e)
 
 @category_bp.get("/<category_id>")
 async def get_one_route(category_id: str):
     try:
         result = await service.get_one(category_id)
-        return await ApiResponse.payload(result.to_json_league_category())
+        return await ApiResponse.payload(result.to_json())
     except Exception as e:
+        traceback.print_exc()
         return await ApiResponse.error(e)
 
 @category_bp.post("/<league_administrator_id>")
@@ -44,9 +46,10 @@ async def create_one_route(league_administrator_id: str):
 async def update_one_route(category_id: str):
     try:
         data = await request.get_json()
-        result = await service.update_one(category_id, data)
+        result = await service.edit_one(category_id, data)
         return await ApiResponse.success(message=result)
     except Exception as e:
+        traceback.print_exc()
         return await ApiResponse.error(e)
 
 @category_bp.delete("/<category_id>")
@@ -55,4 +58,5 @@ async def delete_one_route(category_id: str):
         result = await service.delete_one(category_id)
         return await ApiResponse.success(message=result)
     except Exception as e:
+        traceback.print_exc()
         return await ApiResponse.error(e)
