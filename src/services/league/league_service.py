@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 import re
 from dateutil.relativedelta import relativedelta
-from sqlalchemy import  Date,Text, and_, case, cast, func, or_, select
+from sqlalchemy import  Date,Text, and_, case, cast, func, or_, select, update
 from src.services.league_admin_service import LeagueAdministratorService
 from src.models.player import LeaguePlayerModel
 from src.models.team import LeagueTeamModel
@@ -174,6 +174,47 @@ class LeagueService:
         result = await session.execute(query)
         leagues = result.scalars().unique().all()
         return leagues
+
+    async def update_league_resource(self, league_id: str, field_name: str, json_data: str, files: dict):
+        IMAGE_KEYS = {
+            "league_courts": None,
+            "league_officials": "photo",
+            "league_referees": "photo",
+            "league_affiliates": "image"
+        }
+
+        if field_name not in IMAGE_KEYS:
+            raise ApiException("Invalid field name")
+
+        if not json_data:
+            raise ApiException(f"Field '{field_name}' data required")
+
+        try:
+            items = json.loads(json_data)
+        except json.JSONDecodeError:
+            raise ApiException(f"Invalid JSON for '{field_name}'")
+
+        image_key = IMAGE_KEYS[field_name]
+        if image_key:
+            for idx, item in enumerate(items):
+                file_key = f"{field_name}_file_{idx}"
+                if file_key in files:
+                    file = files[file_key]
+                    cloud_url = await CloudinaryService.upload_file(
+                        file, folder=f"{field_name}/{league_id}"
+                    )
+                    item[image_key] = cloud_url
+
+        async with AsyncSession() as session:
+            stmt = (
+                update(LeagueModel)
+                .where(LeagueModel.league_id == league_id)
+                .values({field_name: items})
+            )
+            await session.execute(stmt)
+            await session.commit()
+
+        return f"{field_name} updated"
 
     async def create_one(self, user_id, form_data: dict, files: dict):
         required_fields = [

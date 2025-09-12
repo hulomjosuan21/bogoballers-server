@@ -40,3 +40,15 @@ async def get_one_route():
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)
+    
+@league_bp.put("/<string:league_id>/update-field/<string:field_name>")
+async def update_league_route(league_id: str, field_name: str):
+    try:
+        form = await request.form
+        files = await request.files
+        
+        json_data = form.get(field_name)
+        result = await service.update_league_resource(league_id, field_name, json_data, files)
+        return await ApiResponse.success(message=result)
+    except Exception as e:
+        return await ApiResponse.error(e)
