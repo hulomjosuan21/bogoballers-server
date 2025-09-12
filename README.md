@@ -9,7 +9,8 @@ BogoBallers is a **Basketball League Management System** designed to assist leag
 - **Database:** PostgreSQL  
 - **Caching & Rate Limiting:** Redis  
 - **Background Tasks:** APScheduler  
-- **Frontend Web:** Vite, React, TypeScript  
+- **Frontend Web:** Vite, React, TypeScript
+- **Frontend Mobile:** Flutter, Dart 
 - **Containerization:** Docker + Docker Compose
 
 ## 🔹 Features
