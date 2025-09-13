@@ -35,8 +35,8 @@ class LeagueRoundService:
             async with AsyncSession() as session:
                 round_obj = await session.get(LeagueCategoryRoundModel, round_id)
                 
-                if not round_obj.format_type and not round_obj.format_config and round_status in (RoundStateEnum.Ongoing, RoundStateEnum.Upcoming):
-                    raise ApiException("Unable to progress round: format config is not set")
+                if not round_obj.format_type and not round_obj.format_config and round_status == RoundStateEnum.Ongoing:
+                    raise ApiException("Unable to start round: format config is not set")
 
                 next_round_obj = None
                 if round_obj.next_round_id:

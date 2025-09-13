@@ -1,9 +1,7 @@
 from sqlalchemy import select
 from src.services.league_admin_service import LeagueAdministratorService
 from src.models.category import CategoryModel
-from src.models.league_admin import LeagueAdministratorModel
 from src.extensions import AsyncSession
-from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from datetime import date, datetime
 from src.utils.api_response import ApiException

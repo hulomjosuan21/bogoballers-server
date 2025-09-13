@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     
 from datetime import datetime
 from sqlalchemy import (
-    CheckConstraint, Float, ForeignKey, String, Boolean, Integer, Enum as SqlEnum, Text, UniqueConstraint
+    CheckConstraint, DateTime, Float, ForeignKey, String, Boolean, Integer, Enum as SqlEnum, Text, UniqueConstraint
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSONB
@@ -165,6 +165,8 @@ class LeagueTeamModel(Base, UpdatableMixin):
         UniqueConstraint("team_id", "league_id", name="uq_team_per_league"),
     )
 
+    finalized_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    
     league_team_created_at: Mapped[datetime] = CreatedAt()
     league_team_updated_at: Mapped[datetime] = UpdatedAt()
     

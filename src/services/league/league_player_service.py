@@ -37,15 +37,20 @@ class LeaguePlayerService:
             await session.rollback()
             raise ApiException("Players is already registered for this league from other team", 409)
             
-    async def get_all(self, league_id: str, league_category_id: str):
+    async def get_many(self, league_id: str, data: dict):
         async with AsyncSession() as session:
-            stmt = await self.get_many_loaded()
-
-            stmt = stmt.where(
-                LeaguePlayerModel.league_id == league_id,
-                LeaguePlayerModel.league_category_id == league_category_id
+            conditions = [LeaguePlayerModel.league_id == league_id]
+            
+            if data and data.get('condition'):
+                ...
+            
+            stmt = (
+                select(LeaguePlayerModel)
+                .options(
+                    
+                ).where(*conditions)
             )
-
+            
             result = await session.execute(stmt)
             return result.scalars().all()
         
