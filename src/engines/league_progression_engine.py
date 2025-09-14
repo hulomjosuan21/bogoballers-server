@@ -8,15 +8,16 @@ from src.models.match import LeagueMatchModel
 from src.models.match_types import parse_round_config
 from src.models.team import LeagueTeamModel
 
-
 class LeagueProgressionEngine:
     def __init__(
         self,
+        league_id: str,
         current_round: LeagueCategoryRoundModel,
         next_round: LeagueCategoryRoundModel,
         matches: List[LeagueMatchModel],
         teams: List[LeagueTeamModel]
     ):
+        self.league_id = league_id
         self.current_round = current_round
         self.next_round = next_round
         self.matches = matches
@@ -39,7 +40,7 @@ class LeagueProgressionEngine:
 
     def generate_next_matches(self) -> List[LeagueMatchModel]:
         advancing = self.evaluate_advancing_teams()
-        generator = MatchGenerationEngine(self.next_round, advancing)
+        generator = MatchGenerationEngine(self.league_id, self.next_round, advancing)
         return generator.generate()
 
     def _rank_round_robin(self) -> List[LeagueTeamModel]:

@@ -7,7 +7,6 @@ class RoundRobinConfig:
     group_count: int = 1
     team_count: int = 0
     advances_per_group: int = 1
-    regeneration_count: int = 0
     use_point_system: bool = False
 
 @dataclass
@@ -16,7 +15,6 @@ class KnockoutConfig:
     group_count: int = 1
     team_count: int = 0
     seeding: Literal["random", "ranking"] = "random"
-    regeneration_count: int = 0
 
 @dataclass
 class DoubleEliminationConfig:
@@ -25,7 +23,6 @@ class DoubleEliminationConfig:
     team_count: int = 0
     max_loss: int = 2
     brackets: List[str] = None
-    regeneration_count: int = 0
 
     def __post_init__(self):
         if self.brackets is None:
@@ -37,7 +34,6 @@ class BestOfConfig:
     group_count: int = 1
     team_count: int = 0
     games: int = 3
-    regeneration_count: int = 0
 
 @dataclass
 class TwiceToBeatConfig:
@@ -68,7 +64,7 @@ def infer_format_type(config: dict) -> str:
 
 def sanitize_config(config: dict) -> dict:
     allowed_keys = {
-        "type", "group_count", "team_count", "advances_per_group", "regeneration_count",
+        "type", "group_count", "team_count", "advances_per_group",
         "use_point_system", "seeding", "max_loss", "brackets", "games",
         "advantaged_team", "challenger_team", "max_games"
     }

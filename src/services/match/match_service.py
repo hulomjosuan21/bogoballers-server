@@ -1,5 +1,6 @@
 from typing import List
 from sqlalchemy import select, update
+from src.services.league.league_category_service import LeagueCategoryService
 from src.engines.league_finalization_engine import LeagueFinalizationEngine
 from src.engines.league_progression_engine import LeagueProgressionEngine
 from src.engines.match_generation_engine import MatchGenerationEngine
@@ -11,23 +12,21 @@ from datetime import datetime, timezone, timedelta
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
 class LeagueMatchService:
+
     async def generate_first_elimination_round(
+        self,
+        league_id: str,
         elimination_round_id: str
-    ) -> List[LeagueMatchModel]:
+    ) -> str:
         try:
             async with AsyncSession() as session:
                 league_round = await session.get(LeagueCategoryRoundModel, elimination_round_id)
                 if not league_round:
                     raise ValueError(f"Round not found: {elimination_round_id}")
 
-                team_query = await session.execute(
-                    select(LeagueTeamModel).where(
-                        LeagueTeamModel.league_category_id == league_round.league_category_id
-                    )
-                )
-                accepted_teams = team_query.scalars().all()
+                accepted_teams = await LeagueCategoryService.get_eligible_teams(session, league_round.league_category_id)
 
-                generator = MatchGenerationEngine(league_round, accepted_teams)
+                generator = MatchGenerationEngine(league_id, league_round, accepted_teams)
                 matches = generator.generate()
 
                 session.add_all(matches)
@@ -37,11 +36,13 @@ class LeagueMatchService:
         except (IntegrityError, SQLAlchemyError) as e:
             await session.rollback()
             raise e
-
+        
     async def progress_to_next_round(
+        self,
+        league_id: str,
         current_round_id: str,
         next_round_id: str
-    ) -> List[LeagueMatchModel]:
+    ) -> str:
         try:
             async with AsyncSession() as session:
                 current_round = await session.get(LeagueCategoryRoundModel, current_round_id)
@@ -52,12 +53,7 @@ class LeagueMatchService:
                 if not next_round:
                     raise ValueError(f"Next round not found: {next_round_id}")
 
-                team_query = await session.execute(
-                    select(LeagueTeamModel).where(
-                        LeagueTeamModel.league_category_id == current_round.league_category_id
-                    )
-                )
-                all_teams = team_query.scalars().all()
+                eligible_teams = await self._get_eligible_teams(session, current_round.league_category_id)
 
                 match_query = await session.execute(
                     select(LeagueMatchModel).where(
@@ -67,27 +63,28 @@ class LeagueMatchService:
                 completed_matches = match_query.scalars().all()
 
                 progression = LeagueProgressionEngine(
+                    league_id=league_id,
                     current_round=current_round,
                     next_round=next_round,
                     matches=completed_matches,
-                    teams=all_teams
+                    teams=eligible_teams
                 )
                 next_matches = progression.generate_next_matches()
 
                 session.add_all(next_matches)
                 await session.commit()
 
-                return f"{len(next_matches)} generated."
+                return f"{len(next_matches)} matches generated."
         except (IntegrityError, SQLAlchemyError) as e:
             await session.rollback()
             raise e
-                
+
     async def finalize_tournament_results(
         final_round_id: str
-    ) -> None:
+    ) -> str:
         PH_TZ = timezone(timedelta(hours=8))
         now = datetime.now(PH_TZ)
-        
+
         try:
             async with AsyncSession() as session:
                 final_round = await session.get(LeagueCategoryRoundModel, final_round_id)
@@ -126,7 +123,7 @@ class LeagueMatchService:
                     )
 
                 await session.commit()
-                
+
                 return "Success nagud ang final"
         except (IntegrityError, SQLAlchemyError) as e:
             await session.rollback()

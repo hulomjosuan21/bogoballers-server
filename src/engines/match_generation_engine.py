@@ -5,10 +5,10 @@ from src.models.match import LeagueMatchModel
 from src.models.match_types import parse_round_config
 from src.models.team import LeagueTeamModel
 
-
 class MatchGenerationEngine:
-    def __init__(self, round: LeagueCategoryRoundModel, teams: List[LeagueTeamModel]):
+    def __init__(self, league_id: str,round: LeagueCategoryRoundModel, teams: List[LeagueTeamModel]):
         self.round = round
+        self.league_id = league_id
         self.teams = teams
         self.config = parse_round_config(round.format_config)
 
@@ -34,7 +34,7 @@ class MatchGenerationEngine:
             for i in range(len(group)):
                 for j in range(i + 1, len(group)):
                     matches.append(LeagueMatchModel(
-                        league_id=self.round.league_category.league_id,
+                        league_id=self.league_id,
                         league_category_id=self.round.league_category_id,
                         round_id=self.round.round_id,
                         home_team_id=group[i].league_team_id,
@@ -49,7 +49,7 @@ class MatchGenerationEngine:
         shuffled = self._apply_seeding(self.teams, self.config.seeding)
         return [
             LeagueMatchModel(
-                league_id=self.round.league_category.league_id,
+                league_id=self.league_id,
                 league_category_id=self.round.league_category_id,
                 round_id=self.round.round_id,
                 home_team_id=shuffled[i].league_team_id,
@@ -65,7 +65,7 @@ class MatchGenerationEngine:
         random.shuffle(shuffled)
         return [
             LeagueMatchModel(
-                league_id=self.round.league_category.league_id,
+                league_id=self.league_id,
                 league_category_id=self.round.league_category_id,
                 round_id=self.round.round_id,
                 home_team_id=shuffled[i].league_team_id,
@@ -80,7 +80,7 @@ class MatchGenerationEngine:
     def _generate_best_of(self) -> List[LeagueMatchModel]:
         if len(self.teams) < 2: return []
         return [LeagueMatchModel(
-            league_id=self.round.league_category.league_id,
+            league_id=self.league_id,
             league_category_id=self.round.league_category_id,
             round_id=self.round.round_id,
             home_team_id=self.teams[0].league_team_id,
@@ -94,7 +94,7 @@ class MatchGenerationEngine:
         if not self.config.advantaged_team or not self.config.challenger_team:
             raise ValueError("TwiceToBeat requires both advantaged_team and challenger_team")
         return [LeagueMatchModel(
-            league_id=self.round.league_category.league_id,
+            league_id=self.league_id,
             league_category_id=self.round.league_category_id,
             round_id=self.round.round_id,
             home_team_id=self.config.advantaged_team,

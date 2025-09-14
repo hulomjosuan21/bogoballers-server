@@ -232,7 +232,6 @@ class LeaguePlayerModel(Base, UpdatableMixin):
             'is_ban_in_league': self.is_ban_in_league,
             'is_allowed_in_league': self.is_allowed_in_league,
             **self.player_team.to_json(),
-            'league_team': self.league_team.to_json(),
             'league_player_created_at': self.league_player_created_at.isoformat(),
             'league_player_updated_at': self.league_player_updated_at.isoformat()
         }

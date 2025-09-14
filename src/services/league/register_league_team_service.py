@@ -39,7 +39,7 @@ class RegisterLeagueService:
             await session.refresh(league_team)
 
             if payment_method == "Pay on site":
-                league_team.payment_status = "Paid On Site"
+                league_team.payment_status = "Pending"
                 await session.commit()
                 return {
                     "league_team_id": league_team.league_team_id,

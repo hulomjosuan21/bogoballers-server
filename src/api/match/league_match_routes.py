@@ -7,19 +7,19 @@ league_match_bp = Blueprint('league-match', __name__, url_prefix='/league-match'
 
 service = LeagueMatchService()
 
-@league_match_bp.post('/generate/elimination/<elimination_round_id>')
-async def generate_elimination_round_route(elimination_round_id: str):
+@league_match_bp.post('/generate/elimination/<league_id>/<elimination_round_id>')
+async def generate_elimination_round_route(league_id: str,elimination_round_id: str):
     try:
-        result = await service.generate_first_elimination_round(elimination_round_id)
+        result = await service.generate_first_elimination_round(league_id, elimination_round_id)
         return await ApiResponse.success(message=result)
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)
     
-@league_match_bp.post('/generate/progress-next/<current_round_id>/<next_round_id>')
-async def progress_next_round_route(current_round_id: str, next_round_id: str):
+@league_match_bp.post('/generate/progress-next/<league_id>/<current_round_id>/<next_round_id>')
+async def progress_next_round_route(league_id: str, current_round_id: str, next_round_id: str):
     try:
-        result = await service.progress_to_next_round(current_round_id, next_round_id)
+        result = await service.progress_to_next_round(league_id, current_round_id, next_round_id)
         return await ApiResponse.success(message=result)
     except Exception as e:
         traceback.print_exc()

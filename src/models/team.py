@@ -165,6 +165,8 @@ class LeagueTeamModel(Base, UpdatableMixin):
         UniqueConstraint("team_id", "league_id", name="uq_team_per_league"),
     )
 
+    final_rank: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    is_champion: Mapped[bool] = mapped_column(Boolean, default=False)
     finalized_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     
     league_team_created_at: Mapped[datetime] = CreatedAt()
@@ -192,6 +194,9 @@ class LeagueTeamModel(Base, UpdatableMixin):
             'losses': self.losses,
             'draws': self.draws,
             'points': self.points,
+            'final_rank': self.final_rank if self.final_rank else None,
+            'is_champion': self.is_champion,
+            'finalized_at': self.finalized_at.isoformat() if self.finalized_at else None,
             'league_team_created_at': self.league_team_created_at.isoformat(),
             'league_team_updated_at': self.league_team_updated_at.isoformat(),
             **self.team.to_json(),

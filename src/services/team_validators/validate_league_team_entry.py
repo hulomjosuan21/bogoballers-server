@@ -94,19 +94,19 @@ class ValidateLeagueTeamPlayers:
 
     def validate(self):
         # note: Enforce 12–15 players
-        # if len(self.players) < 12:
-        #     raise ApiException(f"Minimum 12 players required, got {len(self.players)}.")
-        # if len(self.players) > 15:
-        #     raise ApiException(f"Maximum 15 players allowed, got {len(self.players)}.")
+        if len(self.players) < 12:
+            raise ApiException(f"Minimum 12 players required, got {len(self.players)}.")
+        if len(self.players) > 15:
+            raise ApiException(f"Maximum 15 players allowed, got {len(self.players)}.")
 
         # note: loops players
         for player_team in self.players:
             ValidatePlayerTeam(self.category, player_team.player).validate()
 
         # note: Jersey numbers must be unique
-        jersey_numbers = [int(p.player.jersey_number) for p in self.players if p.player.jersey_number]
-        if len(jersey_numbers) != len(set(jersey_numbers)):
-            raise ApiException("Duplicate jersey numbers found in team.")
+        # jersey_numbers = [int(p.player.jersey_number) for p in self.players if p.player.jersey_number]
+        # if len(jersey_numbers) != len(set(jersey_numbers)):
+        #     raise ApiException("Duplicate jersey numbers found in team.")
 
 class ValidatePlayerTeam:
     def __init__(self, category: CategoryModel, player: PlayerModel):
@@ -137,7 +137,7 @@ class ValidatePlayerTeam:
             )
 
         # note: jersey number required
-        if not self.player.jersey_number:
+        if self.player.jersey_number is None:
             raise ApiException(f"Player {self.player.full_name} missing jersey number.")
 
         # note: address validation
