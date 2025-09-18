@@ -28,6 +28,5 @@ class RedisService:
         try:
             state_json = json.dumps(state)
             await self.r.set(room_name, state_json, ex=86400)
-            print(f"State for room {room_name} has been updated in Redis.")
         except Exception as e:
             print(f"Error setting state in Redis for {room_name}: {e}")

@@ -1,20 +1,9 @@
 import traceback
-from quart import Blueprint, jsonify, request
-from src.services.redis_service import RedisService
+from quart import Blueprint, request
 from src.services.match.match_service import LeagueMatchService
 from src.utils.api_response import ApiResponse
 
 league_match_bp = Blueprint('league-match', __name__, url_prefix='/league-match')
-redis_service = RedisService()
-@league_match_bp.get('/<string:match_id>/live')
-async def get_live_match_state(match_id:str):
-    room_name = f"match_room_{match_id}"
-    latest_state = await redis_service.get_state(room_name)
-    
-    if latest_state:
-        return jsonify({ "present": latest_state, "past": [], "future": [] })
-    else:
-        return jsonify({"error": "Live match has not started or state not found in Redis"}), 404
     
 service = LeagueMatchService()
 
