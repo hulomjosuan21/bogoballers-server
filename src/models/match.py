@@ -1,11 +1,14 @@
 from __future__ import annotations
 from datetime import datetime
+from typing import List, Optional
 from sqlalchemy import String, Boolean, Integer, DateTime, Enum as SqlEnum, Text, ARRAY, ForeignKey, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column, object_session
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.models.team import LeagueTeamModel, TeamModel
 from src.extensions import Base
 from src.utils.db_utils import CreatedAt, PublicIDGenerator, UUIDGenerator, UpdatedAt
 from sqlalchemy.dialects.postgresql import JSONB
+
+from src.utils.mixins import UpdatableMixin
 
 match_status_enum = SqlEnum(
     "Unscheduled",
@@ -18,9 +21,8 @@ match_status_enum = SqlEnum(
     create_type=False
 )
 
-from typing import List, Optional
 
-class LeagueMatchModel(Base):
+class LeagueMatchModel(Base, UpdatableMixin):
     __tablename__ = "league_matches_table"
     league_match_id: Mapped[str] = UUIDGenerator("lmatch")
     public_league_match_id: Mapped[str] = PublicIDGenerator("lm")
@@ -31,6 +33,20 @@ class LeagueMatchModel(Base):
 
     home_team_id: Mapped[str] = mapped_column(String, ForeignKey("league_teams_table.league_team_id"), nullable=False)
     away_team_id: Mapped[str] = mapped_column(String, ForeignKey("league_teams_table.league_team_id"), nullable=False)
+    
+    home_team: Mapped["LeagueTeamModel"] = relationship(
+        "LeagueTeamModel",
+        foreign_keys=[home_team_id],
+        uselist=False,
+        lazy="joined"
+    )
+
+    away_team: Mapped["LeagueTeamModel"] = relationship(
+        "LeagueTeamModel",
+        foreign_keys=[away_team_id],
+        uselist=False,
+        lazy="joined"
+    )
 
     home_team_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     away_team_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
@@ -41,6 +57,7 @@ class LeagueMatchModel(Base):
     scheduled_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     quarters: Mapped[int] = mapped_column(Integer, default=4)
     minutes_per_quarter: Mapped[int] = mapped_column(Integer, default=10)
+    minutes_per_overtime: Mapped[int] = mapped_column(Integer, default=5)
     court: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     referees: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
 
@@ -55,6 +72,7 @@ class LeagueMatchModel(Base):
     bracket_side: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     bracket_position: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     pairing_method: Mapped[str] = mapped_column(String, nullable=False, default="random")
+    generated_by: Mapped[str] = mapped_column(String, nullable=False, default="system")
     generated_by: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     display_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
@@ -86,7 +104,9 @@ class LeagueMatchModel(Base):
             'league_category_id': self.league_category_id,
             'round_id': self.round_id,
             'home_team_id': self.home_team_id,
+            'home_team': self.home_team.to_json(),
             'away_team_id': self.away_team_id,
+            'away_team': self.away_team.to_json(),
             'home_team_score': self.home_team_score or None,
             'away_team_score': self.away_team_score or None,
             'winner_team_id': self.winner_team_id or None,
@@ -94,6 +114,7 @@ class LeagueMatchModel(Base):
             'scheduled_date': self.scheduled_date.isoformat() if self.scheduled_date else None,
             'quarters': self.quarters,
             'minutes_per_quarter': self.minutes_per_quarter,
+            'minutes_per_overtime': self.minutes_per_overtime,
             'court': self.court or None,
             'referees': self.referees,
             'previous_match_ids': self.previous_match_ids,
@@ -115,7 +136,7 @@ class LeagueMatchModel(Base):
             'league_match_updated_at': self.league_match_updated_at.isoformat()
         }
 
-class MatchModel(Base):
+class MatchModel(Base, UpdatableMixin):
     __tablename__ = "matches_table"
     
     match_id: Mapped[str] = UUIDGenerator("match")
@@ -123,6 +144,20 @@ class MatchModel(Base):
 
     home_team_id: Mapped[str] = mapped_column(String, ForeignKey("teams_table.team_id"), nullable=False)
     away_team_id: Mapped[str] = mapped_column(String, ForeignKey("teams_table.team_id"), nullable=False)
+
+    home_team: Mapped["TeamModel"] = relationship(
+        "TeamModel",
+        foreign_keys=[home_team_id],
+        uselist=False,
+        lazy="joined"
+    )
+
+    away_team: Mapped["TeamModel"] = relationship(
+        "TeamModel",
+        foreign_keys=[away_team_id],
+        uselist=False,
+        lazy="joined"
+    )
 
     home_team_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     away_team_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
@@ -144,7 +179,9 @@ class MatchModel(Base):
             'match_id': self.match_id,
             'public_match_id': self.public_match_id,
             'home_team_id': self.home_team_id,
+            'home_team': self.home_team.to_json(),
             'away_team_id': self.away_team_id,
+            'away_team': self.away_team.to_json(),
             'home_team_score': self.home_team_score or None,
             'away_team_score': self.away_team_score or None,
             'scheduled_date': self.scheduled_date.isoformat() if self.scheduled_date else None,

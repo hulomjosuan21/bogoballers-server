@@ -14,6 +14,7 @@ class SocketIOService:
         self.app = socketio.ASGIApp(self.sio, static_files={})
         self.message_service = None
         self.message_event = None
+        self.live_match_namespace = None
         self.notification_service = None
         self.notification_event = None
         self.register_handlers()
@@ -24,6 +25,13 @@ class SocketIOService:
             from src.services.message_service import MessageService
             self.message_service = MessageService()
         return self.message_service
+
+    def _get_live_match_namespace(self):
+        if self.live_match_namespace is None:
+            from src.namespaces.live_match_namespace import LiveMatchNamespace
+            self.live_match_namespace = LiveMatchNamespace('/live')
+            self.sio.register_namespace(self.live_match_namespace)
+        return self.live_match_namespace
 
     # Lazy load MessageEvent
     def _get_message_event(self):
@@ -54,6 +62,8 @@ class SocketIOService:
         # 🔌 Register both event groups
         self._get_message_event()
         self._get_notification_event()
+        
+        self._get_live_match_namespace()
 
         # -------------------------
         # Core socket lifecycle

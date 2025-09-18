@@ -118,3 +118,7 @@ class MatchGenerationEngine:
             return sorted(teams, key=lambda t: (-t.points, -t.wins, -t.draws, -t.losses))
         random.shuffle(teams)
         return teams
+    
+# Programmer: Josuan Leonardo Hulom
+# From: Cebu Roosevelt Memorial Collegae BSIT 4B
+# During: Capstone 2025

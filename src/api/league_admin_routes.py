@@ -6,11 +6,21 @@ from src.auth.auth_user import AuthUser
 from src.utils.api_response import ApiResponse, ApiException
 from src.utils.rate_limiter import rate_limit, login_limit
 from src.services.league_admin_service import LeagueAdministratorService
+from quart_jwt_extended import jwt_required, get_jwt_identity
 
 league_admin_bp = Blueprint("league_admin", __name__, url_prefix="/league-administrator")
 
 service = LeagueAdministratorService()
 
+@league_admin_bp.get("/auth/jwt")
+@jwt_required
+async def get_jwt_route():
+    try:
+        claims = get_jwt_identity()
+        return await ApiResponse.payload(claims)
+    except Exception as e:
+        return await ApiResponse.error(str(e))
+    
 @league_admin_bp.put('/update')
 async def update_route():
     try:

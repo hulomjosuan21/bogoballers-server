@@ -54,11 +54,11 @@ class LeagueTeamService:
                 LeagueTeamModel.league_category_id == league_category_id
             ]
 
-            if data and data.get("type") == "Submission":
+            if data and data.get("condition") == "Submission":
                 conditions.extend([
                     LeagueTeamModel.status != "Accepted",
                 ])
-            elif data and data.get("type") == "Official":
+            elif data and data.get("condition") == "Official":
                 conditions.extend([
                     LeagueTeamModel.status == "Accepted",
                     LeagueTeamModel.payment_status != "Pending",

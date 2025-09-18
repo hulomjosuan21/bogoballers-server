@@ -55,6 +55,18 @@ class PlayerModel(Base, UpdatableMixin):
     total_points_scored: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     total_assists: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     total_rebounds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    total_steals:        Mapped[int]   = mapped_column(Integer, default=0, nullable=False)
+    total_blocks:        Mapped[int]   = mapped_column(Integer, default=0, nullable=False)
+    total_turnovers:     Mapped[int]   = mapped_column(Integer, default=0, nullable=False)
+
+    total_fg2_made:      Mapped[int]   = mapped_column(Integer, default=0, nullable=False)
+    total_fg2_attempts:  Mapped[int]   = mapped_column(Integer, default=0, nullable=False)
+    total_fg3_made:      Mapped[int]   = mapped_column(Integer, default=0, nullable=False)
+    total_fg3_attempts:  Mapped[int]   = mapped_column(Integer, default=0, nullable=False)
+    total_ft_made:       Mapped[int]   = mapped_column(Integer, default=0, nullable=False)
+    total_ft_attempts:   Mapped[int]   = mapped_column(Integer, default=0, nullable=False)
+    
     total_join_league: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     is_ban: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -95,6 +107,19 @@ class PlayerModel(Base, UpdatableMixin):
             'total_points_scored': self.total_points_scored,
             'total_assists': self.total_assists,
             'total_rebounds': self.total_rebounds,
+            
+            
+            'total_steals': self.total_steals,
+            'total_blocks': self.total_blocks,
+            'total_turnovers': self.total_turnovers,
+
+            'total_fg2_made': self.total_fg2_made,
+            'total_fg2_attempts': self.total_fg2_attempts,
+            'total_fg3_made': self.total_fg3_made,
+            'total_fg3_attempts': self.total_fg3_attempts,
+            'total_ft_made': self.total_ft_made,
+            'total_ft_attempts': self.total_ft_attempts,
+            
             'total_join_league': self.total_join_league,
             'is_ban': self.is_ban,
             'is_allowed': self.is_allowed,

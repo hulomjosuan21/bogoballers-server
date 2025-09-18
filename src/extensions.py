@@ -9,11 +9,13 @@ from contextlib import asynccontextmanager
 import firebase_admin
 from firebase_admin import credentials, messaging
 import json
+from quart_jwt_extended import JWTManager
 
 Base = declarative_base()
 ph = PasswordHasher()
 engine = create_async_engine(Config.DATABASE_URL, echo=False, future=True)
 AsyncSession = async_sessionmaker(engine, expire_on_commit=False)
+jwt = JWTManager()
 
 BASE_DIR = Path(__file__).resolve().parent
 

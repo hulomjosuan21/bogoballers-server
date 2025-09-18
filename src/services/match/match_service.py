@@ -1,5 +1,5 @@
 from typing import List
-from sqlalchemy import select, update
+from sqlalchemy import Date, cast, select, update
 from src.services.league.league_category_service import LeagueCategoryService
 from src.engines.league_finalization_engine import LeagueFinalizationEngine
 from src.engines.league_progression_engine import LeagueProgressionEngine
@@ -8,10 +8,90 @@ from src.models.match import LeagueMatchModel
 from src.extensions import AsyncSession
 from src.models.league import LeagueCategoryRoundModel
 from src.models.team import LeagueTeamModel
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, timezone, timedelta, UTC
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
+from src.utils.api_response import ApiException
+
 class LeagueMatchService:
+    async def update_one(self, league_match_id: str, data: dict):
+        try:
+            async with AsyncSession() as session:
+                league_match = await session.get(LeagueMatchModel, league_match_id)
+                
+                if not league_match:
+                    raise ApiException("No found match")
+                
+                if "scheduled_date" in data:
+                    raw_date = data.pop("scheduled_date")
+
+                    if raw_date is not None:
+                        if isinstance(raw_date, str):
+                            league_match.scheduled_date = datetime.fromisoformat(
+                                raw_date.replace("Z", "+00:00")
+                            )
+                        elif isinstance(raw_date, (int, float)):
+                            league_match.scheduled_date = datetime.fromtimestamp(raw_date / 1000)
+                        elif isinstance(raw_date, datetime):
+                            league_match.scheduled_date = raw_date
+                        else:
+                            raise TypeError(f"Invalid type for scheduled_date: {type(raw_date)}")
+
+                league_match.copy_with(**data)
+                await session.commit()
+                
+                return "Success"
+        except (IntegrityError, SQLAlchemyError) as e:
+            await session.rollback()
+            raise e
+        
+    async def get_one(self, league_match_id: str) -> LeagueMatchModel:
+        async with AsyncSession() as session:
+            league_match = await session.get(LeagueMatchModel, league_match_id)
+            
+            if not league_match:
+                raise ApiException("No found match.")
+            
+            return league_match
+        
+    async def get_many(self, league_category_id: str, round_id: str, data: dict):
+        async with AsyncSession() as session:
+            conditions = [LeagueMatchModel.league_category_id == league_category_id, LeagueMatchModel.round_id == round_id]
+            
+            if data:
+                condition = data.get("condition")
+
+                if condition == "Unscheduled":
+                    conditions.extend([
+                        LeagueMatchModel.status == "Unscheduled",
+                        LeagueMatchModel.scheduled_date.is_(None)
+                    ])
+
+                elif condition == "Scheduled":
+                    conditions.extend([
+                        LeagueMatchModel.status == "Scheduled",
+                        LeagueMatchModel.scheduled_date.is_not(None)
+                    ])
+
+                elif condition == "Completed":
+                    conditions.append(LeagueMatchModel.status == "Completed")
+
+                elif condition == "Upcoming":
+                    now = datetime.now(timezone.utc)
+                    two_days_from_now = now + timedelta(days=2)
+
+                    conditions.extend([
+                        LeagueMatchModel.status == "Scheduled",
+                        LeagueMatchModel.scheduled_date <= two_days_from_now,
+                        LeagueMatchModel.scheduled_date >= now
+                    ])      
+            
+            stmt = select(LeagueMatchModel).where(*conditions)
+            
+            result = await session.execute(stmt)
+            
+            return result.scalars().all()
+    
 
     async def generate_first_elimination_round(
         self,

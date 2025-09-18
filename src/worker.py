@@ -5,25 +5,25 @@ from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.executors.asyncio import AsyncIOExecutor
 
-async def session_wrapper_job(worker_instance, task_method):
+async def session_wrapper_job(worker_instance, task_method, *args):
     if not await worker_instance._is_leader():
         print(f"Worker leadership lost, skipping task: {task_method.__name__}")
         return
-                         
+        
     async with AsyncSession() as session:
         async with session.begin():
             try:
-                await task_method(session)
+                await task_method(session, *args)
             except Exception as e:
                 print(f"Error in {task_method.__name__}: {e}")
 
-async def no_session_wrapper_job(worker_instance, task_method):
+async def no_session_wrapper_job(worker_instance, task_method, *args):
     if not await worker_instance._is_leader():
         print(f"Worker leadership lost, skipping task: {task_method.__name__}")
         return
-                         
+        
     try:
-        await task_method()
+        await task_method(*args)
     except Exception as e:
         print(f"Error in {task_method.__name__}: {e}")
 
@@ -50,10 +50,11 @@ class Worker:
 
     def _register_tasks(self):
         tasks_with_session = {
+            self.task.daily_match_reminder_job: CronTrigger(hour='7,18')
         }
 
         tasks_without_session = {
-            self.task.task_without_session: IntervalTrigger(seconds=5),
+            # self.task.task_without_session: IntervalTrigger(seconds=5),
             # self.task.task_without_session: CronTrigger(hour='13,13',minute='31,32')
         }
 
@@ -62,7 +63,7 @@ class Worker:
                 self.scheduler.add_job(
                     session_wrapper_job,
                     trigger, 
-                    args=[self, task_method],
+                    args=[self, task_method, 1],
                     id=f"{task_method.__name__}_with_session",
                     replace_existing=True
                 )

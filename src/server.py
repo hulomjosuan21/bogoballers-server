@@ -3,7 +3,7 @@ from quart_cors import cors
 import socketio
 from src.blueprints import all_blueprints
 from src.config import Config
-from src.extensions import sio, settings, redis_client
+from src.extensions import sio, settings, redis_client, jwt
 from quart_auth import QuartAuth
 from src.utils.server_utils import check_db_connection, print_debug_banner, print_routes
 import os
@@ -16,7 +16,7 @@ def create_app():
 
     if not app.secret_key:
         raise RuntimeError("SECRET_KEY must be set in Config")
-
+    
     app.debug = Config.DEBUG
     app = cors(
         app,
