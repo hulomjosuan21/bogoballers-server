@@ -73,8 +73,165 @@ class MatchGenerationEngine:
                 status="Unscheduled",
                 generated_by="system",
                 bracket_side="winners",
+                round_number=1,
+                is_placeholder=False,
+                depends_on_match_ids=[]
             )
             for i in range(0, len(shuffled) - 1, 2)
+        ]
+        
+    def generate_double_elim_stage(self, stage: int) -> List[LeagueMatchModel]:
+        match stage:
+            case 1:
+                return self._generate_winners_round_1()
+            case 2:
+                return self._generate_winners_semis_and_losers_round_1()
+            case 3:
+                return self._generate_winners_final_and_losers_round_2()
+            case 4:
+                return self._generate_losers_semifinal()
+            case 5:
+                return self._generate_losers_final()
+            case 6:
+                return self._generate_grand_final()
+            case _:
+                raise ValueError(f"Unsupported stage: {stage}")
+            
+    def _generate_winners_round_1(self) -> List[LeagueMatchModel]:
+        shuffled = self.teams[:]
+        random.shuffle(shuffled)
+        return [
+            LeagueMatchModel(
+                league_id=self.league_id,
+                league_category_id=self.round.league_category_id,
+                round_id=self.round.round_id,
+                home_team_id=shuffled[i].league_team_id,
+                away_team_id=shuffled[i + 1].league_team_id,
+                status="Unscheduled",
+                generated_by="system",
+                bracket_side="winners",
+                round_number=1
+            )
+            for i in range(0, len(shuffled), 2)
+        ]
+        
+    def _generate_winners_semis_and_losers_round_1(self) -> List[LeagueMatchModel]:
+        previous = self._get_previous_matches("winners", 1)
+        matches = []
+
+        for i in range(0, len(previous), 2):
+            matches.append(LeagueMatchModel(
+                league_id=self.league_id,
+                league_category_id=self.round.league_category_id,
+                round_id=self.round.round_id,
+                home_team_id=None,
+                away_team_id=None,
+                status="Pending",
+                generated_by="system",
+                bracket_side="winners",
+                round_number=2,
+                depends_on_match_ids=[previous[i].match_id, previous[i + 1].match_id]
+            ))
+
+        for match in previous:
+            matches.append(LeagueMatchModel(
+                league_id=self.league_id,
+                league_category_id=self.round.league_category_id,
+                round_id=self.round.round_id,
+                home_team_id=None,
+                away_team_id=None,
+                status="Pending",
+                generated_by="system",
+                bracket_side="losers",
+                round_number=1,
+                depends_on_match_ids=[match.match_id]
+            ))
+
+        return matches
+
+    def _generate_winners_final_and_losers_round_2(self) -> List[LeagueMatchModel]:
+        winners_semis = self._get_previous_matches("winners", 2)
+        losers_round_1 = self._get_previous_matches("losers", 1)
+
+        return [
+            LeagueMatchModel(
+                league_id=self.league_id,
+                league_category_id=self.round.league_category_id,
+                round_id=self.round.round_id,
+                home_team_id=None,
+                away_team_id=None,
+                status="Pending",
+                generated_by="system",
+                bracket_side="winners",
+                round_number=3,
+                depends_on_match_ids=[m.match_id for m in winners_semis]
+            ),
+            LeagueMatchModel(
+                league_id=self.league_id,
+                league_category_id=self.round.league_category_id,
+                round_id=self.round.round_id,
+                home_team_id=None,
+                away_team_id=None,
+                status="Pending",
+                generated_by="system",
+                bracket_side="losers",
+                round_number=2,
+                depends_on_match_ids=[m.match_id for m in losers_round_1]
+            )
+        ]
+        
+    def _generate_losers_semifinal(self) -> List[LeagueMatchModel]:
+        losers_round_2 = self._get_previous_matches("losers", 2)
+        return [
+            LeagueMatchModel(
+                league_id=self.league_id,
+                league_category_id=self.round.league_category_id,
+                round_id=self.round.round_id,
+                home_team_id=None,
+                away_team_id=None,
+                status="Pending",
+                generated_by="system",
+                bracket_side="losers",
+                round_number=3,
+                depends_on_match_ids=[m.match_id for m in losers_round_2]
+            )
+        ]
+        
+    def _generate_grand_final(self) -> List[LeagueMatchModel]:
+        winners_final = self._get_previous_matches("winners", 3)
+        losers_final = self._get_previous_matches("losers", 4)
+
+        return [
+            LeagueMatchModel(
+                league_id=self.league_id,
+                league_category_id=self.round.league_category_id,
+                round_id=self.round.round_id,
+                home_team_id=None,
+                away_team_id=None,
+                status="Pending",
+                generated_by="system",
+                bracket_side="final",
+                round_number=5,
+                is_final=True,
+                depends_on_match_ids=[winners_final[0].match_id, losers_final[0].match_id]
+            )
+        ]
+        
+    def _generate_losers_final(self) -> List[LeagueMatchModel]:
+        losers_semis = self._get_previous_matches("losers", 3)
+        return [
+            LeagueMatchModel(
+                league_id=self.league_id,
+                league_category_id=self.round.league_category_id,
+                round_id=self.round.round_id,
+                home_team_id=None,
+                away_team_id=None,
+                status="Pending",
+                generated_by="system",
+                bracket_side="losers",
+                round_number=4,
+                depends_on_match_ids=[m.match_id for m in losers_semis]
+            )
         ]
 
     def _generate_best_of(self) -> List[LeagueMatchModel]:

@@ -1,5 +1,5 @@
 from typing import Dict, List, Literal, Optional, Union
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 
 @dataclass
 class RoundRobinConfig:
@@ -22,11 +22,7 @@ class DoubleEliminationConfig:
     group_count: int = 1
     team_count: int = 0
     max_loss: int = 2
-    brackets: List[str] = None
-
-    def __post_init__(self):
-        if self.brackets is None:
-            self.brackets = ["winners", "losers"]
+    brackets: List[str] = field(default_factory=lambda: ["winners", "losers"])
 
 @dataclass
 class BestOfConfig:

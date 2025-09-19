@@ -21,7 +21,6 @@ match_status_enum = SqlEnum(
     create_type=False
 )
 
-
 class LeagueMatchModel(Base, UpdatableMixin):
     __tablename__ = "league_matches_table"
     league_match_id: Mapped[str] = UUIDGenerator("lmatch")
@@ -81,6 +80,10 @@ class LeagueMatchModel(Base, UpdatableMixin):
     is_exhibition: Mapped[bool] = mapped_column(Boolean, default=False)
 
     status: Mapped[str] = mapped_column(match_status_enum, nullable=False, default="Unscheduled")
+    
+    depends_on_match_ids: Mapped[List[str]] = mapped_column(ARRAY(String), default=[])
+    is_placeholder: Mapped[bool] = mapped_column(Boolean, default=False)
+    bracket_stage_label: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     league_match_created_at: Mapped[datetime] = CreatedAt()
     league_match_updated_at: Mapped[datetime] = UpdatedAt()

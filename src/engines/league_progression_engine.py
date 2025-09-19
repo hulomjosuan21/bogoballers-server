@@ -79,5 +79,3 @@ class LeagueProgressionEngine:
         random.shuffle(shuffled)
         group_size = len(teams) // groups
         return [shuffled[i * group_size:(i + 1) * group_size] for i in range(groups)]
-
-
