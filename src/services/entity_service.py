@@ -1,6 +1,7 @@
 import asyncio, heapq
 from quart_auth import login_user
 from sqlalchemy import select
+from src.services.cloudinary_service import CloudinaryService
 from src.services.league.league_service import LeagueService
 from src.services.league_admin_service import LeagueAdministratorService
 from src.services.player.player_service import PlayerService
@@ -14,6 +15,7 @@ from src.utils.api_response import ApiException
 from datetime import datetime, timedelta, timezone
 import jwt
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
+from werkzeug.datastructures import FileStorage
 
 player_service = PlayerService()
 team_service = TeamService()
@@ -231,6 +233,84 @@ class EntityService():
                     session.add(user)
                     await session.commit()
                 return "FCM token updated"
+            except (IntegrityError, SQLAlchemyError) as e:
+                await session.rollback()
+                raise e
+            
+    @staticmethod
+    async def update_image(file_or_url: str | FileStorage, entity_id: str, account_type: str):
+        async with AsyncSession() as session:
+            try:
+                entity = None
+                old_url = None
+                folder = CloudinaryService.ACCOUNT_TYPE_FOLDERS.get(account_type, CloudinaryService.DEFAULT_FOLDER)
+
+                match account_type:
+                    case "player":
+                        from src.models.player import PlayerModel
+                        result = await session.execute(select(PlayerModel).where(PlayerModel.player_id == entity_id))
+                        entity = result.scalar_one_or_none()
+                        if not entity:
+                            raise ValueError("Player not found")
+                        old_url = entity.profile_image_url
+
+                    case "team":
+                        from src.models.team import TeamModel
+                        result = await session.execute(select(TeamModel).where(TeamModel.team_id == entity_id))
+                        entity = result.scalar_one_or_none()
+                        if not entity:
+                            raise ValueError("Team not found")
+                        old_url = entity.team_logo_url
+
+                    case "league":
+                        from src.models.league import LeagueModel
+                        result = await session.execute(select(LeagueModel).where(LeagueModel.league_id == entity_id))
+                        entity = result.scalar_one_or_none()
+                        if not entity:
+                            raise ValueError("League not found")
+                        old_url = entity.banner_url
+
+                    case "league_admin":
+                        from src.models.league_admin import LeagueAdministratorModel
+                        result = await session.execute(
+                            select(LeagueAdministratorModel).where(
+                                LeagueAdministratorModel.league_administrator_id == entity_id
+                            )
+                        )
+                        entity = result.scalar_one_or_none()
+                        if not entity:
+                            raise ValueError("League admin not found")
+                        old_url = entity.organization_logo_url
+
+                    case _:
+                        raise ValueError(f"No match for account_type: {account_type}")
+
+                if old_url and isinstance(file_or_url, FileStorage):
+                    try:
+                        await CloudinaryService.delete_file_by_url(old_url)
+                    except Exception:
+                        pass
+
+                if isinstance(file_or_url, FileStorage):
+                    new_url = await CloudinaryService.upload_file(file=file_or_url, folder=folder)
+                elif isinstance(file_or_url, str):
+                    new_url = file_or_url
+                else:
+                    raise ValueError("Invalid file_or_url type")
+
+                match account_type:
+                    case "player":
+                        entity.profile_image_url = new_url
+                    case "team":
+                        entity.team_logo_url = new_url
+                    case "league":
+                        entity.banner_url = new_url
+                    case "league_admin":
+                        entity.organization_logo_url = new_url
+
+                await session.commit()
+                return new_url
+
             except (IntegrityError, SQLAlchemyError) as e:
                 await session.rollback()
                 raise e

@@ -149,7 +149,8 @@ class LeagueCategoryModel(Base, UpdatableMixin):
     rounds: Mapped[list["LeagueCategoryRoundModel"]] = relationship(
         "LeagueCategoryRoundModel",
         cascade="all, delete-orphan",
-        lazy="selectin"
+        lazy="selectin",
+        order_by="LeagueCategoryRoundModel.round_order.asc()"
     )
     
     max_team: Mapped[int] = mapped_column(Integer, default=4, nullable=False)

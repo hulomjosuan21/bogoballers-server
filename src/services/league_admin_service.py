@@ -1,15 +1,13 @@
 from typing import List
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from sqlalchemy.orm import selectinload
 from src.services.cloudinary_service import CloudinaryService
 from src.extensions import AsyncSession
 from src.models.league_admin import LeagueAdministratorModel
 from src.models.user import UserModel
 from src.utils.api_response import ApiException
-import traceback
 from datetime import datetime, timezone
-
+from src.extensions import settings
 class LeagueAdministratorService:
     async def search_league_administrators(self, session, search: str, limit: int = 10) -> List[LeagueAdministratorModel]:
         query = select(LeagueAdministratorModel)
@@ -143,7 +141,7 @@ class LeagueAdministratorService:
                     try:
                         organization_logo_url = await CloudinaryService.upload_file(
                             file=file,
-                            folder="league-admin/organization-logos"
+                            folder=settings['league_admin_organization_logo_folder']
                         )
                     except Exception as e:
                         raise ApiException("⚠ Logo upload failed")

@@ -8,6 +8,7 @@ import cloudinary.uploader
 from dotenv import load_dotenv
 from datetime import datetime
 import cloudinary.api
+from src.extensions import settings
 
 load_dotenv()
 
@@ -26,6 +27,14 @@ class CloudinaryException(Exception):
 
 class CloudinaryService:
     DEFAULT_FOLDER = "uploads"
+
+    ACCOUNT_TYPE_FOLDERS = {
+        "team": settings['team_logo_folder'],
+        "league": settings['league_banners_folder'],
+        "league_admin": settings['league_admin_organization_logo_folder'],
+        "player": settings['player_profiles_folder'],
+        "default": DEFAULT_FOLDER,
+    }
 
     @staticmethod
     async def upload_file(file: FileStorage, folder: str = None, resource_type: str = "auto") -> str:
@@ -106,3 +115,15 @@ class CloudinaryService:
 
         except Exception as e:
             raise CloudinaryException(f"Fetch folder URLs failed: {str(e)}")
+        
+
+    @staticmethod
+    async def upload_file(file: FileStorage, folder: str = None, resource_type: str = "auto") -> str:
+        folder = folder or CloudinaryService.DEFAULT_FOLDER
+        response = await asyncio.to_thread(
+            cloudinary.uploader.upload,
+            file.stream,
+            folder=folder,
+            resource_type=resource_type,
+        )
+        return response["secure_url"]

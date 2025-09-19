@@ -79,3 +79,27 @@ async def search_entity_route():
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(str(e))
+    
+@entity_bp.put("/update/image/<entity_id>/<account_type>")
+async def update_image_route(entity_id: str, account_type: str):
+    try:
+        form = await request.form
+        files = await request.files
+        
+        file = files.get("new_image")
+
+        if file:
+            file_or_url = file
+        else:
+            file_or_url = form.get("new_image")
+
+        if not file_or_url:
+            return await ApiResponse.error("No file or URL provided")
+
+        await EntityService.update_image(file_or_url, entity_id, account_type)
+
+        return await ApiResponse.success(message="Update successfully.")
+
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(str(e))

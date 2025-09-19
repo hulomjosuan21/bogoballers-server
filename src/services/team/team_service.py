@@ -9,6 +9,7 @@ from src.services.cloudinary_service import CloudinaryException, CloudinaryServi
 from src.utils.api_response import ApiException
 from src.extensions import AsyncSession
 from src.utils.server_utils import validate_required_fields
+from src.extensions import settings
 
 class TeamService:
     async def get_all_teams(self):
@@ -98,7 +99,7 @@ class TeamService:
             if isinstance(logo_file, FileStorage):
                 team_logo_url = await CloudinaryService.upload_file(
                     file=logo_file,
-                    folder="/team/logos"
+                    folder=settings['team_logo_folder']
                 )
             elif isinstance(logo_file, str):
                 team_logo_url = logo_file

@@ -23,3 +23,6 @@ class LiveMatchNamespace(socketio.AsyncNamespace):
         if room:
             latest_state = await self.redis_service.get_state(room)
             await self.emit("scorebook_initial_state", latest_state, to=sid)
+
+    async def on_ping(self, sid, data):
+        await self.emit('pong', data, to=sid)

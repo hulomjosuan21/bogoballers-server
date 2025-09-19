@@ -6,5 +6,7 @@
   "default_player_profile": "https://res.cloudinary.com/dod3lmxm6/image/upload/v1752715735/player-profile_xjzohu.png",
   "league_banners_folder": "/league/banners",
   "player_profiles_folder": "/player/profiles",
+  "team_logo_folder": "/team/logos",
+  "league_admin_organization_logo_folder": "league-admin/organization-logos",
   "enable_notification": true
 }
