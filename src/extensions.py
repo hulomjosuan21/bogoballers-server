@@ -1,3 +1,4 @@
+import os
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 import redis.asyncio as aioredis
@@ -10,6 +11,8 @@ import firebase_admin
 from firebase_admin import credentials, messaging
 import json
 from quart_jwt_extended import JWTManager
+from dotenv import load_dotenv
+load_dotenv()
 
 Base = declarative_base()
 ph = PasswordHasher()
@@ -25,7 +28,7 @@ def path_in(*parts):
 DATA_DIR = path_in("data", "json")
 TEMPLATE_PATH = path_in("templates", "league_template.docx")
 
-SERVICE_ACCOUNT_PATH = Path(__file__).parent.parent / "firebase.json"
+# SERVICE_ACCOUNT_PATH = Path(__file__).parent.parent / "firebase.json"
 redis_client = aioredis.from_url(Config.REDIS_URL, decode_responses=True)
 
 SETTINGS_PATH = BASE_DIR.parent / "settings.json"
@@ -40,5 +43,7 @@ async def db_session():
 socket_service = SocketIOService(redis_url=Config.REDIS_URL)
 sio = socket_service.sio 
 
-cred = credentials.Certificate(SERVICE_ACCOUNT_PATH)
+firebase_creds_json = os.environ.get('FIREBASE_CREDENTIALS')
+
+cred = credentials.Certificate(firebase_creds_json)
 firebase_admin.initialize_app(cred)
