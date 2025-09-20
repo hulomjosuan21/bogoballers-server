@@ -12,6 +12,8 @@ from firebase_admin import credentials, messaging
 import json
 from quart_jwt_extended import JWTManager
 from dotenv import load_dotenv
+import tempfile
+
 load_dotenv()
 
 Base = declarative_base()
@@ -44,6 +46,10 @@ socket_service = SocketIOService(redis_url=Config.REDIS_URL)
 sio = socket_service.sio 
 
 firebase_creds_json = os.environ.get('FIREBASE_CREDENTIALS')
+firebase_creds_dict = json.loads(firebase_creds_json)
 
-cred = credentials.Certificate(firebase_creds_json)
-firebase_admin.initialize_app(cred)
+with tempfile.NamedTemporaryFile(mode="w+", delete=True) as f:
+    json.dump(firebase_creds_dict, f)
+    f.flush()
+    cred = credentials.Certificate(f.name)
+    firebase_admin.initialize_app(cred)
