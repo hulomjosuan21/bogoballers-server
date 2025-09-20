@@ -1,4 +1,4 @@
-FROM python:3.13.7-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
@@ -11,4 +11,4 @@ COPY . .
 
 EXPOSE 5000
 
-CMD ["python", "run.py"]
+CMD ["hypercorn", "src.server:app", "--bind", "0.0.0.0:5000", "--workers", "2", "--log-level", "info"]
