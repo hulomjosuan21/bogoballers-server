@@ -48,8 +48,11 @@ sio = socket_service.sio
 firebase_creds_json = os.environ.get('FIREBASE_CREDENTIALS')
 firebase_creds_dict = json.loads(firebase_creds_json)
 
-with tempfile.NamedTemporaryFile(mode="w+", delete=True) as f:
+with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".json") as f:
     json.dump(firebase_creds_dict, f)
-    f.flush()
-    cred = credentials.Certificate(f.name)
-    firebase_admin.initialize_app(cred)
+    temp_path = f.name
+
+cred = credentials.Certificate(temp_path)
+firebase_admin.initialize_app(cred)
+
+os.remove(temp_path)

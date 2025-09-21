@@ -30,17 +30,17 @@ class LeagueMatchModel(Base, UpdatableMixin):
     league_category_id: Mapped[str] = mapped_column(String, ForeignKey("league_categories_table.league_category_id", ondelete="CASCADE"), nullable=False)
     round_id: Mapped[str] = mapped_column(String, ForeignKey("league_category_rounds_table.round_id", ondelete="CASCADE"), nullable=False)
 
-    home_team_id: Mapped[str] = mapped_column(String, ForeignKey("league_teams_table.league_team_id"), nullable=False)
-    away_team_id: Mapped[str] = mapped_column(String, ForeignKey("league_teams_table.league_team_id"), nullable=False)
+    home_team_id: Mapped[str] = mapped_column(String, ForeignKey("league_teams_table.league_team_id"), nullable=True)
+    away_team_id: Mapped[str] = mapped_column(String, ForeignKey("league_teams_table.league_team_id"), nullable=True)
     
-    home_team: Mapped["LeagueTeamModel"] = relationship(
+    home_team: Mapped[Optional["LeagueTeamModel"]] = relationship(
         "LeagueTeamModel",
         foreign_keys=[home_team_id],
         uselist=False,
         lazy="joined"
     )
 
-    away_team: Mapped["LeagueTeamModel"] = relationship(
+    away_team: Mapped[Optional["LeagueTeamModel"]] = relationship(
         "LeagueTeamModel",
         foreign_keys=[away_team_id],
         uselist=False,
@@ -81,6 +81,8 @@ class LeagueMatchModel(Base, UpdatableMixin):
 
     status: Mapped[str] = mapped_column(match_status_enum, nullable=False, default="Unscheduled")
     
+    stage_number = mapped_column(Integer, nullable=True)
+    
     depends_on_match_ids: Mapped[List[str]] = mapped_column(ARRAY(String), default=[])
     is_placeholder: Mapped[bool] = mapped_column(Boolean, default=False)
     bracket_stage_label: Mapped[Optional[str]] = mapped_column(String, nullable=True)
@@ -93,6 +95,7 @@ class LeagueMatchModel(Base, UpdatableMixin):
             "league_id",
             "league_category_id",
             "round_number",
+            "stage_number",
             "home_team_id",
             "away_team_id",
             name="unique_league_match_per_round"
@@ -107,9 +110,9 @@ class LeagueMatchModel(Base, UpdatableMixin):
             'league_category_id': self.league_category_id,
             'round_id': self.round_id,
             'home_team_id': self.home_team_id,
-            'home_team': self.home_team.to_json(),
+            'home_team': self.home_team.to_json() if self.home_team else None,
             'away_team_id': self.away_team_id,
-            'away_team': self.away_team.to_json(),
+            'away_team': self.away_team.to_json() if self.away_team else None,
             'home_team_score': self.home_team_score or None,
             'away_team_score': self.away_team_score or None,
             'winner_team_id': self.winner_team_id or None,
@@ -135,6 +138,12 @@ class LeagueMatchModel(Base, UpdatableMixin):
             'is_third_place': self.is_third_place,
             'is_exhibition': self.is_exhibition,
             'status': self.status,
+
+            'stage_number': self.stage_number,
+            'depends_on_match_ids': self.depends_on_match_ids,
+            'is_placeholder': self.is_placeholder,
+            'bracket_stage_label': self.bracket_stage_label or None,            
+
             'league_match_created_at': self.league_match_created_at.isoformat(),
             'league_match_updated_at': self.league_match_updated_at.isoformat()
         }

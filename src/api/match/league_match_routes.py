@@ -7,6 +7,16 @@ league_match_bp = Blueprint('league-match', __name__, url_prefix='/league-match'
     
 service = LeagueMatchService()
 
+@league_match_bp.put('/<league_match_id>/finalize')
+async def finalize_one_match_route(league_match_id: str):
+    try:
+        data = await request.get_json()
+        result = await service.finalize_match_result(league_match_id,data)
+        return await ApiResponse.success(message=result)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)
+
 @league_match_bp.put('/<league_round_id>')
 async def get_update_one_route(league_round_id: str):
     try:

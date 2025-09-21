@@ -1,5 +1,7 @@
-from typing import List
-from sqlalchemy import Date, cast, select, update
+import json
+from typing import List, Optional
+from sqlalchemy import  func, select, update
+from src.models.player import PlayerModel
 from src.services.league.league_category_service import LeagueCategoryService
 from src.engines.league_finalization_engine import LeagueFinalizationEngine
 from src.engines.league_progression_engine import LeagueProgressionEngine
@@ -56,7 +58,7 @@ class LeagueMatchService:
         
     async def get_many(self, league_category_id: str, round_id: str, data: dict):
         async with AsyncSession() as session:
-            conditions = [LeagueMatchModel.league_category_id == league_category_id, LeagueMatchModel.round_id == round_id]
+            conditions = [LeagueMatchModel.league_category_id == league_category_id]
             
             if data:
                 condition = data.get("condition")
@@ -64,17 +66,26 @@ class LeagueMatchService:
                 if condition == "Unscheduled":
                     conditions.extend([
                         LeagueMatchModel.status == "Unscheduled",
-                        LeagueMatchModel.scheduled_date.is_(None)
+                        LeagueMatchModel.scheduled_date.is_(None),
+                        LeagueMatchModel.round_id == round_id
                     ])
 
                 elif condition == "Scheduled":
                     conditions.extend([
                         LeagueMatchModel.status == "Scheduled",
-                        LeagueMatchModel.scheduled_date.is_not(None)
+                        LeagueMatchModel.scheduled_date.is_not(None),
+                        LeagueMatchModel.home_team_id.is_not(None),
+                        LeagueMatchModel.away_team_id.is_not(None),
+                        LeagueMatchModel.round_id == round_id
                     ])
 
                 elif condition == "Completed":
-                    conditions.append(LeagueMatchModel.status == "Completed")
+                    conditions.extend([
+                        LeagueMatchModel.status == "Completed",
+                        LeagueMatchModel.home_team_id.is_not(None),
+                        LeagueMatchModel.away_team_id.is_not(None),
+                        LeagueMatchModel.round_id == round_id
+                    ])
 
                 elif condition == "Upcoming":
                     now = datetime.now(timezone.utc)
@@ -83,7 +94,10 @@ class LeagueMatchService:
                     conditions.extend([
                         LeagueMatchModel.status == "Scheduled",
                         LeagueMatchModel.scheduled_date <= two_days_from_now,
-                        LeagueMatchModel.scheduled_date >= now
+                        LeagueMatchModel.scheduled_date >= now,
+                        LeagueMatchModel.home_team_id.is_not(None),
+                        LeagueMatchModel.away_team_id.is_not(None),
+                        LeagueMatchModel.round_id == round_id
                     ])      
             
             stmt = select(LeagueMatchModel).where(*conditions)
@@ -208,3 +222,124 @@ class LeagueMatchService:
         except (IntegrityError, SQLAlchemyError) as e:
             await session.rollback()
             raise e
+        
+    @staticmethod
+    async def get_team_loss_count(session, team_id: str) -> int:
+        result = await session.execute(
+            select(func.count(LeagueMatchModel.round_id))
+            .where(LeagueMatchModel.loser_team_id == team_id)
+        )
+        return result.scalar_one()
+    
+    @staticmethod
+    async def get_previous_matches(
+        session,
+        bracket_side: str,
+        round_number: int,
+        league_category_id: str
+    ) -> List[LeagueMatchModel]:
+        result = await session.execute(
+            select(LeagueMatchModel).where(
+                LeagueMatchModel.bracket_side == bracket_side,
+                LeagueMatchModel.round_number == round_number,
+                LeagueMatchModel.league_category_id == league_category_id
+            )
+        )
+        return result.scalars().all()
+
+    @staticmethod
+    async def get_match_by_id(session, match_id: str) -> Optional[LeagueMatchModel]:
+        result = await session.execute(
+            select(LeagueMatchModel).where(LeagueMatchModel.league_match_id == match_id)
+        )
+        return result.scalar_one_or_none()
+
+
+    STATS_MAP = {
+        "fg2m": "total_fg2_made",
+        "fg2a": "total_fg2_attempts",
+        "fg3m": "total_fg3_made",
+        "fg3a": "total_fg3_attempts",
+        "ftm": "total_ft_made",
+        "fta": "total_ft_attempts",
+        "reb": "total_rebounds",
+        "ast": "total_assists",
+        "stl": "total_steals",
+        "blk": "total_blocks",
+        "tov": "total_turnovers",
+    }
+
+    async def finalize_match_result(
+        self,
+        league_match_id: str,
+        data: dict,
+    ) -> Optional[LeagueMatchModel]:
+        try:
+            async with AsyncSession() as session:
+                match = await LeagueMatchService.get_match_by_id(session, league_match_id)
+                if not match:
+                    raise ValueError(f"Match {league_match_id} not found")
+                    
+                if match.status == "Completed":
+                    raise ValueError(f"Match {league_match_id} has already been finalized")
+
+                if match.home_team_id is None or match.away_team_id is None:
+                    raise ValueError("Cannot finalize match with unresolved teams")
+
+                home_players = data['home_team']['players']
+                away_players = data['away_team']['players']
+                all_players_data = home_players + away_players
+
+                player_ids_in_match = [p['player_id'] for p in all_players_data]
+
+                if player_ids_in_match:
+                    stmt = select(PlayerModel).where(PlayerModel.player_id.in_(player_ids_in_match))
+                    result = await session.execute(stmt)
+                    player_models_map = {p.player_id: p for p in result.scalars().all()}
+                else:
+                    player_models_map = {}
+
+                for player_data in all_players_data:
+                    player_id = player_data['player_id']
+                    player_stats = player_data['summary']
+                    player_model = player_models_map.get(player_id)
+
+                    if not player_model:
+                        continue
+
+                    player_model.total_games_played += 1
+                    player_model.total_points_scored += player_data['total_score']
+
+                    for json_key, model_attr in self.STATS_MAP.items():
+                        stat_value = player_stats[json_key]
+                        current_value = getattr(player_model, model_attr)
+                        setattr(player_model, model_attr, current_value + stat_value)
+                
+                home_total_score = data['home_total_score']
+                away_total_score = data['away_total_score']
+                
+                match.home_team_score = home_total_score
+                match.away_team_score = away_total_score
+
+                if home_total_score > away_total_score:
+                    match.winner_team_id = match.home_team_id
+                    match.loser_team_id = match.away_team_id
+                    winner_name = match.home_team.team.team_name
+                elif away_total_score > home_total_score:
+                    match.winner_team_id = match.away_team_id
+                    match.loser_team_id = match.home_team_id
+                    winner_name = match.away_team.team.team_name
+                else:
+                    raise ValueError("Draws are not allowed in this format")
+
+                match.status = "Completed"
+
+                await session.commit()
+                await session.refresh(match)
+                
+                return f"{match.home_team.team.team_name} vs {match.away_team.team.team_name} finalized winner: {winner_name}"
+
+        except KeyError as e:
+            raise ValueError(f"Malformed match data: missing key {e}") from e
+        except Exception as e:
+            raise

@@ -1,4 +1,5 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
+from src.models.match import LeagueMatchModel
 from src.services.league.league_player_service import LeaguePlayerService
 from src.models.player import LeaguePlayerModel, PlayerModel, PlayerTeamModel
 from src.models.team import LeagueTeamModel, TeamModel
@@ -11,7 +12,8 @@ from src.services.team_validators.validate_team_entry import get_team_for_regist
 
 league_player_service = LeaguePlayerService()
 
-class LeagueTeamService:
+class LeagueTeamService:    
+    
     async def validate_team_entry(self, league_id: str, league_team_id: str, league_category_id: str):
         async with AsyncSession() as session:
             league_team = await get_league_team_for_validation(session=session,league_team_id=league_team_id)
@@ -44,7 +46,6 @@ class LeagueTeamService:
                 selectinload(LeagueTeamModel.team).selectinload(TeamModel.user),
             )
         )
-            
     
     async def get_all(self, league_category_id: str, data: dict):
         async with AsyncSession() as session:

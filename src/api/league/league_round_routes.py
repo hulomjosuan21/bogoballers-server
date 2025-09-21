@@ -7,6 +7,16 @@ round_bp = Blueprint('round', __name__, url_prefix="/league-round")
 
 service = LeagueRoundService()
 
+@round_bp.post("/double-elim/<league_id>/<round_id>/progress-stage")
+async def progress_stage_route(league_id: str, round_id: str):
+    try:
+        matches = await service.progress_double_elim_stage(league_id, round_id)
+        return await ApiResponse.success(message=f"generated: {len(matches)}")
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)
+
+
 @round_bp.post("/<league_category_id>/save-changes")
 async def save_changes_route(league_category_id: str):
     try:

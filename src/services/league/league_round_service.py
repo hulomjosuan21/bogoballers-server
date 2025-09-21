@@ -1,6 +1,14 @@
+from dataclasses import asdict
 import json
+from typing import List
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from src.services.match.match_service import LeagueMatchService
+from src.services.league.league_team_service import LeagueTeamService
+from src.engines.match_generation_engine import MatchGenerationEngine
+from src.models.match import LeagueMatchModel
+from src.models.match_types import parse_round_config
+from src.services.league.league_category_service import LeagueCategoryService
 from src.models.league import LeagueCategoryRoundModel
 from src.extensions import AsyncSession
 from src.utils.api_response import ApiException
@@ -12,6 +20,49 @@ class RoundStateEnum(str, Enum):
     Finished = "Finished"
 
 class LeagueRoundService:
+    async def get_matches_for_round(self, session, round_id: str) -> List[LeagueMatchModel]:
+        result = await session.execute(
+            select(LeagueMatchModel)
+            .where(LeagueMatchModel.round_id == round_id)
+        )
+        return result.scalars().all()
+    
+    async def progress_double_elim_stage(self, league_id: str, round_id: str) -> List[LeagueMatchModel]:
+        async with AsyncSession() as session:
+            round_model = await session.get(LeagueCategoryRoundModel, round_id)
+            if not round_model:
+                raise ValueError(f"Round not found: {round_id}")
+
+            config = parse_round_config(round_model.format_config)
+            current_stage = config.progress_group
+            max_stage = config.max_progress_group
+
+            if current_stage > max_stage:
+                return []
+
+            teams = await LeagueCategoryService.get_eligible_teams(session, round_model.league_category_id)
+            matches = await self.get_matches_for_round(session, round_id)
+
+            round_model.matches = matches
+
+            generator = MatchGenerationEngine(league_id, round_model, teams)
+            new_matches = await generator.generate_double_elim_stage(session, current_stage)
+
+            session.add_all(new_matches)
+            
+            for team in teams:
+                loss_count = await LeagueMatchService.get_team_loss_count(session, team.league_team_id)
+                if loss_count >= config.max_loss:
+                    team.is_eliminated = True
+                    session.add(team)
+
+
+            config.progress_group = current_stage + 1
+            round_model.format_config = asdict(config)
+
+            await session.commit()
+            return new_matches 
+    
     async def update_one(self, round_id: str, data: dict):
         try:
             async with AsyncSession() as session:

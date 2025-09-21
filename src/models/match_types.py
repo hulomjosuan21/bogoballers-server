@@ -1,5 +1,5 @@
-from typing import Dict, List, Literal, Optional, Union
-from dataclasses import dataclass, asdict, field
+from typing import List, Literal, Optional, Union
+from dataclasses import dataclass, field
 
 @dataclass
 class RoundRobinConfig:
@@ -22,6 +22,8 @@ class DoubleEliminationConfig:
     group_count: int = 1
     team_count: int = 0
     max_loss: int = 2
+    progress_group: int = 1
+    max_progress_group: int = 6
     brackets: List[str] = field(default_factory=lambda: ["winners", "losers"])
 
 @dataclass
@@ -58,11 +60,11 @@ def infer_format_type(config: dict) -> str:
         return "Knockout"
     return "RoundRobin"
 
-def sanitize_config(config: dict) -> dict:
+def sanitize_config(config) -> dict:
     allowed_keys = {
         "type", "group_count", "team_count", "advances_per_group",
         "use_point_system", "seeding", "max_loss", "brackets", "games",
-        "advantaged_team", "challenger_team", "max_games"
+        "advantaged_team", "challenger_team", "max_games", "progress_group", "max_progress_group"
     }
     return {k: v for k, v in config.items() if k in allowed_keys}
 

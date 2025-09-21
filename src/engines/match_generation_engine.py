@@ -1,12 +1,12 @@
 import random
-from typing import List
+from typing import List, Optional
 from src.models.league import LeagueCategoryRoundModel
 from src.models.match import LeagueMatchModel
 from src.models.match_types import parse_round_config
 from src.models.team import LeagueTeamModel
 
 class MatchGenerationEngine:
-    def __init__(self, league_id: str,round: LeagueCategoryRoundModel, teams: List[LeagueTeamModel]):
+    def __init__(self, league_id: str, round: LeagueCategoryRoundModel, teams: List[LeagueTeamModel]):
         self.round = round
         self.league_id = league_id
         self.teams = teams
@@ -63,6 +63,8 @@ class MatchGenerationEngine:
     def _generate_double_elim(self) -> List[LeagueMatchModel]:
         shuffled = self.teams[:]
         random.shuffle(shuffled)
+        stage_number = self.config.progress_group
+        
         return [
             LeagueMatchModel(
                 league_id=self.league_id,
@@ -74,30 +76,38 @@ class MatchGenerationEngine:
                 generated_by="system",
                 bracket_side="winners",
                 round_number=1,
+                stage_number=stage_number,
                 is_placeholder=False,
                 depends_on_match_ids=[]
             )
             for i in range(0, len(shuffled) - 1, 2)
         ]
         
-    def generate_double_elim_stage(self, stage: int) -> List[LeagueMatchModel]:
+    async def resolve_winner_team_id(self, session, match_id: str) -> Optional[str]:
+        from src.services.match.match_service import LeagueMatchService
+        match = await LeagueMatchService.get_match_by_id(session, match_id)
+        return match.winner_team_id if match and match.winner_team_id else None
+
+        
+    async def generate_double_elim_stage(self, session, stage: int) -> List[LeagueMatchModel]:
         match stage:
             case 1:
-                return self._generate_winners_round_1()
+                return self._generate_winners_round_1(stage)
             case 2:
-                return self._generate_winners_semis_and_losers_round_1()
+                return await self._generate_winners_semis_and_losers_round_1(session, stage)
             case 3:
-                return self._generate_winners_final_and_losers_round_2()
+                return await self._generate_winners_final_and_losers_round_2(session, stage)
             case 4:
-                return self._generate_losers_semifinal()
+                return await self._generate_losers_semifinal(session, stage)
             case 5:
-                return self._generate_losers_final()
+                return await self._generate_losers_final(session, stage)
             case 6:
-                return self._generate_grand_final()
+                return await self._generate_grand_final(session, stage)
             case _:
                 raise ValueError(f"Unsupported stage: {stage}")
             
-    def _generate_winners_round_1(self) -> List[LeagueMatchModel]:
+            
+    def _generate_winners_round_1(self, stage) -> List[LeagueMatchModel]:
         shuffled = self.teams[:]
         random.shuffle(shuffled)
         return [
@@ -110,127 +120,165 @@ class MatchGenerationEngine:
                 status="Unscheduled",
                 generated_by="system",
                 bracket_side="winners",
+                stage_number=stage,
                 round_number=1
             )
             for i in range(0, len(shuffled), 2)
         ]
         
-    def _generate_winners_semis_and_losers_round_1(self) -> List[LeagueMatchModel]:
-        previous = self._get_previous_matches("winners", 1)
+    async def _generate_winners_semis_and_losers_round_1(self, session, stage) -> List[LeagueMatchModel]:
+        from src.services.match.match_service import LeagueMatchService
+        previous = await LeagueMatchService.get_previous_matches(session, "winners", 1, self.round.league_category_id)
         matches = []
 
         for i in range(0, len(previous), 2):
+            winner_a = await self.resolve_winner_team_id(session, previous[i].league_match_id)
+            winner_b = await self.resolve_winner_team_id(session, previous[i + 1].league_match_id)
+            if not winner_a or not winner_b:
+                continue
+
             matches.append(LeagueMatchModel(
                 league_id=self.league_id,
                 league_category_id=self.round.league_category_id,
                 round_id=self.round.round_id,
-                home_team_id=None,
-                away_team_id=None,
-                status="Pending",
+                home_team_id=winner_a,
+                away_team_id=winner_b,
+                status="Unscheduled",
                 generated_by="system",
                 bracket_side="winners",
+                stage_number=stage,
                 round_number=2,
-                depends_on_match_ids=[previous[i].match_id, previous[i + 1].match_id]
+                depends_on_match_ids=[previous[i].league_match_id, previous[i + 1].league_match_id]
             ))
 
         for match in previous:
+            loser = match.loser_team_id
+            if not loser:
+                continue
+
             matches.append(LeagueMatchModel(
                 league_id=self.league_id,
                 league_category_id=self.round.league_category_id,
                 round_id=self.round.round_id,
-                home_team_id=None,
+                home_team_id=loser,
                 away_team_id=None,
-                status="Pending",
+                status="Unscheduled",
                 generated_by="system",
                 bracket_side="losers",
+                stage_number=stage,
                 round_number=1,
-                depends_on_match_ids=[match.match_id]
+                depends_on_match_ids=[match.league_match_id]
             ))
 
         return matches
 
-    def _generate_winners_final_and_losers_round_2(self) -> List[LeagueMatchModel]:
-        winners_semis = self._get_previous_matches("winners", 2)
-        losers_round_1 = self._get_previous_matches("losers", 1)
+    async def _generate_winners_final_and_losers_round_2(self, session, stage) -> List[LeagueMatchModel]:
+        from src.services.match.match_service import LeagueMatchService
+        winners_semis = await LeagueMatchService.get_previous_matches(session, "winners", 2, self.round.league_category_id)
+        losers_round_1 = await LeagueMatchService.get_previous_matches(session, "losers", 1, self.round.league_category_id)
+
+        winner_a = await self.resolve_winner_team_id(session, winners_semis[0].league_match_id)
+        winner_b = await self.resolve_winner_team_id(session, winners_semis[1].league_match_id)
+        loser_a = await self.resolve_winner_team_id(session, losers_round_1[0].league_match_id)
+        loser_b = await self.resolve_winner_team_id(session, losers_round_1[1].league_match_id)
 
         return [
             LeagueMatchModel(
                 league_id=self.league_id,
                 league_category_id=self.round.league_category_id,
                 round_id=self.round.round_id,
-                home_team_id=None,
-                away_team_id=None,
-                status="Pending",
+                home_team_id=winner_a,
+                away_team_id=winner_b,
+                status="Unscheduled",
                 generated_by="system",
                 bracket_side="winners",
+                stage_number=stage,
                 round_number=3,
-                depends_on_match_ids=[m.match_id for m in winners_semis]
+                depends_on_match_ids=[winners_semis[0].league_match_id, winners_semis[1].league_match_id]
             ),
             LeagueMatchModel(
                 league_id=self.league_id,
                 league_category_id=self.round.league_category_id,
                 round_id=self.round.round_id,
-                home_team_id=None,
-                away_team_id=None,
-                status="Pending",
+                home_team_id=loser_a,
+                away_team_id=loser_b,
+                status="Unscheduled",
                 generated_by="system",
                 bracket_side="losers",
+                stage_number=stage,
                 round_number=2,
-                depends_on_match_ids=[m.match_id for m in losers_round_1]
+                depends_on_match_ids=[losers_round_1[0].league_match_id, losers_round_1[1].league_match_id]
             )
         ]
         
-    def _generate_losers_semifinal(self) -> List[LeagueMatchModel]:
-        losers_round_2 = self._get_previous_matches("losers", 2)
-        return [
-            LeagueMatchModel(
-                league_id=self.league_id,
-                league_category_id=self.round.league_category_id,
-                round_id=self.round.round_id,
-                home_team_id=None,
-                away_team_id=None,
-                status="Pending",
-                generated_by="system",
-                bracket_side="losers",
-                round_number=3,
-                depends_on_match_ids=[m.match_id for m in losers_round_2]
-            )
-        ]
-        
-    def _generate_grand_final(self) -> List[LeagueMatchModel]:
-        winners_final = self._get_previous_matches("winners", 3)
-        losers_final = self._get_previous_matches("losers", 4)
+    async def _generate_losers_semifinal(self, session, stage) -> List[LeagueMatchModel]:
+        from src.services.match.match_service import LeagueMatchService
+        losers_round_2 = await LeagueMatchService.get_previous_matches(session, "losers", 2, self.round.league_category_id)
+
+        winner_a = await self.resolve_winner_team_id(session, losers_round_2[0].league_match_id)
+        winner_b = await self.resolve_winner_team_id(session, losers_round_2[1].league_match_id)
 
         return [
             LeagueMatchModel(
                 league_id=self.league_id,
                 league_category_id=self.round.league_category_id,
                 round_id=self.round.round_id,
-                home_team_id=None,
-                away_team_id=None,
-                status="Pending",
+                home_team_id=winner_a,
+                away_team_id=winner_b,
+                status="Unscheduled",
                 generated_by="system",
-                bracket_side="final",
-                round_number=5,
-                is_final=True,
-                depends_on_match_ids=[winners_final[0].match_id, losers_final[0].match_id]
+                bracket_side="losers",
+                stage_number=stage,
+                round_number=3,
+                depends_on_match_ids=[losers_round_2[0].league_match_id, losers_round_2[1].league_match_id]
             )
         ]
         
-    def _generate_losers_final(self) -> List[LeagueMatchModel]:
-        losers_semis = self._get_previous_matches("losers", 3)
+    async def _generate_grand_final(self, session, stage) -> List[LeagueMatchModel]:
+        from src.services.match.match_service import LeagueMatchService
+        winners_final = await LeagueMatchService.get_previous_matches(session, "winners", 3, self.round.league_category_id)
+        losers_final = await LeagueMatchService.get_previous_matches(session, "losers", 4, self.round.league_category_id)
+
+        winner_a = await self.resolve_winner_team_id(session, winners_final[0].league_match_id)
+        winner_b = await self.resolve_winner_team_id(session, losers_final[0].league_match_id)
+
         return [
             LeagueMatchModel(
                 league_id=self.league_id,
                 league_category_id=self.round.league_category_id,
                 round_id=self.round.round_id,
-                home_team_id=None,
+                home_team_id=winner_a,
+                away_team_id=winner_b,
+                status="Unscheduled",
+                generated_by="system",
+                bracket_side="final",
+                round_number=5,
+                stage_number=stage,
+                is_final=True,
+                depends_on_match_ids=[winners_final[0].league_match_id, losers_final[0].league_match_id]
+            )
+        ]
+
+        
+    async def _generate_losers_final(self, session, stage) -> List[LeagueMatchModel]:
+        from src.services.match.match_service import LeagueMatchService
+        losers_semis = await LeagueMatchService.get_previous_matches(session, "losers", 3, self.round.league_category_id)
+
+        winner_a = await self.resolve_winner_team_id(session, losers_semis[0].league_match_id)
+
+        return [
+            LeagueMatchModel(
+                league_id=self.league_id,
+                league_category_id=self.round.league_category_id,
+                round_id=self.round.round_id,
+                home_team_id=winner_a,
                 away_team_id=None,
-                status="Pending",
+                status="Unscheduled",
                 generated_by="system",
                 bracket_side="losers",
+                stage_number=stage,
                 round_number=4,
-                depends_on_match_ids=[m.match_id for m in losers_semis]
+                depends_on_match_ids=[losers_semis[0].league_match_id]
             )
         ]
 
