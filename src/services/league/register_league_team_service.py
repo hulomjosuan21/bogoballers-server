@@ -170,3 +170,5 @@ class RegisterLeagueService:
                 await session.refresh(league_team)
 
             return refund
+        
+    # async def get_one_by_public_id(self, )

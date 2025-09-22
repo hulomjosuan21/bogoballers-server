@@ -1,9 +1,9 @@
 import json
 from datetime import datetime
 import re
+from typing import List
 from dateutil.relativedelta import relativedelta
 from sqlalchemy import  Date,Text, and_, case, cast, func, or_, select, update
-from src.services.league_admin_service import LeagueAdministratorService
 from src.models.player import LeaguePlayerModel
 from src.models.team import LeagueTeamModel
 from src.models.league_admin import LeagueAdministratorModel
@@ -21,9 +21,9 @@ ALLOWED_OPTION_KEYS = {
     "player_residency_certificate_valid_until"
 }
 
-league_admin_service = LeagueAdministratorService()
 
 class LeagueService:
+    
     async def analytics(self, league_id: str):
         async with AsyncSession() as session:
             # Load active league with categories + rounds (no teams relationship anymore)
@@ -34,7 +34,7 @@ class LeagueService:
                 )
                 .where(
                     LeagueModel.league_id == league_id,
-                    LeagueModel.status.in_(["Scheduled", "Ongoing"])
+                    LeagueModel.status.in_(["Pending", "Scheduled", "Ongoing"])
                 )
             )
             result = await session.execute(stmt_league)
@@ -220,6 +220,9 @@ class LeagueService:
         return f"{field_name} updated"
 
     async def create_one(self, user_id, form_data: dict, files: dict):
+        from src.services.league_admin_service import LeagueAdministratorService
+        league_admin_service = LeagueAdministratorService()
+        
         required_fields = [
             "league_title", "league_budget", "league_description", "league_address", "sportsmanship_rules",
             "registration_deadline", "opening_date", "league_schedule", "banner_image", "categories"
@@ -294,7 +297,30 @@ class LeagueService:
             )
         )
         
+    async def get_one_by_public_id(self, public_league_id: str, data: dict):
+        async with AsyncSession() as session:
+            conditions = [LeagueModel.public_league_id == public_league_id]
+            
+            if data:
+                condition = data.get('condition')
+                
+                if condition == 'Active':
+                    conditions.extend([~LeagueModel.status.in_(["Cancelled", "Postponed", "Completed"])])
+            
+            stmt = select(LeagueModel).where(*conditions)
+            
+            result = await session.execute(stmt)
+            
+            league = result.scalar_one_or_none()
+            
+            if not league:
+                raise ApiException('No league found')
+            
+            return league
+        
     async def get_one(self, user_id: str, data: dict):
+        from src.services.league_admin_service import LeagueAdministratorService
+        league_admin_service = LeagueAdministratorService()
         async with AsyncSession() as session:
             league_admin = await league_admin_service.get_one(session=session,user_id=user_id)
             
@@ -303,10 +329,13 @@ class LeagueService:
             
             conditions = [LeagueModel.league_administrator_id == league_admin.league_administrator_id]
             
-            status = data.get('status')
+            condition = data.get('condition')
             
-            if status:
-                conditions.append(LeagueModel.status == status)
+            if data:
+                if condition == "Active":
+                    conditions.append(
+                        ~LeagueModel.status.in_(["Cancelled", "Postponed", "Completed"])
+                    )
 
             stmt = await self._get_one()
             stmt = stmt.where(and_(*conditions))
@@ -317,6 +346,24 @@ class LeagueService:
                 raise ApiException("No League found")
 
             return league
+        
+    @staticmethod
+    async def get_one_active(session, league_administrator_id: str, data: dict):
+        conditions = [LeagueModel.league_administrator_id == league_administrator_id]
+
+        condition = data.get("condition")
+        if condition == "Active":
+            conditions.append(
+                ~LeagueModel.status.in_(["Cancelled", "Postponed", "Completed"])
+            )
+            
+        league_service = LeagueService()
+
+        stmt = await league_service._get_one()
+        stmt = stmt.where(and_(*conditions))
+
+        league = (await session.execute(stmt)).scalar_one_or_none()
+        return league
         
     async def edit_one(self, league_id: str, data: dict):
         try:

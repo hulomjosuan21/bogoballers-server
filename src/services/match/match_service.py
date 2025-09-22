@@ -334,6 +334,28 @@ class LeagueMatchService:
 
                 match.status = "Completed"
 
+                stmt = select(LeagueTeamModel).where(
+                    LeagueTeamModel.team_id.in_([match.home_team_id, match.away_team_id]),
+                    LeagueTeamModel.league_category_id == match.league_category_id
+                )
+                result = await session.execute(stmt)
+                team_models = {team.team_id: team for team in result.scalars().all()}
+
+                winner_team = team_models.get(match.winner_team_id)
+                loser_team = team_models.get(match.loser_team_id)
+
+                if winner_team:
+                    winner_team.wins += 1
+                    winner_team.points += (
+                        match.home_team_score if match.winner_team_id == match.home_team_id else match.away_team_score
+                    )
+
+                if loser_team:
+                    loser_team.losses += 1
+                    loser_team.points += (
+                        match.home_team_score if match.loser_team_id == match.home_team_id else match.away_team_score
+                    )
+
                 await session.commit()
                 await session.refresh(match)
                 

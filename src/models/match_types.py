@@ -1,5 +1,6 @@
-from typing import List, Literal, Optional, Union
-from dataclasses import dataclass, field
+import json
+from typing import Dict, List, Literal, Optional, Union
+from dataclasses import dataclass, asdict, field
 
 @dataclass
 class RoundRobinConfig:
@@ -66,6 +67,13 @@ def sanitize_config(config) -> dict:
         "use_point_system", "seeding", "max_loss", "brackets", "games",
         "advantaged_team", "challenger_team", "max_games", "progress_group", "max_progress_group"
     }
+
+    # if isinstance(config, str):
+    #     try:
+    #         config = json.loads(config)
+    #     except json.JSONDecodeError:
+    #         return {} 
+
     return {k: v for k, v in config.items() if k in allowed_keys}
 
 def parse_round_config(config: dict) -> RoundConfig:

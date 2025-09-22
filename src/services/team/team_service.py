@@ -201,6 +201,28 @@ class TeamService:
                 return []
 
             return teams 
+        
+    async def get_one_by_public_id(self, public_team_id: str, data: dict):
+        async with AsyncSession() as session:
+            conditions = [TeamModel.public_team_id == public_team_id]
+            
+            stmt = (
+                select(TeamModel)
+                .options(
+                    selectinload(TeamModel.user),
+                    selectinload(TeamModel.players)
+                    .selectinload(PlayerTeamModel.player)
+                    .selectinload(PlayerModel.user)
+                )
+                .where(*conditions)
+            )
+            result = await session.execute(stmt)
+            team = result.scalar_one_or_none()
+
+            if not team:
+                raise ApiException('No team found')
+
+            return team 
             
     async def get_team(self, session, team_id: str):
         return await session.get(TeamModel, team_id)
