@@ -8,6 +8,16 @@ league_bp = Blueprint("league", __name__, url_prefix="/league")
 
 service = LeagueService()
 
+@league_bp.post('/<public_league_id>/view')
+async def get_one_by_public_id(public_league_id: str):
+    try:
+        data = await request.get_json()
+        result = await service.get_one_by_public_id(public_league_id, data)
+        return await ApiResponse.payload(result.to_json())
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)
+
 @league_bp.get('/analytics/<league_id>')
 async def league_analytics_route(league_id: str):
     try:

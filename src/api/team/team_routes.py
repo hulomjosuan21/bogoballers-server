@@ -8,6 +8,16 @@ team_bp = Blueprint('team', __name__, url_prefix="/team")
 
 service = TeamService()
 
+@team_bp.post('/<public_team_id>/view')
+async def get_one_by_public_id_route(public_team_id: str):
+    try:
+        data = await request.get_json()        
+        result = await service.get_one_by_public_id(public_team_id,data)
+        return await ApiResponse.payload(result.to_json())
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)
+
 @team_bp.get('/<team_id>')
 async def get_one_route(team_id: str):
     try:

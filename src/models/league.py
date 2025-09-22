@@ -20,6 +20,7 @@ from src.utils.db_utils import CreatedAt, PublicIDGenerator, UpdatedAt, UUIDGene
 from src.utils.mixins import UpdatableMixin
 
 league_status_enum = SqlEnum(
+    "Pending",
     "Scheduled",
     "Ongoing",
     "Completed",
@@ -62,7 +63,7 @@ class LeagueModel(Base, UpdatableMixin):
 
     status: Mapped[str] = mapped_column(
         league_status_enum,
-        default="Scheduled",
+        default="Pending",
         nullable=False
     )
 

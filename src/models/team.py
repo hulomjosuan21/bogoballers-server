@@ -117,6 +117,7 @@ class LeagueTeamModel(Base, UpdatableMixin):
     __tablename__ = "league_teams_table"
 
     league_team_id: Mapped[str] = UUIDGenerator("league-team")
+    league_team_public_id: Mapped[str] = PublicIDGenerator("lt")
     team_id: Mapped[str] = mapped_column(
         String,
         ForeignKey("teams_table.team_id", ondelete="CASCADE"),
@@ -154,9 +155,9 @@ class LeagueTeamModel(Base, UpdatableMixin):
 
     wins: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     losses: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    draws: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     points: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
+    draws: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     __table_args__ = (
         CheckConstraint("wins >= 0", name="check_wins_positive"),
         CheckConstraint("losses >= 0", name="check_losses_positive"),
@@ -184,6 +185,7 @@ class LeagueTeamModel(Base, UpdatableMixin):
     def to_json(self) -> dict:
         return {
             'league_team_id': self.league_team_id,
+            'league_team_public_id': self.league_team_public_id,
             'league_id': self.league_id,
             'league_category_id': self.league_category_id,
             'status': self.status,

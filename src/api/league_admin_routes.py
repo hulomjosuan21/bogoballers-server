@@ -12,6 +12,15 @@ league_admin_bp = Blueprint("league_admin", __name__, url_prefix="/league-admini
 
 service = LeagueAdministratorService()
 
+@league_admin_bp.get('all')
+async def get_many_routes():
+    try:
+        result = await service.get_many()
+        return await ApiResponse.payload(result)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(str(e))    
+
 @league_admin_bp.get("/auth/jwt")
 @jwt_required
 async def get_jwt_route():

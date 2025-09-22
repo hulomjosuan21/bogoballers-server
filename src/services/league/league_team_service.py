@@ -46,6 +46,21 @@ class LeagueTeamService:
                 selectinload(LeagueTeamModel.team).selectinload(TeamModel.user),
             )
         )
+        
+    async def get_one_by_public_id(self, league_team_public_id: str, data: dict):
+        async with AsyncSession() as session:
+            conditions = [LeagueTeamModel.league_team_public_id == league_team_public_id]
+            
+            stmt = stmt.where(*conditions)
+            
+            result = await session.execute(stmt)
+            
+            league_team = result.scalar_one_or_none()
+            
+            if not league_team:
+                raise ApiException('No team found.')
+            
+            return league_team
     
     async def get_all(self, league_category_id: str, data: dict):
         async with AsyncSession() as session:

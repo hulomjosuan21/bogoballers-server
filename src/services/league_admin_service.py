@@ -1,6 +1,7 @@
 from typing import List
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from src.services.league.league_service import LeagueService
 from src.services.cloudinary_service import CloudinaryService
 from src.extensions import AsyncSession
 from src.models.league_admin import LeagueAdministratorModel
@@ -8,7 +9,41 @@ from src.models.user import UserModel
 from src.utils.api_response import ApiException
 from datetime import datetime, timezone
 from src.extensions import settings
+from sqlalchemy.orm import joinedload, selectinload
+
 class LeagueAdministratorService:
+    async def get_many(self) -> List[dict]:
+        async with AsyncSession() as session:
+            conditions = [
+                LeagueAdministratorModel.geo_id == "bogo-2025",
+                ~UserModel.account_type.in_(
+                    ["Player", "League_Administrator_LGU", "Team_Manager"]
+                ),
+            ]
+
+            stmt = (
+                select(LeagueAdministratorModel)
+                .join(LeagueAdministratorModel.account)
+                .where(*conditions)
+            )
+
+            result = await session.execute(stmt)
+
+            league_admins = []
+            for league_admin in result.scalars().all():
+                league = await LeagueService.get_one_active(
+                    session, league_admin.league_administrator_id, {"condition": "Active"}
+                )
+                league_admins.append(
+                    {
+                        **league_admin.to_json(), 
+                        "active_league": league.to_json() if league else None,
+                    }
+                )
+
+            return league_admins
+            
+    
     async def search_league_administrators(self, session, search: str, limit: int = 10) -> List[LeagueAdministratorModel]:
         query = select(LeagueAdministratorModel)
 

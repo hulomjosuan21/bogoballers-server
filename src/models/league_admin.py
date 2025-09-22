@@ -32,8 +32,7 @@ class LeagueAdministratorModel(Base, UpdatableMixin):
     is_operational: Mapped[bool] = mapped_column(
         Boolean, 
         nullable=False, 
-        default=True,
-        server_default=text("true")
+        default=False,
     )
     
     user_id: Mapped[str] = mapped_column(
@@ -68,6 +67,7 @@ class LeagueAdministratorModel(Base, UpdatableMixin):
             'organization_logo_url': self.organization_logo_url,
             'league_admin_created_at': self.league_admin_created_at.isoformat(),
             'league_admin_updated_at': self.league_admin_updated_at.isoformat(),
+            'is_operational': self.is_operational,
             'account': self.account.to_json(),
         }
 
