@@ -7,6 +7,17 @@ league_match_bp = Blueprint('league-match', __name__, url_prefix='/league-match'
     
 service = LeagueMatchService()
 
+@league_match_bp.post('/matches/all/<user_id>')
+async def get_all_matches(user_id: str):
+    try:
+        data = await request.get_json()
+        result = await service.get_user_matches(user_id, data)
+        
+        return await ApiResponse.payload([r.to_json() for r in result])
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)
+        
 @league_match_bp.put('/<league_match_id>/finalize')
 async def finalize_one_match_route(league_match_id: str):
     try:
@@ -46,10 +57,10 @@ async def generate_elimination_round_route(league_id: str,elimination_round_id: 
         traceback.print_exc()
         return await ApiResponse.error(e)
     
-@league_match_bp.post('/generate/progress-next/<league_id>/<current_round_id>/<next_round_id>')
-async def progress_next_round_route(league_id: str, current_round_id: str, next_round_id: str):
+@league_match_bp.post('/progress-next/<league_id>/<current_round_id>')
+async def progress_next_round_route(league_id: str, current_round_id: str):
     try:
-        result = await service.progress_to_next_round(league_id, current_round_id, next_round_id)
+        result = await service.progress_to_next_round(league_id, current_round_id)
         return await ApiResponse.success(message=result)
     except Exception as e:
         traceback.print_exc()

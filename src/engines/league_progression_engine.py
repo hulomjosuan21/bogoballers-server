@@ -8,6 +8,16 @@ from src.models.match import LeagueMatchModel
 from src.models.match_types import parse_round_config
 from src.models.team import LeagueTeamModel
 
+import random
+from datetime import datetime, timezone
+from typing import List, Optional
+
+from src.engines.match_generation_engine import MatchGenerationEngine
+from src.models.league import LeagueCategoryRoundModel
+from src.models.match import LeagueMatchModel
+from src.models.match_types import parse_round_config
+from src.models.team import LeagueTeamModel
+
 class LeagueProgressionEngine:
     def __init__(
         self,
@@ -40,8 +50,52 @@ class LeagueProgressionEngine:
 
     def generate_next_matches(self) -> List[LeagueMatchModel]:
         advancing = self.evaluate_advancing_teams()
-        generator = MatchGenerationEngine(self.league_id, self.next_round, advancing)
+        dependency_ids = self._get_dependency_match_ids(advancing)
+        generator = MatchGenerationEngine(
+            self.league_id,
+            self.next_round,
+            advancing,
+            depends_on_match_ids=dependency_ids
+        )
         return generator.generate()
+
+    def finalize_progression_state(self):
+        now = datetime.now(timezone.utc)
+
+        advancing_ids = {t.league_team_id for t in self.evaluate_advancing_teams()}
+        for team in self.teams:
+            if team.league_team_id not in advancing_ids and not team.is_eliminated:
+                team.is_eliminated = True
+                team.finalized_at = now
+
+        final_match = next((m for m in self.matches if m.is_final and m.winner_team_id), None)
+        if final_match:
+            for team in self.teams:
+                if team.league_team_id == final_match.winner_team_id:
+                    team.is_champion = True
+                    team.final_rank = 1
+                    team.finalized_at = now
+                elif team.league_team_id == final_match.loser_team_id:
+                    team.final_rank = 2
+                    team.finalized_at = now
+
+        third_place_match = next((m for m in self.matches if m.is_third_place and m.winner_team_id), None)
+        if third_place_match:
+            for team in self.teams:
+                if team.league_team_id == third_place_match.winner_team_id:
+                    team.final_rank = 3
+                    team.finalized_at = now
+                elif team.league_team_id == third_place_match.loser_team_id:
+                    team.final_rank = 4
+                    team.finalized_at = now
+
+    def _get_dependency_match_ids(self, advancing: List[LeagueTeamModel]) -> List[str]:
+        advancing_ids = {t.league_team_id for t in advancing}
+        return [
+            m.league_match_id
+            for m in self.matches
+            if m.winner_team_id in advancing_ids
+        ]
 
     def _rank_round_robin(self) -> List[LeagueTeamModel]:
         grouped = self._group_teams(self.teams, self.current_config.group_count)
@@ -75,7 +129,12 @@ class LeagueProgressionEngine:
     def _group_teams(self, teams: List[LeagueTeamModel], groups: int) -> List[List[LeagueTeamModel]]:
         if groups <= 1 or groups >= len(teams):
             return [teams]
+
         shuffled = teams[:]
         random.shuffle(shuffled)
-        group_size = len(teams) // groups
-        return [shuffled[i * group_size:(i + 1) * group_size] for i in range(groups)]
+
+        result = [[] for _ in range(groups)]
+        for i, team in enumerate(shuffled):
+            result[i % groups].append(team)
+
+        return result

@@ -168,7 +168,7 @@ class LeagueTeamModel(Base, UpdatableMixin):
 
     final_rank: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     is_champion: Mapped[bool] = mapped_column(Boolean, default=False)
-    finalized_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    finalized_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     
     league_team_created_at: Mapped[datetime] = CreatedAt()
     league_team_updated_at: Mapped[datetime] = UpdatedAt()

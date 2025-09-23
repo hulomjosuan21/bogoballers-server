@@ -1,18 +1,18 @@
 import json
 from typing import List, Optional
-from sqlalchemy import  func, select, update
-from src.models.player import PlayerModel
+from sqlalchemy import  and_, func, or_, select, update
+from src.models.player import LeaguePlayerModel, PlayerModel, PlayerTeamModel
 from src.services.league.league_category_service import LeagueCategoryService
 from src.engines.league_finalization_engine import LeagueFinalizationEngine
 from src.engines.league_progression_engine import LeagueProgressionEngine
 from src.engines.match_generation_engine import MatchGenerationEngine
 from src.models.match import LeagueMatchModel
 from src.extensions import AsyncSession
-from src.models.league import LeagueCategoryRoundModel
-from src.models.team import LeagueTeamModel
+from src.models.league import LeagueCategoryModel, LeagueCategoryRoundModel, LeagueModel
+from src.models.team import LeagueTeamModel, TeamModel
 from datetime import date, datetime, timezone, timedelta, UTC
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
-
+from sqlalchemy.orm import aliased, selectinload
 from src.utils.api_response import ApiException
 
 class LeagueMatchService:
@@ -135,19 +135,23 @@ class LeagueMatchService:
         self,
         league_id: str,
         current_round_id: str,
-        next_round_id: str
     ) -> str:
         try:
             async with AsyncSession() as session:
                 current_round = await session.get(LeagueCategoryRoundModel, current_round_id)
+                next_round_id = current_round.next_round_id
+                
                 if not current_round:
                     raise ValueError(f"Current round not found: {current_round_id}")
+                
 
                 next_round = await session.get(LeagueCategoryRoundModel, next_round_id)
                 if not next_round:
                     raise ValueError(f"Next round not found: {next_round_id}")
 
-                eligible_teams = await self._get_eligible_teams(session, current_round.league_category_id)
+                eligible_teams = await LeagueCategoryService.get_eligible_teams(
+                    session, current_round.league_category_id
+                )
 
                 match_query = await session.execute(
                     select(LeagueMatchModel).where(
@@ -163,12 +167,17 @@ class LeagueMatchService:
                     matches=completed_matches,
                     teams=eligible_teams
                 )
+
+                progression.finalize_progression_state()
+
                 next_matches = progression.generate_next_matches()
 
+                session.add_all(progression.teams)
                 session.add_all(next_matches)
+
                 await session.commit()
 
-                return f"{len(next_matches)} matches generated."
+                return f"{len(next_matches)} matches generated and team states finalized."
         except (IntegrityError, SQLAlchemyError) as e:
             await session.rollback()
             raise e
@@ -365,3 +374,85 @@ class LeagueMatchService:
             raise ValueError(f"Malformed match data: missing key {e}") from e
         except Exception as e:
             raise
+        
+    async def get_user_matches(self, user_id: str, data: dict):
+        async with AsyncSession() as session:
+            match = aliased(LeagueMatchModel)
+            league_team = aliased(LeagueTeamModel)
+            team = aliased(TeamModel)
+            player = aliased(PlayerModel)
+            player_team = aliased(PlayerTeamModel)
+            league_player = aliased(LeaguePlayerModel)
+
+            manager_query = (
+                select(match)
+                .join(league_team, or_(
+                    league_team.league_team_id == match.home_team_id,
+                    league_team.league_team_id == match.away_team_id
+                ))
+                .join(team, team.team_id == league_team.team_id)
+                .where(team.user_id == user_id)
+            )
+
+            player_query = (
+                select(match)
+                .join(league_team, or_(
+                    league_team.league_team_id == match.home_team_id,
+                    league_team.league_team_id == match.away_team_id
+                ))
+                .join(league_player, league_player.league_team_id == league_team.league_team_id)
+                .join(player_team, player_team.player_team_id == league_player.player_team_id)
+                .join(player, player.player_id == player_team.player_id)
+                .where(player.user_id == user_id)
+            )
+
+            union_subquery = manager_query.union(player_query).subquery()
+
+            stmt = (
+                select(LeagueMatchModel)
+                .join(union_subquery, union_subquery.c.league_match_id == LeagueMatchModel.league_match_id)
+                .options(
+                    selectinload(LeagueMatchModel.league).selectinload(LeagueModel.categories).selectinload(LeagueCategoryModel.rounds),
+                    
+                    # Home team
+                    selectinload(LeagueMatchModel.home_team)
+                        .selectinload(LeagueTeamModel.team)
+                        .selectinload(TeamModel.user),
+
+                    selectinload(LeagueMatchModel.home_team)
+                        .selectinload(LeagueTeamModel.league_players)
+                        .selectinload(LeaguePlayerModel.player_team)
+                        .selectinload(PlayerTeamModel.player)
+                        .selectinload(PlayerModel.user),
+
+                    # Away team
+                    selectinload(LeagueMatchModel.away_team)
+                        .selectinload(LeagueTeamModel.team)
+                        .selectinload(TeamModel.user),
+
+                    selectinload(LeagueMatchModel.away_team)
+                        .selectinload(LeagueTeamModel.league_players)
+                        .selectinload(LeaguePlayerModel.player_team)
+                        .selectinload(PlayerTeamModel.player)
+                        .selectinload(PlayerModel.user),
+                )
+            )
+            
+            now = datetime.now(timezone.utc)
+            one_week_from_now = now + timedelta(weeks=1)
+            
+            if data:
+                condition = data.get('condition')
+                if condition == "Upcoming":
+                    stmt = stmt.where(
+                        and_(
+                            LeagueMatchModel.scheduled_date.isnot(None), 
+                            LeagueMatchModel.scheduled_date >= now,
+                            LeagueMatchModel.scheduled_date <= one_week_from_now,
+                            ~LeagueMatchModel.status.in_(["Cancelled", "Postponed", "Completed"])
+                        )
+                    ).order_by(LeagueMatchModel.scheduled_date.asc())
+
+            result = await session.execute(stmt)
+            matches = result.scalars().unique().all()
+            return matches

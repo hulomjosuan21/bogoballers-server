@@ -26,6 +26,7 @@ class DoubleEliminationConfig:
     progress_group: int = 1
     max_progress_group: int = 6
     brackets: List[str] = field(default_factory=lambda: ["winners", "losers"])
+    advances_per_group: int = 1
 
 @dataclass
 class BestOfConfig:
@@ -33,6 +34,7 @@ class BestOfConfig:
     group_count: int = 1
     team_count: int = 0
     games: int = 3
+    advances_per_group: int = 1
 
 @dataclass
 class TwiceToBeatConfig:

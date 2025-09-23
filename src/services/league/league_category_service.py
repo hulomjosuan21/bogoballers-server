@@ -17,7 +17,7 @@ class LeagueCategoryService:
             select(LeagueTeamModel).where(
                 LeagueTeamModel.league_category_id == league_category_id,
                 LeagueTeamModel.status == "Accepted",
-                LeagueTeamModel.is_eliminated.is_(False)
+                LeagueTeamModel.is_eliminated.is_(False),
             )
         )
         return team_query.scalars().all()

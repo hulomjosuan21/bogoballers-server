@@ -1,3 +1,4 @@
+import math
 import random
 from typing import List, Optional
 from src.models.league import LeagueCategoryRoundModel
@@ -6,12 +7,43 @@ from src.models.match_types import parse_round_config
 from src.models.team import LeagueTeamModel
 
 class MatchGenerationEngine:
-    def __init__(self, league_id: str, round: LeagueCategoryRoundModel, teams: List[LeagueTeamModel]):
+    def __init__(self, league_id: str, round: LeagueCategoryRoundModel, teams: List[LeagueTeamModel], depends_on_match_ids: Optional[List[str]] = None):
         self.round = round
         self.league_id = league_id
         self.teams = teams
         self.config = parse_round_config(round.format_config)
+        self.depends_on_match_ids = depends_on_match_ids or []
+        
+        if hasattr(self.config, "group_count"):
+            if self.config.group_count < 1:
+                raise ValueError("Invalid configuration: group_count must be at least 1")
 
+            if self.config.group_count > len(teams):
+                raise ValueError(
+                    f"Invalid configuration: group_count ({self.config.group_count}) exceeds number of teams ({len(teams)})"
+                )
+                
+            grouped = self._group_teams(self.teams, self.config.group_count)
+            for i, group in enumerate(grouped):
+                if hasattr(self.config, "advances_per_group"):
+                    if self.config.advances_per_group > len(group):
+                        raise ValueError(
+                            f"Invalid configuration: advances_per_group ({self.config.advances_per_group}) exceeds team count in group {i + 1} ({len(group)})"
+                        )
+                        
+    def _group_teams(self, teams: List[LeagueTeamModel], groups: int) -> List[List[LeagueTeamModel]]:
+        if groups <= 1 or groups >= len(teams):
+            return [teams]
+
+        shuffled = teams[:]
+        random.shuffle(shuffled)
+
+        result = [[] for _ in range(groups)]
+        for i, team in enumerate(shuffled):
+            result[i % groups].append(team)
+
+        return result
+                        
     def generate(self) -> List[LeagueMatchModel]:
         match self.config.type:
             case "RoundRobin":
@@ -42,23 +74,32 @@ class MatchGenerationEngine:
                         status="Unscheduled",
                         generated_by="system",
                         display_name=f"Group {chr(65 + group_index)}",
+                        depends_on_match_ids=self.depends_on_match_ids  
                     ))
         return matches
 
     def _generate_knockout(self) -> List[LeagueMatchModel]:
-        shuffled = self._apply_seeding(self.teams, self.config.seeding)
-        return [
-            LeagueMatchModel(
+        matches = []
+
+        grouped = self._group_teams(self.teams, self.config.group_count)
+
+        seeded: List[LeagueTeamModel] = []
+        for group in grouped:
+            seeded.extend(self._apply_seeding(group, self.config.seeding))
+
+        for i in range(0, len(seeded) - 1, 2):
+            matches.append(LeagueMatchModel(
                 league_id=self.league_id,
                 league_category_id=self.round.league_category_id,
                 round_id=self.round.round_id,
-                home_team_id=shuffled[i].league_team_id,
-                away_team_id=shuffled[i + 1].league_team_id,
+                home_team_id=seeded[i].league_team_id,
+                away_team_id=seeded[i + 1].league_team_id,
                 status="Unscheduled",
                 generated_by="system",
-            )
-            for i in range(0, len(shuffled) - 1, 2)
-        ]
+                depends_on_match_ids=self.depends_on_match_ids
+            ))
+
+        return matches
 
     def _generate_double_elim(self) -> List[LeagueMatchModel]:
         shuffled = self.teams[:]
@@ -254,7 +295,6 @@ class MatchGenerationEngine:
                 bracket_side="final",
                 round_number=5,
                 stage_number=stage,
-                is_final=True,
                 depends_on_match_ids=[winners_final[0].league_match_id, losers_final[0].league_match_id]
             )
         ]
@@ -283,17 +323,30 @@ class MatchGenerationEngine:
         ]
 
     def _generate_best_of(self) -> List[LeagueMatchModel]:
-        if len(self.teams) < 2: return []
-        return [LeagueMatchModel(
-            league_id=self.league_id,
-            league_category_id=self.round.league_category_id,
-            round_id=self.round.round_id,
-            home_team_id=self.teams[0].league_team_id,
-            away_team_id=self.teams[1].league_team_id,
-            status="Unscheduled",
-            generated_by="system",
-            is_final=True,
-        )]
+        if len(self.teams) < 2:
+            return []
+
+        matches: List[LeagueMatchModel] = []
+        games = self.config.games
+
+        for i in range(len(self.teams)):
+            for j in range(i + 1, len(self.teams)):
+                home_team = self.teams[i]
+                away_team = self.teams[j]
+
+                for game_number in range(1, games + 1):
+                    matches.append(LeagueMatchModel(
+                        league_id=self.league_id,
+                        league_category_id=self.round.league_category_id,
+                        round_id=self.round.round_id,
+                        home_team_id=home_team.league_team_id,
+                        away_team_id=away_team.league_team_id,
+                        status="Unscheduled",
+                        generated_by="system",
+                        depends_on_match_ids=self.depends_on_match_ids
+                    ))
+
+        return matches
 
     def _generate_twice_to_beat(self) -> List[LeagueMatchModel]:
         if not self.config.advantaged_team or not self.config.challenger_team:
@@ -309,14 +362,6 @@ class MatchGenerationEngine:
             is_final=True,
             display_name="Twice-to-Beat Finals"
         )]
-
-    def _group_teams(self, teams: List[LeagueTeamModel], groups: int) -> List[List[LeagueTeamModel]]:
-        if groups <= 1 or groups >= len(teams):
-            return [teams]
-        shuffled = teams[:]
-        random.shuffle(shuffled)
-        group_size = len(teams) // groups
-        return [shuffled[i * group_size:(i + 1) * group_size] for i in range(groups)]
 
     def _apply_seeding(self, teams: List[LeagueTeamModel], method: str) -> List[LeagueTeamModel]:
         if method == "ranking":
