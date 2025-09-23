@@ -26,3 +26,22 @@ class LiveMatchNamespace(socketio.AsyncNamespace):
 
     async def on_ping(self, sid, data):
         await self.emit('pong', data, to=sid)
+        
+    async def on_admin_start_live(self, sid, data):
+        admin_id = data.get("league_administrator_id")
+        match_id = data.get("league_match_id")
+        if admin_id and match_id:
+            await self.redis_service.save_admin_live_match(admin_id, match_id)
+            live_admins = await self.redis_service.get_all_admin_live_matches()
+            await self.emit("live_admins", live_admins, namespace="/live")
+
+    async def on_admin_stop_live(self, sid, data):
+        admin_id = data.get("league_administrator_id")
+        if admin_id:
+            await self.redis_service.remove_admin_live_match(admin_id)
+            live_admins = await self.redis_service.get_all_admin_live_matches()
+            await self.emit("live_admins", live_admins, namespace="/live")
+
+    async def on_get_live_admins(self, sid, data):
+        live_admins = await self.redis_service.get_all_admin_live_matches()
+        await self.emit("live_admins", live_admins, to=sid)
