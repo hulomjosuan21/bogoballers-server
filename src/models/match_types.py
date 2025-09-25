@@ -6,44 +6,42 @@ from dataclasses import dataclass, asdict, field
 class RoundRobinConfig:
     type: Literal["RoundRobin"] = "RoundRobin"
     group_count: int = 1
-    team_count: int = 0
     advances_per_group: int = 1
     use_point_system: bool = False
+
+@dataclass
+class TwiceToBeatConfig:
+    type: Literal["TwiceToBeat"] = "TwiceToBeat"
+    advantaged_team: Optional[str] = None
+    challenger_team: Optional[str] = None
+    max_games: int = 2
 
 @dataclass
 class KnockoutConfig:
     type: Literal["Knockout"] = "Knockout"
     group_count: int = 1
-    team_count: int = 0
     seeding: Literal["random", "ranking"] = "random"
+    series_config: Optional[TwiceToBeatConfig] = None
 
-@dataclass
-class DoubleEliminationConfig:
-    type: Literal["DoubleElimination"] = "DoubleElimination"
-    group_count: int = 1
-    team_count: int = 0
-    max_loss: int = 2
-    progress_group: int = 1
-    max_progress_group: int = 6
-    brackets: List[str] = field(default_factory=lambda: ["winners", "losers"])
-    advances_per_group: int = 1
 
 @dataclass
 class BestOfConfig:
     type: Literal["BestOf"] = "BestOf"
     group_count: int = 1
-    team_count: int = 0
     games: int = 3
     advances_per_group: int = 1
+    series_config: Optional[TwiceToBeatConfig] = None
 
 @dataclass
-class TwiceToBeatConfig:
-    type: Literal["TwiceToBeat"] = "TwiceToBeat"
-    team_count: int = 2
-    advantaged_team: Optional[str] = None
-    challenger_team: Optional[str] = None
-    max_games: int = 2
-
+class DoubleEliminationConfig:
+    type: Literal["DoubleElimination"] = "DoubleElimination"
+    group_count: int = 1
+    max_loss: int = 2
+    progress_group: int = 1
+    max_progress_group: int = 6
+    brackets: List[str] = field(default_factory=lambda: ["winners", "losers"])
+    advances_per_group: int = 1
+    
 RoundConfig = Union[
     RoundRobinConfig,
     KnockoutConfig,
@@ -53,8 +51,6 @@ RoundConfig = Union[
 ]
 
 def infer_format_type(config: dict) -> str:
-    if "advantaged_team" in config and "challenger_team" in config:
-        return "TwiceToBeat"
     if "max_loss" in config:
         return "DoubleElimination"
     if "games" in config:
@@ -65,33 +61,33 @@ def infer_format_type(config: dict) -> str:
 
 def sanitize_config(config) -> dict:
     allowed_keys = {
-        "type", "group_count", "team_count", "advances_per_group",
+        "type", "group_count", "advances_per_group",
         "use_point_system", "seeding", "max_loss", "brackets", "games",
         "advantaged_team", "challenger_team", "max_games", "progress_group", "max_progress_group"
     }
-
-    # if isinstance(config, str):
-    #     try:
-    #         config = json.loads(config)
-    #     except json.JSONDecodeError:
-    #         return {} 
-
     return {k: v for k, v in config.items() if k in allowed_keys}
 
 def parse_round_config(config: dict) -> RoundConfig:
     config = sanitize_config(config)
     format_type = config.get("type") or infer_format_type(config)
 
+    series_config_raw = config.pop("series_config", None)
+    series_config = None
+    if isinstance(series_config_raw, dict):
+        match series_config_raw.get("type"):
+            case "TwiceToBeat":
+                series_config = TwiceToBeatConfig(**series_config_raw)
+
     match format_type:
         case "RoundRobin":
             return RoundRobinConfig(**config)
         case "Knockout":
-            return KnockoutConfig(**config)
+            return KnockoutConfig(**config, series_config=series_config)
         case "DoubleElimination":
             return DoubleEliminationConfig(**config)
         case "BestOf":
-            return BestOfConfig(**config)
-        case "TwiceToBeat":
-            return TwiceToBeatConfig(**config)
+            return BestOfConfig(**config, series_config=series_config)
         case _:
             raise ValueError(f"Unknown format type: {format_type}")
+
+

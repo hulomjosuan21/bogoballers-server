@@ -3,7 +3,7 @@ import random
 from typing import List, Optional
 from src.models.league import LeagueCategoryRoundModel
 from src.models.match import LeagueMatchModel
-from src.models.match_types import parse_round_config
+from src.models.match_types import TwiceToBeatConfig, parse_round_config
 from src.models.team import LeagueTeamModel
 
 class MatchGenerationEngine:
@@ -22,25 +22,31 @@ class MatchGenerationEngine:
                 raise ValueError(
                     f"Invalid configuration: group_count ({self.config.group_count}) exceeds number of teams ({len(teams)})"
                 )
-                
+
             grouped = self._group_teams(self.teams, self.config.group_count)
             for i, group in enumerate(grouped):
                 if hasattr(self.config, "advances_per_group"):
                     if self.config.advances_per_group > len(group):
                         raise ValueError(
-                            f"Invalid configuration: advances_per_group ({self.config.advances_per_group}) exceeds team count in group {i + 1} ({len(group)})"
+                            f"Invalid configuration: advances_per_group ({self.config.advances_per_group}) exceeds team count in group {chr(65 + i)} ({len(group)})"
                         )
                         
-    def _group_teams(self, teams: List[LeagueTeamModel], groups: int) -> List[List[LeagueTeamModel]]:
-        if groups <= 1 or groups >= len(teams):
+    def _group_teams(self, teams: List[LeagueTeamModel], group_count: int) -> List[List[LeagueTeamModel]]:
+        if group_count <= 1 or group_count >= len(teams):
+            for team in teams:
+                team.group_label = "A"
             return [teams]
 
         shuffled = teams[:]
         random.shuffle(shuffled)
 
-        result = [[] for _ in range(groups)]
+        labels = [chr(65 + i) for i in range(group_count)]  # "A", "B", "C", ...
+        result = [[] for _ in range(group_count)]
+
         for i, team in enumerate(shuffled):
-            result[i % groups].append(team)
+            group_index = i % group_count
+            team.group_label = labels[group_index]  # ✅ assign label to team
+            result[group_index].append(team)
 
         return result
                         
@@ -63,6 +69,7 @@ class MatchGenerationEngine:
         matches = []
         grouped = self._group_teams(self.teams, self.config.group_count)
         for group_index, group in enumerate(grouped):
+            label = group[0].group_label if group else chr(65 + group_index)
             for i in range(len(group)):
                 for j in range(i + 1, len(group)):
                     matches.append(LeagueMatchModel(
@@ -73,14 +80,13 @@ class MatchGenerationEngine:
                         away_team_id=group[j].league_team_id,
                         status="Unscheduled",
                         generated_by="system",
-                        display_name=f"Group {chr(65 + group_index)}",
-                        depends_on_match_ids=self.depends_on_match_ids  
+                        display_name=f"Group {label}",
+                        depends_on_match_ids=self.depends_on_match_ids
                     ))
         return matches
 
     def _generate_knockout(self) -> List[LeagueMatchModel]:
         matches = []
-
         grouped = self._group_teams(self.teams, self.config.group_count)
 
         seeded: List[LeagueTeamModel] = []
@@ -88,18 +94,152 @@ class MatchGenerationEngine:
             seeded.extend(self._apply_seeding(group, self.config.seeding))
 
         for i in range(0, len(seeded) - 1, 2):
-            matches.append(LeagueMatchModel(
-                league_id=self.league_id,
-                league_category_id=self.round.league_category_id,
-                round_id=self.round.round_id,
-                home_team_id=seeded[i].league_team_id,
-                away_team_id=seeded[i + 1].league_team_id,
-                status="Unscheduled",
-                generated_by="system",
-                depends_on_match_ids=self.depends_on_match_ids
-            ))
+            home = seeded[i]
+            away = seeded[i + 1]
+
+            if (
+                isinstance(self.config.series_config, TwiceToBeatConfig) and
+                self.config.series_config.advantaged_team == home.league_team_id and
+                self.config.series_config.challenger_team == away.league_team_id
+            ):
+                match1 = LeagueMatchModel(
+                    league_id=self.league_id,
+                    league_category_id=self.round.league_category_id,
+                    round_id=self.round.round_id,
+                    home_team_id=home.league_team_id,
+                    away_team_id=away.league_team_id,
+                    status="Unscheduled",
+                    generated_by="system",
+                    is_final=True,
+                    display_name="Knockout - Twice-to-Beat Game 1",
+                    depends_on_match_ids=self.depends_on_match_ids
+                )
+                match2 = LeagueMatchModel(
+                    league_id=self.league_id,
+                    league_category_id=self.round.league_category_id,
+                    round_id=self.round.round_id,
+                    home_team_id=home.league_team_id,
+                    away_team_id=away.league_team_id,
+                    status="Unscheduled",
+                    generated_by="system",
+                    is_final=True,
+                    display_name="Knockout - Twice-to-Beat Game 2",
+                    depends_on_match_ids=[match1.league_match_id]
+                )
+                matches.extend([match1, match2])
+            else:
+                matches.append(LeagueMatchModel(
+                    league_id=self.league_id,
+                    league_category_id=self.round.league_category_id,
+                    round_id=self.round.round_id,
+                    home_team_id=home.league_team_id,
+                    away_team_id=away.league_team_id,
+                    status="Unscheduled",
+                    generated_by="system",
+                    depends_on_match_ids=self.depends_on_match_ids
+                ))
 
         return matches
+    
+    def _generate_best_of(self) -> List[LeagueMatchModel]:
+        if len(self.teams) < 2:
+            raise ValueError("Match generation requires at least 2 teams.")
+
+        matches: List[LeagueMatchModel] = []
+        games = self.config.games
+        grouped = self._group_teams(self.teams, self.config.group_count)
+
+        for group_index, group in enumerate(grouped):
+            label = group[0].group_label if group else chr(65 + group_index)
+
+            for i in range(len(group)):
+                for j in range(i + 1, len(group)):
+                    home = group[i]
+                    away = group[j]
+
+                    if (
+                        isinstance(self.config.series_config, TwiceToBeatConfig) and
+                        self.config.series_config.advantaged_team == home.league_team_id and
+                        self.config.series_config.challenger_team == away.league_team_id
+                    ):
+                        match1 = LeagueMatchModel(
+                            league_id=self.league_id,
+                            league_category_id=self.round.league_category_id,
+                            round_id=self.round.round_id,
+                            home_team_id=home.league_team_id,
+                            away_team_id=away.league_team_id,
+                            status="Unscheduled",
+                            generated_by="system",
+                            is_final=True,
+                            display_name=f"Best-of - Twice-to-Beat Game 1",
+                            depends_on_match_ids=self.depends_on_match_ids
+                        )
+                        match2 = LeagueMatchModel(
+                            league_id=self.league_id,
+                            league_category_id=self.round.league_category_id,
+                            round_id=self.round.round_id,
+                            home_team_id=home.league_team_id,
+                            away_team_id=away.league_team_id,
+                            status="Unscheduled",
+                            generated_by="system",
+                            is_final=True,
+                            display_name=f"Best-of - Twice-to-Beat Game 2",
+                            depends_on_match_ids=[match1.league_match_id]
+                        )
+                        matches.extend([match1, match2])
+                    else:
+                        for game_number in range(1, games + 1):
+                            matches.append(LeagueMatchModel(
+                                league_id=self.league_id,
+                                league_category_id=self.round.league_category_id,
+                                round_id=self.round.round_id,
+                                home_team_id=home.league_team_id,
+                                away_team_id=away.league_team_id,
+                                status="Unscheduled",
+                                generated_by="system",
+                                display_name=f"Group {label} - Game {game_number}",
+                                depends_on_match_ids=self.depends_on_match_ids
+                            ))
+
+        return matches
+
+    def _generate_twice_to_beat(self) -> List[LeagueMatchModel]:
+        if not self.config.advantaged_team or not self.config.challenger_team:
+            raise ValueError("TwiceToBeat requires both advantaged_team and challenger_team")
+
+        match1 = LeagueMatchModel(
+            league_id=self.league_id,
+            league_category_id=self.round.league_category_id,
+            round_id=self.round.round_id,
+            home_team_id=self.config.advantaged_team,
+            away_team_id=self.config.challenger_team,
+            status="Unscheduled",
+            generated_by="system",
+            is_final=True,
+            display_name="Twice-to-Beat Finals - Game 1",
+            depends_on_match_ids=self.depends_on_match_ids
+        )
+
+        match2 = LeagueMatchModel(
+            league_id=self.league_id,
+            league_category_id=self.round.league_category_id,
+            round_id=self.round.round_id,
+            home_team_id=self.config.advantaged_team,
+            away_team_id=self.config.challenger_team,
+            status="Unscheduled",
+            generated_by="system",
+            is_final=True,
+            display_name="Twice-to-Beat Finals - Game 2",
+            depends_on_match_ids=[match1.league_match_id]
+        )
+
+        return [match1, match2]
+
+    def _apply_seeding(self, teams: List[LeagueTeamModel], method: str) -> List[LeagueTeamModel]:
+        if method == "ranking":
+            return sorted(teams, key=lambda t: (-t.points, -t.wins, -t.draws, -t.losses))
+        random.shuffle(teams)
+        return teams
 
     def _generate_double_elim(self) -> List[LeagueMatchModel]:
         shuffled = self.teams[:]
@@ -321,53 +461,6 @@ class MatchGenerationEngine:
                 depends_on_match_ids=[losers_semis[0].league_match_id]
             )
         ]
-
-    def _generate_best_of(self) -> List[LeagueMatchModel]:
-        if len(self.teams) < 2:
-            return []
-
-        matches: List[LeagueMatchModel] = []
-        games = self.config.games
-
-        for i in range(len(self.teams)):
-            for j in range(i + 1, len(self.teams)):
-                home_team = self.teams[i]
-                away_team = self.teams[j]
-
-                for game_number in range(1, games + 1):
-                    matches.append(LeagueMatchModel(
-                        league_id=self.league_id,
-                        league_category_id=self.round.league_category_id,
-                        round_id=self.round.round_id,
-                        home_team_id=home_team.league_team_id,
-                        away_team_id=away_team.league_team_id,
-                        status="Unscheduled",
-                        generated_by="system",
-                        depends_on_match_ids=self.depends_on_match_ids
-                    ))
-
-        return matches
-
-    def _generate_twice_to_beat(self) -> List[LeagueMatchModel]:
-        if not self.config.advantaged_team or not self.config.challenger_team:
-            raise ValueError("TwiceToBeat requires both advantaged_team and challenger_team")
-        return [LeagueMatchModel(
-            league_id=self.league_id,
-            league_category_id=self.round.league_category_id,
-            round_id=self.round.round_id,
-            home_team_id=self.config.advantaged_team,
-            away_team_id=self.config.challenger_team,
-            status="Unscheduled",
-            generated_by="system",
-            is_final=True,
-            display_name="Twice-to-Beat Finals"
-        )]
-
-    def _apply_seeding(self, teams: List[LeagueTeamModel], method: str) -> List[LeagueTeamModel]:
-        if method == "ranking":
-            return sorted(teams, key=lambda t: (-t.points, -t.wins, -t.draws, -t.losses))
-        random.shuffle(teams)
-        return teams
     
 # Programmer: Josuan Leonardo Hulom
 # From: Cebu Roosevelt Memorial Collegae BSIT 4B

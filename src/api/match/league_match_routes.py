@@ -2,6 +2,7 @@ import traceback
 from quart import Blueprint, request
 from src.services.match.match_service import LeagueMatchService
 from src.utils.api_response import ApiResponse
+from src.utils.db_utils import str_to_bool
 
 league_match_bp = Blueprint('league-match', __name__, url_prefix='/league-match')
     
@@ -57,10 +58,14 @@ async def generate_elimination_round_route(league_id: str,elimination_round_id: 
         traceback.print_exc()
         return await ApiResponse.error(e)
     
-@league_match_bp.post('/progress-next/<league_id>/<current_round_id>')
+@league_match_bp.put('/progress-next/<league_id>/<current_round_id>')
 async def progress_next_round_route(league_id: str, current_round_id: str):
     try:
-        result = await service.progress_to_next_round(league_id, current_round_id)
+        auto_proceed_str = request.args.get("auto_proceed", "false")
+        
+        auto_proceed  = str_to_bool(auto_proceed_str)
+        
+        result = await service.progress_to_next_round(league_id, current_round_id, auto_proceed)
         return await ApiResponse.success(message=result)
     except Exception as e:
         traceback.print_exc()

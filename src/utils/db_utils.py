@@ -33,3 +33,6 @@ def PublicIDGenerator(prefix: str) -> Mapped[str]:
         unique=True,
         default=lambda: f"{prefix}-{uuid.uuid4().hex[:6]}"
     )
+
+def str_to_bool(value: str) -> bool:
+    return value.lower() in ("true", "1", "yes", "on")

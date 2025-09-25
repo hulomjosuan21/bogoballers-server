@@ -59,7 +59,8 @@ class LeagueMatchService:
     async def get_many(self, league_category_id: str, round_id: str, data: dict):
         async with AsyncSession() as session:
             conditions = [LeagueMatchModel.league_category_id == league_category_id]
-            
+            stmt = select(LeagueMatchModel).where(*conditions)
+
             if data:
                 condition = data.get("condition")
 
@@ -69,6 +70,7 @@ class LeagueMatchService:
                         LeagueMatchModel.scheduled_date.is_(None),
                         LeagueMatchModel.round_id == round_id
                     ])
+                    stmt = select(LeagueMatchModel).where(*conditions).order_by(LeagueMatchModel.display_name.asc())
 
                 elif condition == "Scheduled":
                     conditions.extend([
@@ -78,6 +80,7 @@ class LeagueMatchService:
                         LeagueMatchModel.away_team_id.is_not(None),
                         LeagueMatchModel.round_id == round_id
                     ])
+                    stmt = select(LeagueMatchModel).where(*conditions).order_by(LeagueMatchModel.display_name.asc())
 
                 elif condition == "Completed":
                     conditions.extend([
@@ -86,6 +89,7 @@ class LeagueMatchService:
                         LeagueMatchModel.away_team_id.is_not(None),
                         LeagueMatchModel.round_id == round_id
                     ])
+                    stmt = select(LeagueMatchModel).where(*conditions).order_by(LeagueMatchModel.display_name.asc())
 
                 elif condition == "Upcoming":
                     now = datetime.now(timezone.utc)
@@ -98,14 +102,15 @@ class LeagueMatchService:
                         LeagueMatchModel.home_team_id.is_not(None),
                         LeagueMatchModel.away_team_id.is_not(None),
                         LeagueMatchModel.round_id == round_id
-                    ])      
-            
-            stmt = select(LeagueMatchModel).where(*conditions)
-            
+                    ])    
+                    stmt = select(LeagueMatchModel).where(*conditions).order_by(LeagueMatchModel.display_name.asc())
+
+                elif condition == "ByRound":
+                    conditions.append(LeagueMatchModel.round_id == round_id)
+                    stmt = select(LeagueMatchModel).where(*conditions).order_by(LeagueMatchModel.display_name.asc())
+
             result = await session.execute(stmt)
-            
             return result.scalars().all()
-    
 
     async def generate_first_elimination_round(
         self,
@@ -118,11 +123,21 @@ class LeagueMatchService:
                 if not league_round:
                     raise ValueError(f"Round not found: {elimination_round_id}")
 
+                existing_matches = await session.execute(
+                    select(LeagueMatchModel).where(
+                        LeagueMatchModel.round_id == elimination_round_id
+                    )
+                )
+                
+                if existing_matches.scalars().first():
+                    return "Matches already generated for this round."
+
                 accepted_teams = await LeagueCategoryService.get_eligible_teams(session, league_round.league_category_id)
 
                 generator = MatchGenerationEngine(league_id, league_round, accepted_teams)
                 matches = generator.generate()
 
+                session.add_all(accepted_teams)
                 session.add_all(matches)
                 await session.commit()
 
@@ -135,6 +150,7 @@ class LeagueMatchService:
         self,
         league_id: str,
         current_round_id: str,
+        auto_proceed: bool
     ) -> str:
         try:
             async with AsyncSession() as session:
@@ -148,6 +164,25 @@ class LeagueMatchService:
                 next_round = await session.get(LeagueCategoryRoundModel, next_round_id)
                 if not next_round:
                     raise ValueError(f"Next round not found: {next_round_id}")
+                    
+                existing_next_matches = await session.execute(
+                    select(LeagueMatchModel).where(
+                        LeagueMatchModel.round_id == next_round_id
+                    )
+                )
+                if existing_next_matches.scalars().first():
+                    return "Next round matches already generated."
+                
+                match_query = await session.execute(
+                    select(LeagueMatchModel).where(
+                        LeagueMatchModel.round_id == current_round.round_id
+                    )
+                )
+                completed_matches = match_query.scalars().all()
+
+                unresolved = [m for m in completed_matches if not m.winner_team_id]
+                if unresolved:
+                    raise ValueError(f"Cannot progress: {len(unresolved)} matches in current round are unresolved.")
 
                 eligible_teams = await LeagueCategoryService.get_eligible_teams(
                     session, current_round.league_category_id
@@ -165,13 +200,14 @@ class LeagueMatchService:
                     current_round=current_round,
                     next_round=next_round,
                     matches=completed_matches,
-                    teams=eligible_teams
+                    teams=eligible_teams,
+                    auto_proceed=auto_proceed
                 )
-
+                session.add_all([progression.current_round,progression.next_round])
                 progression.finalize_progression_state()
 
                 next_matches = progression.generate_next_matches()
-
+                
                 session.add_all(progression.teams)
                 session.add_all(next_matches)
 
