@@ -1,5 +1,7 @@
 from __future__ import annotations
 from copy import deepcopy
+from datetime import datetime
+from sqlalchemy import inspect
 from typing import Any
 
 from src.utils.api_response import ApiException
@@ -66,3 +68,20 @@ class UpdatableMixin:
     #         safe_value = deepcopy(value) if isinstance(value, (dict, list)) else value
     #         setattr(self, key, safe_value)
 
+class SerializationMixin:
+    def to_dict(self, exclude: list = None) -> dict:
+        if exclude is None:
+            exclude = []
+            
+        columns = [c.key for c in inspect(self).mapper.column_attrs]
+        
+        data = {}
+        for col in columns:
+            if col not in exclude:
+                value = getattr(self, col)
+                # Convert datetime objects to ISO 8601 string format for JSON
+                if isinstance(value, datetime):
+                    data[col] = value.isoformat()
+                else:
+                    data[col] = value
+        return data

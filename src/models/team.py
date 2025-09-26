@@ -169,7 +169,7 @@ class LeagueTeamModel(Base, UpdatableMixin):
     final_rank: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     is_champion: Mapped[bool] = mapped_column(Boolean, default=False)
     finalized_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    eliminated_in_round_id: Mapped[Optional[str]] = mapped_column(ForeignKey("league_category_rounds_table.round_id"), nullable=True)
+    eliminated_in_round_id: Mapped[Optional[str]] = mapped_column(ForeignKey("league_category_rounds_table.round_id", ondelete="SET NULL"), nullable=True)
     
     group_label: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     

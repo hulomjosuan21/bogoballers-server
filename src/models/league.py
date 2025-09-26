@@ -154,6 +154,8 @@ class LeagueCategoryModel(Base, UpdatableMixin):
         order_by="LeagueCategoryRoundModel.round_order.asc()"
     )
     
+    position: Mapped[dict] = mapped_column(JSONB, nullable=True)
+    
     max_team: Mapped[int] = mapped_column(Integer, default=4, nullable=False)
     accept_teams: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 

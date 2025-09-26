@@ -90,6 +90,14 @@ class LeagueMatchModel(Base, UpdatableMixin):
     
     stage_number = mapped_column(Integer, nullable=True)
     
+    group_id: Mapped[Optional[str]] = mapped_column(
+        String,
+        ForeignKey("league_groups_table.group_id", ondelete="SET NULL"),
+        nullable=True
+    )
+    
+    position: Mapped[dict] = mapped_column(JSONB, nullable=True)
+    
     depends_on_match_ids: Mapped[List[str]] = mapped_column(ARRAY(String), default=[])
     is_placeholder: Mapped[bool] = mapped_column(Boolean, default=False)
     bracket_stage_label: Mapped[Optional[str]] = mapped_column(String, nullable=True)

@@ -35,7 +35,7 @@ class PaymongoClient:
                     "line_items": [
                         {
                             "name": description or "League Registration Fee",
-                            "amount": int(round(amount * 100)),  # ✅ correct
+                            "amount": int(round(amount * 100)),
                             "currency": currency,
                             "quantity": 1,
                         }
@@ -60,7 +60,6 @@ class PaymongoClient:
             return r.json()
 
     async def retrieve_checkout_session(self, session_id: str):
-        """Fetch checkout session to extract payment info"""
         url = f"{self.BASE_URL}/checkout_sessions/{session_id}"
         async with httpx.AsyncClient() as client:
             r = await client.get(url, headers=self.headers)

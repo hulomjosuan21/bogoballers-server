@@ -201,9 +201,7 @@ class MessageService:
             receiver_room = f"user:{receiver.user_id}"
             sender_room = f"user:{sender.user_id}"
             
-            # Emit to receiver
             await sio.emit("new_message", payload, room=receiver_room, namespace="/")
-            # Emit to sender (confirmation)
             await sio.emit("message_sent", payload, room=sender_room, namespace="/")
             
         except Exception as e:
@@ -227,7 +225,6 @@ class MessageService:
                 )
                 messages = result.scalars().all()
                 
-                # Enhanced message data with all necessary fields
                 messages_data = []
                 for msg in reversed(messages):
                     message_data = {
