@@ -15,7 +15,7 @@ class ManualLeagueManagementService:
         async with AsyncSession() as session:
             categories_result = await session.execute(
                 select(LeagueCategoryModel)
-                .where(LeagueCategoryModel.league_id == league_id)
+                .where(LeagueCategoryModel.league_id == league_id, LeagueCategoryModel.manage_automatic.is_(False))
             )
             rounds_result = await session.execute(
                 select(LeagueCategoryRoundModel)

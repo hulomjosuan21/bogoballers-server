@@ -49,15 +49,16 @@ class LeagueCategoryService:
         async with AsyncSession() as session:
             conditions = [LeagueCategoryModel.league_id == league_id]
             
-            result = await session.execute(
-                select(LeagueCategoryModel)
-                .options(
-                    joinedload(LeagueCategoryModel.rounds),
-                )
-                .where(*conditions)
-            )
+            
+            if data:
+                if data.get('condition') == "Automatic":
+                    conditions.append(LeagueCategoryModel.manage_automatic.is_(True))
+            
+            stmt = select(LeagueCategoryModel).where(*conditions)
+            
+            result = await session.execute(stmt)
 
-            categories = result.unique().scalars().all()
+            categories = result.scalars().all()
             return categories
 
     async def delet_one(self, league_category_id: str):

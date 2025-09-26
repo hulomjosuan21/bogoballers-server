@@ -1,3 +1,4 @@
+import traceback
 from quart import Blueprint, request
 from quart_auth import login_required
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -24,6 +25,7 @@ async def get_league_categories_route(league_id: str):
         result = await service.get_many(league_id, data)
         return await ApiResponse.payload([c.to_json() for c in result])
     except Exception as e:
+        traceback.print_exc()
         return await ApiResponse.error(e)
 
 @league_category_bp.delete("/<league_category_id>")

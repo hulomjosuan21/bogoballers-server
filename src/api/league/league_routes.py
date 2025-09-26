@@ -17,6 +17,16 @@ async def get_one_by_public_id(public_league_id: str):
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)
+    
+@league_bp.put('/<league_id>/update')
+async def update_one_route(league_id: str):
+    try:
+        data = await request.get_json()
+        result = await service.edit_one(league_id,data)
+        return await ApiResponse.success(message=result)        
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)
 
 @league_bp.get('/analytics/<league_id>')
 async def league_analytics_route(league_id: str):

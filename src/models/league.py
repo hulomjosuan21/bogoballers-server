@@ -156,6 +156,8 @@ class LeagueCategoryModel(Base, UpdatableMixin):
     
     position: Mapped[dict] = mapped_column(JSONB, nullable=True)
     
+    manage_automatic: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    
     max_team: Mapped[int] = mapped_column(Integer, default=4, nullable=False)
     accept_teams: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 

@@ -373,14 +373,24 @@ class LeagueService:
                 if not league_obj:
                     raise ApiException("No League found")
                 
-                league_obj.copy_with(**data)
+                processed_data = data.copy()
+                if 'registration_deadline' in processed_data and processed_data['registration_deadline']:
+                    processed_data['registration_deadline'] = datetime.fromisoformat(
+                        processed_data['registration_deadline'].replace('Z', '+00:00')
+                    )
+                if 'opening_date' in processed_data and processed_data['opening_date']:
+                    processed_data['opening_date'] = datetime.fromisoformat(
+                        processed_data['opening_date'].replace('Z', '+00:00')
+                    )
+                
+                league_obj.copy_with(**processed_data)
                 
                 await session.commit()
                 
                 return f"League {league_obj.league_title} edited successfully"
         except (IntegrityError, SQLAlchemyError) as e:
             await session.rollback()
-            raise e 
+            raise e
         
     async def delete_one(self, league_id: str):
         try:

@@ -89,6 +89,38 @@ class PlayerModel(Base, UpdatableMixin):
     )
     
     def to_json(self) -> dict:
+        
+        platform_points = (
+            (self.total_points_scored * 1.0) +          
+            # note: Core scoring ability: every point matters
+
+            (self.total_rebounds * 1.2) +               
+            # note: Rebounds keep possessions alive & stop opponents’ chances
+
+            (self.total_assists * 1.5) +                
+            # note: Playmaking is more than scoring — rewards teamwork
+
+            (self.total_steals * 3.0) +                 
+            # note: Steals create instant offense, rare & high impact
+
+            (self.total_blocks * 3.0) -                 
+            # note: Blocks shut down scoring attempts, game-changing plays
+
+            (self.total_turnovers * 2.0) +              
+            # ❌ Turnovers hurt the team directly, punish heavily
+
+            ((self.total_fg2_made / max(self.total_fg2_attempts, 1)) * 10) +  
+            # note: Reward 2PT shooting efficiency (smart scoring inside the arc)
+
+            ((self.total_fg3_made / max(self.total_fg3_attempts, 1)) * 15) +  
+            # note: 3PTs are harder & more valuable, efficiency rewarded higher
+
+            ((self.total_ft_made / max(self.total_ft_attempts, 1)) * 5)       
+            # note: Free throw consistency = clutch factor, rewarded moderately
+        )
+        
+        platform_points_per_game = platform_points / max(self.total_games_played, 1)
+        
         return {
             'player_id': self.player_id,
             'public_player_id': self.public_player_id,
@@ -119,6 +151,9 @@ class PlayerModel(Base, UpdatableMixin):
             'total_fg3_attempts': self.total_fg3_attempts,
             'total_ft_made': self.total_ft_made,
             'total_ft_attempts': self.total_ft_attempts,
+            
+            'platform_points': platform_points,
+            'platform_points_per_game': platform_points_per_game,
             
             'total_join_league': self.total_join_league,
             'is_ban': self.is_ban,
