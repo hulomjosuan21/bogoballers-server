@@ -1,9 +1,11 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import json
+import secrets
 from typing import List, Optional
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy import String, case, cast, func, or_, select, asc, desc
 from sqlalchemy.orm import joinedload, selectinload
+from src.services.mailer_service import MailerService
 from src.services.cloudinary_service import CloudinaryService
 from src.models.player import PlayerModel
 from src.models.user import UserModel
@@ -13,6 +15,88 @@ from src.utils.server_utils import validate_required_fields
 import traceback
 
 class PlayerService:
+    async def create_one(self, form_data: dict, file, base_url: str):
+        required_fields = [
+            "email", "contact_number", "password_str",
+            "full_name", "gender", "birth_date",
+            "player_address", "jersey_name", "jersey_number",
+            "position"
+        ]
+
+        validate_required_fields(form_data,required_fields)
+        if not file:
+            raise ApiException("Missing profile image", 400)
+        email = form_data.get("email")
+        contact_number = form_data.get("contact_number")
+        password = form_data.get("password_str")
+        account_type = "Player"
+        fcm_token = form_data.get("fcm_token", None)
+
+        full_name = form_data.get("full_name")
+        gender = form_data.get("gender")
+        birth_date = datetime.fromisoformat(form_data["birth_date"]).date()
+        player_address = form_data.get("player_address")
+        jersey_name = form_data.get("jersey_name")
+        jersey_number = float(form_data["jersey_number"])
+        
+        position_raw = form_data.get("position")
+        if not position_raw:
+            raise ApiException("Missing 'position' field", 400)
+
+        try:
+            position = json.loads(position_raw)
+            if not isinstance(position, list):
+                raise ValueError("Position must be a list")
+        except (json.JSONDecodeError, ValueError) as e:
+            raise ApiException(f"Invalid 'position': {str(e)}", 400)
+
+        try:
+            async with AsyncSession() as session:
+                user = UserModel(
+                    email=email,
+                    contact_number=contact_number,
+                    account_type=account_type,
+                    is_verified=False,
+                    fcm_token=fcm_token
+                )
+                user.set_password(password)
+                
+                token = secrets.token_urlsafe(32)
+                user.verification_token = token
+                user.verification_token_created_at = datetime.now(timezone.utc)
+                
+                session.add(user)
+                await session.commit()
+                await session.refresh(user)
+
+                profile_image_url = await CloudinaryService.upload_file(file, folder=settings["player_profiles_folder"])
+
+                player = PlayerModel(
+                    user_id=user.user_id,
+                    full_name=full_name,
+                    gender=gender,
+                    birth_date=birth_date,
+                    player_address=player_address,
+                    jersey_name=jersey_name,
+                    jersey_number=jersey_number,
+                    position=position,
+                    profile_image_url=profile_image_url,
+                )
+                session.add(player)
+                await session.commit()
+                
+                verify_url = f"{base_url}/verification/verify-email?token={token}&uid={user.user_id}"
+                
+                subject = "Verify your Basketball League account"
+                body = f"Hi {full_name},\n\nClick the link below to verify your account:\n{verify_url}\n\nThis link expires in 24 hours."
+                await MailerService.send_email(to=email, subject=subject, body=body)
+
+                return 'Check your email to verify your account'
+
+        except (IntegrityError, SQLAlchemyError) as e:
+            await session.rollback()
+            raise e
+    
     async def get_all_players(self):
         async with AsyncSession() as session:
             query = select(PlayerModel).options(selectinload(PlayerModel.user))
@@ -136,73 +220,6 @@ class PlayerService:
                 await session.commit()
 
                 return f"{len(new_players)} players successfully created"
-
-        except (IntegrityError, SQLAlchemyError) as e:
-            await session.rollback()
-            raise e
-        
-    async def create_one(self, form_data: dict, file):
-        required_fields = [
-            "email", "contact_number", "password_str",
-            "full_name", "gender", "birth_date",
-            "player_address", "jersey_name", "jersey_number",
-            "position"
-        ]
-
-        validate_required_fields(form_data,required_fields)
-        if not file:
-            raise ApiException("Missing profile image", 400)
-        email = form_data.get("email")
-        contact_number = form_data.get("contact_number")
-        password = form_data.get("password_str")
-        account_type = "Player"
-        fcm_token = form_data.get("fcm_token", None)
-
-        full_name = form_data.get("full_name")
-        gender = form_data.get("gender")
-        birth_date = datetime.fromisoformat(form_data["birth_date"]).date()
-        player_address = form_data.get("player_address")
-        jersey_name = form_data.get("jersey_name")
-        jersey_number = float(form_data["jersey_number"])
-        
-        try:
-            position = json.loads(form_data.get("position"))
-            if not isinstance(position, list):
-                raise ValueError("Position must be a list")
-        except (json.JSONDecodeError, ValueError) as e:
-            raise ApiException(f": {str(e)}", 400)
-
-        try:
-            async with AsyncSession() as session:
-                user = UserModel(
-                    email=email,
-                    contact_number=contact_number,
-                    account_type=account_type,
-                    is_verified=True,
-                    fcm_token=fcm_token
-                )
-                user.set_password(password)
-                session.add(user)
-                await session.commit()
-                await session.refresh(user)
-
-                profile_image_url = await CloudinaryService.upload_file(file, folder=settings["player_profiles_folder"])
-
-                player = PlayerModel(
-                    user_id=user.user_id,
-                    full_name=full_name,
-                    gender=gender,
-                    birth_date=birth_date,
-                    player_address=player_address,
-                    jersey_name=jersey_name,
-                    jersey_number=jersey_number,
-                    position=position,
-                    profile_image_url=profile_image_url,
-                )
-                session.add(player)
-                await session.commit()
-
-                return 'Register successfully'
 
         except (IntegrityError, SQLAlchemyError) as e:
             await session.rollback()

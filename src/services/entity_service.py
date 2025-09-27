@@ -176,6 +176,9 @@ class EntityService():
 
             if not user or not user.verify_password(password):
                 raise ApiException("Invalid email or password")
+            
+            if not user.is_verified:
+                raise ApiException("Please verify your email before logging in.")
 
             auth_user = AuthUser(user)
             login_user(auth_user)

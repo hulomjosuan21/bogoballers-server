@@ -35,6 +35,7 @@ class UserModel(Base):
 
     fcm_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
+    verification_token: Mapped[str | None] = mapped_column(String(255), nullable=True)
     verification_token_created_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user_created_at: Mapped[DateTime] = CreatedAt()

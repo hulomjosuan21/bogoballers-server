@@ -1,3 +1,4 @@
+import traceback
 from typing import Optional
 from quart import Blueprint, request
 from quart_auth import current_user, login_required
@@ -14,9 +15,12 @@ async def create_one_route():
         form = await request.form
         file = (await request.files).get("profile_image")
         
-        result = await service.create_one(form, file)
+        base_url = f"{request.scheme}://{request.host}"
+        
+        result = await service.create_one(form, file, base_url)
         return await ApiResponse.success(message=result)
     except Exception as e:
+        traceback.print_exc()
         return await ApiResponse.error(e)
     
 @player_bp.post('/create-many')
