@@ -24,6 +24,7 @@ class LeagueGroupModel(Base, SerializationMixin):
         nullable=False
     )
     
+    round_name: Mapped[str] = mapped_column(String, nullable=False)
     display_name: Mapped[str] = mapped_column(String, nullable=False)
     
     position: Mapped[dict] = mapped_column(JSONB, nullable=True)

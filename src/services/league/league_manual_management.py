@@ -1,5 +1,6 @@
 import uuid
 from sqlalchemy import select, delete
+from src.models.team import LeagueTeamModel
 from src.models.edge import LeagueFlowEdgeModel
 from src.models.group import LeagueGroupModel
 from src.models.league import LeagueCategoryModel, LeagueCategoryRoundModel
@@ -8,34 +9,18 @@ from src.extensions import AsyncSession
 
 class ManualLeagueManagementService:
     async def get_flow_state(self, league_id: str) -> dict:
-        """
-        Fetches all nodes and edges for a given league and transforms them
-        into the format expected by React Flow.
-        """
         async with AsyncSession() as session:
             categories_result = await session.execute(
-                select(LeagueCategoryModel)
-                .where(LeagueCategoryModel.league_id == league_id, LeagueCategoryModel.manage_automatic.is_(False))
+                select(LeagueCategoryModel).where(
+                    LeagueCategoryModel.league_id == league_id, 
+                    LeagueCategoryModel.manage_automatic.is_(False)
+                )
             )
-            rounds_result = await session.execute(
-                select(LeagueCategoryRoundModel)
-                .join(LeagueCategoryModel)
-                .where(LeagueCategoryModel.league_id == league_id)
-            )
-            groups_result = await session.execute(
-                select(LeagueGroupModel)
-                .join(LeagueCategoryRoundModel)
-                .join(LeagueCategoryModel)
-                .where(LeagueCategoryModel.league_id == league_id)
-            )
-            matches_result = await session.execute(
-                select(LeagueMatchModel)
-                .where(LeagueMatchModel.league_id == league_id)
-            )
-            edges_result = await session.execute(
-                select(LeagueFlowEdgeModel)
-                .where(LeagueFlowEdgeModel.league_id == league_id)
-            )
+            rounds_result = await session.execute(select(LeagueCategoryRoundModel).join(LeagueCategoryModel).where(LeagueCategoryModel.league_id == league_id))
+            groups_result = await session.execute(select(LeagueGroupModel).join(LeagueCategoryRoundModel).join(LeagueCategoryModel).where(LeagueCategoryModel.league_id == league_id))
+            matches_result = await session.execute(select(LeagueMatchModel).where(LeagueMatchModel.league_id == league_id))
+            edges_result = await session.execute(select(LeagueFlowEdgeModel).where(LeagueFlowEdgeModel.league_id == league_id))
+            
             
             categories = categories_result.scalars().all()
             rounds = rounds_result.scalars().all()
@@ -65,15 +50,16 @@ class ManualLeagueManagementService:
                 nodes.append({
                     "id": r.round_id,
                     "type": "leagueCategoryRound",
-                    "position": r.position or {"x": 250, "y": 50},
+                    "position": r.position or {"x": 300, "y": 50},
                     "data": { "type": "league_category_round", "league_category_round": r.round_name, "round": r.to_json() }
                 })
             
             for group in groups:
-                 nodes.append({
+                nodes.append({
                     "id": group.group_id,
                     "type": "group",
-                    "position": group.position or {"x": 450, "y": 50},
+                    "position": group.position or {"x": 550, "y": 50},
+                    # Changed to .to_json() for consistency
                     "data": { "type": "group", "group": group.to_dict() }
                 })
 
@@ -81,7 +67,7 @@ class ManualLeagueManagementService:
                 nodes.append({
                     "id": match.league_match_id,
                     "type": "leagueMatch",
-                    "position": match.position or {"x": 650, "y": 50},
+                    "position": match.position or {"x": 800, "y": 50},
                     "data": { "type": "league_match", "league_match": match.to_json() }
                 })
             
@@ -94,8 +80,10 @@ class ManualLeagueManagementService:
                     "sourceHandle": edge.source_handle,
                     "targetHandle": edge.target_handle
                 })
-
-            return {"nodes": nodes, "edges": edges}
+                
+            
+            final_response = {"nodes": nodes, "edges": edges}
+            return final_response
 
     async def create_new_round(self, league_category_id: str, round_name: str, round_order: int, position: dict) -> dict:
         async with AsyncSession() as session:
@@ -111,7 +99,19 @@ class ManualLeagueManagementService:
             await session.refresh(new_round)
             return new_round.to_json()
 
-    async def create_empty_match(self, league_id: str, league_category_id: str, round_id: str, display_name: str, position: dict) -> dict:
+    async def create_empty_match(
+        self, 
+        league_id: str, 
+        league_category_id: str, 
+        round_id: str, 
+        display_name: str, 
+        position: dict,
+        is_final: bool,
+        group_id: str | None,
+        is_runner_up: bool,
+        is_elimination: bool,
+        is_third_place: bool
+    ) -> dict:
         async with AsyncSession() as session:
             new_match = LeagueMatchModel(
                 league_id=league_id,
@@ -119,19 +119,24 @@ class ManualLeagueManagementService:
                 round_id=round_id,
                 display_name=display_name,
                 position=position,
+                group_id=group_id,
+                is_final=is_final,
+                is_runner_up=is_runner_up,
+                is_elimination=is_elimination,
+                is_third_place=is_third_place,
                 pairing_method="manual",
-                status="Unscheduled"
             )
             session.add(new_match)
             await session.commit()
             await session.refresh(new_match)
             return new_match.to_json()
 
-    async def create_group(self, league_category_id, round_id: str, display_name: str, position: dict) -> dict:
+    async def create_group(self, league_category_id, round_id: str, round_name: str, display_name: str, position: dict) -> dict:
         async with AsyncSession() as session:
             new_group = LeagueGroupModel(
                 league_category_id=league_category_id,
                 round_id=round_id,
+                round_name=round_name,
                 display_name=display_name,
                 position=position
             )
@@ -263,7 +268,7 @@ class ManualLeagueManagementService:
         
     async def reset_category_layout(self, category_id: str) -> bool:
     
-        async with AsyncSession() as session, session.begin(): # session.begin() ensures this is a transaction
+        async with AsyncSession() as session, session.begin():
             category = await session.get(LeagueCategoryModel, category_id)
             if not category:
                 return False
@@ -299,18 +304,14 @@ class ManualLeagueManagementService:
             await session.execute(edges_delete_stmt)
             
             return True
-        
+
     async def synchronize_bracket(self, league_id: str) -> dict:
-    
         async with AsyncSession() as session, session.begin():
             resolved_matches_stmt = select(LeagueMatchModel).where(
                 LeagueMatchModel.league_id == league_id,
                 LeagueMatchModel.winner_team_id.isnot(None)
             )
-            edges_stmt = select(LeagueFlowEdgeModel).where(
-                LeagueFlowEdgeModel.league_id == league_id
-            )
-
+            edges_stmt = select(LeagueFlowEdgeModel).where(LeagueFlowEdgeModel.league_id == league_id)
             resolved_matches = (await session.execute(resolved_matches_stmt)).scalars().all()
             edges = (await session.execute(edges_stmt)).scalars().all()
 
@@ -321,6 +322,8 @@ class ManualLeagueManagementService:
                 edge_map[edge.source_node_id].append(edge)
 
             progressed_teams_count = 0
+            eliminated_teams_count = 0
+            ranked_teams_count = 0
             
             for match in resolved_matches:
                 outgoing_edges = edge_map.get(match.league_match_id, [])
@@ -340,6 +343,40 @@ class ManualLeagueManagementService:
                             elif next_match.away_team_id is None:
                                 next_match.away_team_id = team_to_progress
                                 progressed_teams_count += 1
+                
+                winner_id = match.winner_team_id
+                loser_id = match.loser_team_id
+
+                if match.is_elimination and loser_id:
+                    loser_team = await session.get(LeagueTeamModel, loser_id)
+                    if loser_team and not loser_team.is_eliminated:
+                        loser_team.is_eliminated = True
+                        loser_team.eliminated_in_round_id = match.round_id
+                        eliminated_teams_count += 1
+                
+                if match.is_final and winner_id and loser_id:
+                    champion_team = await session.get(LeagueTeamModel, winner_id)
+                    if champion_team:
+                        champion_team.is_champion = True
+                        champion_team.final_rank = 1
+                        ranked_teams_count += 1
+                    
+                    runner_up_team = await session.get(LeagueTeamModel, loser_id)
+                    if runner_up_team:
+                        runner_up_team.final_rank = 2
+                        ranked_teams_count += 1
+
+                elif match.is_third_place and winner_id and loser_id:
+                    third_place_team = await session.get(LeagueTeamModel, winner_id)
+                    if third_place_team:
+                        third_place_team.final_rank = 3
+                        ranked_teams_count += 1
+                    
+                    fourth_place_team = await session.get(LeagueTeamModel, loser_id)
+                    if fourth_place_team:
+                        fourth_place_team.final_rank = 4
+                        ranked_teams_count += 1
             
             await session.commit()
+           
             return {"teams_progressed": progressed_teams_count}

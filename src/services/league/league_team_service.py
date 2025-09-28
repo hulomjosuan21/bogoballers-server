@@ -45,6 +45,12 @@ class LeagueTeamService:
         return (
             select(LeagueTeamModel)
             .options(
+                selectinload(
+                    LeagueTeamModel.league_players.and_(
+                        (LeaguePlayerModel.is_ban_in_league == False) &
+                        (LeaguePlayerModel.is_allowed_in_league == True)
+                    )
+                ),
                 selectinload(LeagueTeamModel.team).selectinload(TeamModel.user),
             )
         )
@@ -105,7 +111,6 @@ class LeagueTeamService:
             elif data and data.get("condition") == "NotEliminated":
                 conditions.extend([
                     LeagueTeamModel.status == "Accepted",
-                    LeagueTeamModel.payment_status != "Pending",
                     LeagueTeamModel.is_eliminated.is_not(True)
                 ])
 

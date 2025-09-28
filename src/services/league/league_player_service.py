@@ -4,7 +4,7 @@ from src.models.team import LeagueTeamModel, TeamModel
 from src.models.player import LeaguePlayerModel, PlayerModel, PlayerTeamModel
 from src.extensions import AsyncSession
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
 
 from src.utils.api_response import ApiException
 
@@ -41,14 +41,19 @@ class LeaguePlayerService:
         async with AsyncSession() as session:
             conditions = [LeaguePlayerModel.league_id == league_id]
             
-            if data and data.get('condition'):
-                ...
+            if data:
+                condition = data.get('condition')
+                if condition == 'Accepted':
+                    conditions.extend([
+                        LeaguePlayerModel.is_ban_in_league.is_(False),
+                        LeaguePlayerModel.is_allowed_in_league.is_(True)
+                    ])
             
             stmt = (
                 select(LeaguePlayerModel)
                 .options(
-                    
-                ).where(*conditions)
+                    joinedload(LeaguePlayerModel.league_team).joinedload(LeagueTeamModel.team)
+                ).where(*conditions).order_by(LeaguePlayerModel.league_team_id)
             )
             
             result = await session.execute(stmt)

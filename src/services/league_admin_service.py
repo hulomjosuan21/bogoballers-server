@@ -1,6 +1,8 @@
+import secrets
 from typing import List
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from src.services.mailer_service import MailerService
 from src.services.league.league_service import LeagueService
 from src.services.cloudinary_service import CloudinaryService
 from src.extensions import AsyncSession
@@ -9,7 +11,6 @@ from src.models.user import UserModel
 from src.utils.api_response import ApiException
 from datetime import datetime, timezone
 from src.extensions import settings
-from sqlalchemy.orm import joinedload, selectinload
 
 class LeagueAdministratorService:
     async def get_many(self) -> List[dict]:
@@ -143,39 +144,48 @@ class LeagueAdministratorService:
 
             return league_admin.to_json()
 
-    async def create_one(self, email: str, password_str: str, contact_number: str, 
-                    organization_type: str, organization_name: str, organization_address: str,
-                    file=None, organization_logo_str: str = None):
-        user = UserModel(
-            email=email,
-            contact_number=contact_number,
-            account_type="League_Administrator_Local",
-            verification_token_created_at=datetime.now(timezone.utc),
-            is_verified=True
-        )
-        user.set_password(password_str)
-        
+    async def create_one(self, base_url: str, form: dict, organization_logo):
         async with AsyncSession() as session:
             try:
+                email = form.get('email')
+                password_str = form.get('password_str')
+                user = UserModel(
+                    email=email,
+                    contact_number=form.get('contact_number'),
+                    account_type="League_Administrator_Local",
+                    is_verified=False
+                )
+                user.set_password(password_str)
+                
+                token = secrets.token_urlsafe(32)
+                user.verification_token = token
+                user.verification_token_created_at = datetime.now(timezone.utc)
+                
                 session.add(user)
                 await session.flush()
+                
+                verify_url = f"{base_url}/verification/verify-email?token={token}&uid={user.user_id}"
+                
+                organization_name = form.get('organization_name')
 
                 league_admin = LeagueAdministratorModel(
                     user_id=user.user_id,
-                    organization_type=organization_type,
+                    organization_type=form.get('organization_type'),
                     organization_name=organization_name,
-                    organization_address=organization_address,
+                    organization_address=form.get('organization_address'),
                     organization_logo_url=None
                 )
                 session.add(league_admin)
                 await session.commit()
 
                 organization_logo_url = None
+                organization_logo_str = form.get('organization_logo_str')
+                
 
-                if file:
+                if organization_logo:
                     try:
                         organization_logo_url = await CloudinaryService.upload_file(
-                            file=file,
+                            file=organization_logo,
                             folder=settings['league_admin_organization_logo_folder']
                         )
                     except Exception as e:
@@ -190,8 +200,12 @@ class LeagueAdministratorService:
                         if result:
                             result.organization_logo_url = organization_logo_url
                             await session.commit()
+                            
+                subject = "Verify your Basketball League account"
+                body = f"Welcome {organization_name},\n\nClick the link below to verify your account:\n{verify_url}\n\nThis link expires in 24 hours."
+                await MailerService.send_email(to=email, subject=subject, body=body)
 
-                return "League Administrator registered successfully. Please check your email for verification."
+                return "Check your email to verify your account"
             except (IntegrityError, SQLAlchemyError):
                 await session.rollback()
-                raise ApiException("Email already registered or league admin already exists.",409)
+                raise

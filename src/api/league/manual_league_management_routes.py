@@ -41,7 +41,12 @@ async def create_match_route():
             league_category_id=data.get("league_category_id"),
             round_id=data.get("round_id"),
             display_name=data.get("display_name"),
-            position=data.get("position")
+            position=data.get("position"),
+            group_id=data.get('group_id', None),
+            is_elimination=data.get("is_elimination", False),
+            is_third_place=data.get("is_third_place", False),
+            is_runner_up=data.get("is_runner_up", False),
+            is_final=data.get("is_final", False),
         )
         return await ApiResponse.payload(new_match)
     except Exception as e:
@@ -55,6 +60,7 @@ async def create_group_route():
         new_group = await service.create_group(
             league_category_id=data.get("league_category_id"),
             round_id=data.get("round_id"),
+            round_name=data.get("round_name"),
             display_name=data.get("display_name"),
             position=data.get("position")
         )

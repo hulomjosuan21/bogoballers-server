@@ -289,6 +289,7 @@ class LeaguePlayerModel(Base, UpdatableMixin):
             'league_category_id': self.league_category_id,
             'league_team_id': self.league_team_id,
             'total_points': self.total_points,
+            'league_team': self.league_team.to_json(include_players=False) if self.league_team else None,
             'is_ban_in_league': self.is_ban_in_league,
             'is_allowed_in_league': self.is_allowed_in_league,
             **self.player_team.to_json(),

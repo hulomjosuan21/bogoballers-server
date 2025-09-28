@@ -124,6 +124,16 @@ class LeagueModel(Base, UpdatableMixin):
             'league_categories': [c.to_json() for c in self.categories]
         }
 
+
+league_category_status_enum = SqlEnum(
+    "Close",
+    "Open",
+    "Ongoing",
+    "Completed",
+    name="league_category_status_enum",
+    create_type=True
+)
+
 class LeagueCategoryModel(Base, UpdatableMixin):
     __tablename__ = "league_categories_table"
 
@@ -156,6 +166,8 @@ class LeagueCategoryModel(Base, UpdatableMixin):
     
     position: Mapped[dict] = mapped_column(JSONB, nullable=True)
     
+    league_category_status: Mapped[Optional[str]] = mapped_column(league_category_status_enum, default="Close", nullable=False)
+    
     manage_automatic: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     
     max_team: Mapped[int] = mapped_column(Integer, default=4, nullable=False)
@@ -170,6 +182,8 @@ class LeagueCategoryModel(Base, UpdatableMixin):
             'league_category_id': self.league_category_id,
             'league_id': self.league_id,
             'max_team': self.max_team,
+            'league_category_status': self.league_category_status,
+            'manage_automatic': self.manage_automatic,
             'accept_teams': self.accept_teams,
             'league_category_created_at': self.league_category_created_at.isoformat(),
             'league_category_updated_at': self.league_category_updated_at.isoformat(),

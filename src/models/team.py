@@ -185,8 +185,8 @@ class LeagueTeamModel(Base, UpdatableMixin):
         lazy="selectin"
     )
     
-    def to_json(self) -> dict:
-        return {
+    def to_json(self, include_players: bool = True) -> dict:
+        data = {
             'league_team_id': self.league_team_id,
             'league_team_public_id': self.league_team_public_id,
             'league_id': self.league_id,
@@ -206,8 +206,12 @@ class LeagueTeamModel(Base, UpdatableMixin):
             'league_team_created_at': self.league_team_created_at.isoformat(),
             'league_team_updated_at': self.league_team_updated_at.isoformat(),
             **self.team.to_json(),
-            'league_players': [player.to_json() for player in self.league_players],
         }
+
+        if include_players:
+            data['league_players'] = [player.to_json() for player in self.league_players]
+
+        return data
 
 _current_module = globals()
 __all__ = [

@@ -288,16 +288,27 @@ class EntityService():
                     case _:
                         raise ValueError(f"No match for account_type: {account_type}")
 
-                if old_url and isinstance(file_or_url, FileStorage):
-                    try:
-                        await CloudinaryService.delete_file_by_url(old_url)
-                    except Exception:
-                        pass
+                new_url = None
 
                 if isinstance(file_or_url, FileStorage):
+                    # if old was from cloudinary → delete
+                    if old_url and CloudinaryService.is_cloudinary_url(old_url):
+                        try:
+                            await CloudinaryService.delete_file_by_url(old_url)
+                        except Exception:
+                            pass
+
                     new_url = await CloudinaryService.upload_file(file=file_or_url, folder=folder)
+
                 elif isinstance(file_or_url, str):
+                    if old_url and CloudinaryService.is_cloudinary_url(old_url):
+                        try:
+                            await CloudinaryService.delete_file_by_url(old_url)
+                        except Exception:
+                            pass
+
                     new_url = file_or_url
+
                 else:
                     raise ValueError("Invalid file_or_url type")
 

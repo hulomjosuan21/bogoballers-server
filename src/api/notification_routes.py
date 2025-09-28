@@ -18,3 +18,13 @@ async def send_notif_route():
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)
+    
+@notification_bp.delete('/delete/<nofification_id>')
+async def delete_one_router(nofification_id: str):
+    try:
+        result = await service.delete_one(nofification_id)
+        
+        return await ApiResponse.success(message=result)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)

@@ -69,15 +69,18 @@ class LeagueMatchModel(Base, UpdatableMixin):
     loser_next_match_slot: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     round_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    bracket_side: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    bracket_position: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # bracket_side: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # bracket_position: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     pairing_method: Mapped[str] = mapped_column(String, nullable=False, default="random")
     generated_by: Mapped[str] = mapped_column(String, nullable=False, default="system")
     generated_by: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     display_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     is_final: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_runner_up: Mapped[bool] = mapped_column(Boolean, default=False)
     is_third_place: Mapped[bool] = mapped_column(Boolean, default=False)
+    
+    is_elimination: Mapped[bool] = mapped_column(Boolean, default=False)
 
     status: Mapped[str] = mapped_column(match_status_enum, nullable=False, default="Unscheduled")
     
@@ -151,6 +154,8 @@ class LeagueMatchModel(Base, UpdatableMixin):
             "winner_team_id": wrap_str(self.winner_team_id),
             "loser_team_id": wrap_str(self.loser_team_id),
 
+            "group_id": wrap_str(self.group_id),
+            
             "scheduled_date": wrap_datetime(self.scheduled_date),
             "quarters": wrap_int(self.quarters),
             "minutes_per_quarter": wrap_int(self.minutes_per_quarter),
@@ -166,14 +171,14 @@ class LeagueMatchModel(Base, UpdatableMixin):
             "loser_next_match_slot": wrap_str(self.loser_next_match_slot),
 
             "round_number": wrap_int(self.round_number),
-            "bracket_side": wrap_str(self.bracket_side),
-            "bracket_position": wrap_str(self.bracket_position),
             "pairing_method": wrap_str(self.pairing_method),
             "generated_by": wrap_str(self.generated_by),
             "display_name": wrap_str(self.display_name),
 
             "is_final": wrap_bool(self.is_final),
             "is_third_place": wrap_bool(self.is_third_place),
+            "is_runner_up": wrap_bool(self.is_runner_up),
+            "is_elimination": wrap_bool(self.is_elimination),
             "status": wrap_str(self.status),
             "league": self.league.to_json(),
 

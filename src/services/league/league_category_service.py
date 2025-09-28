@@ -1,7 +1,8 @@
-from typing import List
+from typing import Dict, List
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
+from src.models.match import LeagueMatchModel
 from src.models.team import LeagueTeamModel
 from src.extensions import AsyncSession
 from src.models.league import LeagueCategoryModel
@@ -53,6 +54,8 @@ class LeagueCategoryService:
             if data:
                 if data.get('condition') == "Automatic":
                     conditions.append(LeagueCategoryModel.manage_automatic.is_(True))
+                if data.get('condition') == "Manual":
+                    conditions.append(LeagueCategoryModel.manage_automatic.is_(False))
             
             stmt = select(LeagueCategoryModel).where(*conditions)
             
@@ -88,6 +91,37 @@ class LeagueCategoryService:
                 await session.commit()
                 
                 return "Update success"
+            except (IntegrityError, SQLAlchemyError) as e:
+                await session.rollback()
+                raise e
+            
+    async def edit_many(self, updates: List[Dict]):
+        async with AsyncSession() as session:
+            try:
+                for update in updates:
+                    league_category_id = update.pop("league_category_id", None)
+                    if not league_category_id:
+                        continue
+                    
+                    category = await session.get(LeagueCategoryModel, league_category_id)
+                    if not category:
+                        continue 
+
+                    result = await session.execute(
+                        select(LeagueMatchModel)
+                        .where(LeagueMatchModel.league_category_id == league_category_id)
+                    )
+                    started_matches = result.scalars().all()
+
+                    for key, value in update.items():
+                        if started_matches and key in ["max_team", "manage_automatic"]:
+                            raise ApiException(f"Cannot update because matches have already started")
+                        
+                        setattr(category, key, value)
+
+                await session.commit()
+                return f"Changes {len(updates)}"
+
             except (IntegrityError, SQLAlchemyError) as e:
                 await session.rollback()
                 raise e

@@ -8,7 +8,7 @@ league_bp = Blueprint("league", __name__, url_prefix="/league")
 
 service = LeagueService()
 
-@league_bp.post('/<public_league_id>/view')
+@league_bp.post('/<public_league_id>/public-view')
 async def get_one_by_public_id(public_league_id: str):
     try:
         data = await request.get_json()
@@ -22,6 +22,8 @@ async def get_one_by_public_id(public_league_id: str):
 async def update_one_route(league_id: str):
     try:
         data = await request.get_json()
+        if not data:
+            return await ApiResponse.success(message="No changes")
         result = await service.edit_one(league_id,data)
         return await ApiResponse.success(message=result)        
     except Exception as e:

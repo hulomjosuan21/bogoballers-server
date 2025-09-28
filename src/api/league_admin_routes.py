@@ -89,28 +89,13 @@ async def create_route():
     try:
         form = await request.form
         files = await request.files
-        file = files.get("organization_logo")
+        base_url = f"{request.scheme}://{request.host}"
+        organization_logo = files.get("organization_logo")
         
-        try:
-            email = form["email"]
-            password_str = form["password_str"]
-            contact_number = form["contact_number"]
-            organization_type = form["organization_type"]
-            organization_name = form["organization_name"]
-            organization_address = form["organization_address"]
-            organization_logo_str = form.get("organization_logo")
-        except KeyError as e:
-             raise ApiException(f"Missing field: {str(e)}")
-
         result = await service.create_one(
-            email=email,
-            password_str=password_str,
-            contact_number=contact_number,
-            organization_type=organization_type,
-            organization_name=organization_name,
-            organization_address=organization_address,
-            file=file,
-            organization_logo_str=organization_logo_str
+            base_url=base_url,
+            form=form,
+            organization_logo=organization_logo,
         )
 
         return await ApiResponse.success(

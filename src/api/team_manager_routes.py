@@ -13,8 +13,9 @@ service = TeamManagerService()
 async def create_route():
     try:
         data = await request.get_json()
+        base_url = f"{request.scheme}://{request.host}"
         validate_required_fields(data, ["email","password_str","contact_number","display_name"])
-        result = await service.create_one(data)
+        result = await service.create_one(base_url, data)
         return await ApiResponse.success(message=result, status_code=201)
     except Exception as e:
         traceback.print_exc()

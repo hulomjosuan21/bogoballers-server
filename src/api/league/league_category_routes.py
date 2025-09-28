@@ -44,3 +44,12 @@ async def update_league_category_route(league_category_id: str):
         return await ApiResponse.success(message=result)
     except Exception as e:
         return await ApiResponse.error(e)
+    
+@league_category_bp.put('/edit-many')
+async def update_many_route():
+    try:
+        data = await request.get_json()
+        result = await service.edit_many( data)
+        return await ApiResponse.success(message=result)
+    except Exception as e:
+        return await ApiResponse.error(e)

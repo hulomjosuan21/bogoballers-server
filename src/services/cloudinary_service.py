@@ -37,20 +37,25 @@ class CloudinaryService:
     }
 
     @staticmethod
-    async def upload_file(file: FileStorage, folder: str = None, resource_type: str = "auto") -> str:
-        folder = folder or CloudinaryService.DEFAULT_FOLDER
-
+    def extract_public_id(url: str) -> str | None:
         try:
-            response = await asyncio.to_thread(
-                cloudinary.uploader.upload,
-                file.stream,
-                folder=folder,
-                resource_type=resource_type
-            )
-            return response["secure_url"]
-        except Exception as e:
-            raise CloudinaryException(f"Upload failed")
-
+            path = urlparse(url).path 
+            parts = path.split("/")
+            if "upload" in parts:
+                upload_index = parts.index("upload")
+                public_id_parts = parts[upload_index + 2 :]
+                public_id = "/".join(public_id_parts)
+                if "." in public_id: 
+                    public_id = ".".join(public_id.split(".")[:-1])
+                return public_id.strip("/")
+        except Exception:
+            return None
+        return None
+    
+    @staticmethod
+    def is_cloudinary_url(url: str) -> bool:
+        return "res.cloudinary.com" in url
+    
     @staticmethod
     async def delete_file_by_url(file_url: str) -> bool:
         try:
@@ -115,15 +120,32 @@ class CloudinaryService:
 
         except Exception as e:
             raise CloudinaryException(f"Fetch folder URLs failed: {str(e)}")
-        
 
     @staticmethod
-    async def upload_file(file: FileStorage, folder: str = None, resource_type: str = "auto") -> str:
+    async def upload_file(
+        file: FileStorage,
+        folder: str = None,
+        resource_type: str = "auto",
+        public_id: str = None,
+        overwrite: bool = False,
+    ) -> str:
         folder = folder or CloudinaryService.DEFAULT_FOLDER
-        response = await asyncio.to_thread(
-            cloudinary.uploader.upload,
-            file.stream,
-            folder=folder,
-            resource_type=resource_type,
-        )
-        return response["secure_url"]
+
+        options = {
+            "folder": folder,
+            "resource_type": resource_type,
+        }
+        if public_id:
+            options["public_id"] = public_id
+        if overwrite:
+            options["overwrite"] = True
+
+        try:
+            response = await asyncio.to_thread(
+                cloudinary.uploader.upload,
+                file.stream,
+                **options
+            )
+            return response["secure_url"]
+        except Exception:
+            raise CloudinaryException("Upload failed")
