@@ -170,4 +170,3 @@ class RegisterLeagueService:
                 await session.refresh(league_team)
 
             return refund
-        
