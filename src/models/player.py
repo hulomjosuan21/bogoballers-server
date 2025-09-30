@@ -9,10 +9,11 @@ if TYPE_CHECKING:
     from src.models.league import LeagueTeamModel, LeagueModel
     
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, Boolean, Float, Integer, Date, ForeignKey, Enum as SqlEnum, Text, UniqueConstraint
+from sqlalchemy import String, Boolean, Float, Integer, Date, ForeignKey, Enum as SqlEnum, Text, UniqueConstraint, case, cast
 from sqlalchemy.dialects.postgresql import JSONB
 import inspect
-from datetime import date, datetime
+from sqlalchemy.ext.hybrid import hybrid_property
+from datetime import  datetime
 from src.extensions import Base
 from src.utils.db_utils import CreatedAt, PublicIDGenerator, UpdatedAt, UUIDGenerator
 from src.utils.mixins import UpdatableMixin
@@ -52,6 +53,7 @@ class PlayerModel(Base, UpdatableMixin):
     weight_kg: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
 
     total_games_played: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_join_league: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     total_points_scored: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     total_assists: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     total_rebounds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -67,7 +69,6 @@ class PlayerModel(Base, UpdatableMixin):
     total_ft_made:       Mapped[int]   = mapped_column(Integer, default=0, nullable=False)
     total_ft_attempts:   Mapped[int]   = mapped_column(Integer, default=0, nullable=False)
     
-    total_join_league: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     is_ban: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_allowed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -82,44 +83,80 @@ class PlayerModel(Base, UpdatableMixin):
         back_populates="player",
         lazy="selectin"
     )
+    
     user: Mapped["UserModel"] = relationship(
         "UserModel",
         back_populates="player",
         lazy="joined"
     )
+        
+    @hybrid_property
+    def platform_points(self) -> float:
+        return (
+            (self.total_points_scored * 1.0) # note: Core scoring ability: every point matters
+            + (self.total_rebounds * 1.2) # note: Rebounds keep possessions alive & stop opponents’ chances
+            + (self.total_assists * 1.5) # note: Playmaking is more than scoring — rewards teamwork
+            + (self.total_steals * 3.0) # note: Steals create instant offense, rare & high impact
+            + (self.total_blocks * 3.0) # note: Blocks shut down scoring attempts, game-changing plays
+            - (self.total_turnovers * 2.0) # Turnovers hurt the team directly, punish heavily
+            + ((self.total_fg2_made / max(self.total_fg2_attempts, 1)) * 10) # note: Reward 2PT shooting efficiency (smart scoring inside the arc)
+            + ((self.total_fg3_made / max(self.total_fg3_attempts, 1)) * 15) # note: 3PTs are harder & more valuable, efficiency rewarded higher
+            + ((self.total_ft_made / max(self.total_ft_attempts, 1)) * 5) # note: Free throw consistency = clutch factor, rewarded moderately
+        )
+
+    @platform_points.expression
+    def platform_points(cls):
+        return (
+            (cls.total_points_scored * 1.0)
+            + (cls.total_rebounds * 1.2)
+            + (cls.total_assists * 1.5)
+            + (cls.total_steals * 3.0)
+            + (cls.total_blocks * 3.0)
+            - (cls.total_turnovers * 2.0)
+            + (
+                (cls.total_fg2_made / case((cls.total_fg2_attempts > 0, cast(cls.total_fg2_attempts, Float)), else_=1.0))
+                * 10
+            )
+            + (
+                (cls.total_fg3_made / case((cls.total_fg3_attempts > 0, cast(cls.total_fg3_attempts, Float)), else_=1.0))
+                * 15
+            )
+            + (
+                (cls.total_ft_made / case((cls.total_ft_attempts > 0, cast(cls.total_ft_attempts, Float)), else_=1.0))
+                * 5
+            )
+        )
+
+    @hybrid_property
+    def platform_points_per_game(self) -> float:
+        return self.platform_points / max(self.total_games_played, 1)
+
+    @platform_points_per_game.expression
+    def platform_points_per_game(cls):
+        return cls.platform_points / case((cls.total_games_played > 0, cast(cls.total_games_played, Float)), else_=1.0)
+    
+    @property
+    def fg2_percentage_per_game(self) -> float:
+        games = max(self.total_games_played, 1)
+        attempts_pg = self.total_fg2_attempts / games
+        made_pg = self.total_fg2_made / games
+        return round((made_pg / max(attempts_pg, 1)) * 100, 2)
+
+    @property
+    def fg3_percentage_per_game(self) -> float:
+        games = max(self.total_games_played, 1)
+        attempts_pg = self.total_fg3_attempts / games
+        made_pg = self.total_fg3_made / games
+        return round((made_pg / max(attempts_pg, 1)) * 100, 2)
+
+    @property
+    def ft_percentage_per_game(self) -> float:
+        games = max(self.total_games_played, 1)
+        attempts_pg = self.total_ft_attempts / games
+        made_pg = self.total_ft_made / games
+        return round((made_pg / max(attempts_pg, 1)) * 100, 2)
     
     def to_json(self) -> dict:
-        
-        platform_points = (
-            (self.total_points_scored * 1.0) +          
-            # note: Core scoring ability: every point matters
-
-            (self.total_rebounds * 1.2) +               
-            # note: Rebounds keep possessions alive & stop opponents’ chances
-
-            (self.total_assists * 1.5) +                
-            # note: Playmaking is more than scoring — rewards teamwork
-
-            (self.total_steals * 3.0) +                 
-            # note: Steals create instant offense, rare & high impact
-
-            (self.total_blocks * 3.0) -                 
-            # note: Blocks shut down scoring attempts, game-changing plays
-
-            (self.total_turnovers * 2.0) +              
-            # ❌ Turnovers hurt the team directly, punish heavily
-
-            ((self.total_fg2_made / max(self.total_fg2_attempts, 1)) * 10) +  
-            # note: Reward 2PT shooting efficiency (smart scoring inside the arc)
-
-            ((self.total_fg3_made / max(self.total_fg3_attempts, 1)) * 15) +  
-            # note: 3PTs are harder & more valuable, efficiency rewarded higher
-
-            ((self.total_ft_made / max(self.total_ft_attempts, 1)) * 5)       
-            # note: Free throw consistency = clutch factor, rewarded moderately
-        )
-        
-        platform_points_per_game = platform_points / max(self.total_games_played, 1)
         
         return {
             'player_id': self.player_id,
@@ -145,15 +182,12 @@ class PlayerModel(Base, UpdatableMixin):
             'total_blocks': self.total_blocks,
             'total_turnovers': self.total_turnovers,
 
-            'total_fg2_made': self.total_fg2_made,
-            'total_fg2_attempts': self.total_fg2_attempts,
-            'total_fg3_made': self.total_fg3_made,
-            'total_fg3_attempts': self.total_fg3_attempts,
-            'total_ft_made': self.total_ft_made,
-            'total_ft_attempts': self.total_ft_attempts,
-            
-            'platform_points': platform_points,
-            'platform_points_per_game': platform_points_per_game,
+            'fg2_percentage_per_game': self.fg2_percentage_per_game,
+            'fg3_percentage_per_game': self.fg3_percentage_per_game,
+            'ft_percentage_per_game': self.ft_percentage_per_game,
+
+            'platform_points': float(round(self.platform_points, 2)),
+            'platform_points_per_game': float(round(self.platform_points_per_game, 2)),
             
             'total_join_league': self.total_join_league,
             'is_ban': self.is_ban,

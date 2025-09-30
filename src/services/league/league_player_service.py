@@ -37,9 +37,9 @@ class LeaguePlayerService:
             await session.rollback()
             raise ApiException("Players is already registered for this league from other team", 409)
             
-    async def get_many(self, league_id: str, data: dict):
+    async def get_many(self, league_category_id: str, data: dict):
         async with AsyncSession() as session:
-            conditions = [LeaguePlayerModel.league_id == league_id]
+            conditions = [LeaguePlayerModel.league_category_id == league_category_id]
             
             if data:
                 condition = data.get('condition')

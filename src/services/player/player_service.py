@@ -247,22 +247,14 @@ class PlayerService:
 
             return player.to_json()
         
-    async def get_player_leaderboard(self):
+    async def get_player_leaderboard(self, limit: int = 100):
         async with AsyncSession() as session:
-            query = select(PlayerModel).options(selectinload(PlayerModel.user))
-
-            total_score = (
-                PlayerModel.total_points_scored +
-                PlayerModel.total_assists +
-                PlayerModel.total_rebounds +
-                PlayerModel.total_games_played +
-                PlayerModel.total_join_league
+            stmt = (
+                select(PlayerModel)
+                .where(PlayerModel.is_allowed == True, PlayerModel.is_ban == False)
+                .order_by(PlayerModel.platform_points.desc())
+                .limit(limit)
             )
-
-            query = query.where(total_score > 0).order_by(desc(total_score))
-
-            query = query.limit(100)
-
-            result = await session.execute(query)
+            result = await session.execute(stmt)
             players = result.scalars().all()
-            return players
+            return [p.to_json() for p in players]

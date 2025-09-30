@@ -56,7 +56,7 @@ async def get_all_route():
 async def get_leaderboard():
     try:
         result = await service.get_player_leaderboard()
-        players_data = [p.to_json() for p in result]
-        return await ApiResponse.payload(players_data)
+        return await ApiResponse.payload(result)
     except Exception as e:
+        traceback.print_exc()
         return await ApiResponse.error(e)

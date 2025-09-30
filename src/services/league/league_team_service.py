@@ -1,5 +1,5 @@
 from typing import List
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select, update
 from src.models.league import LeagueCategoryRoundModel
 from src.models.match import LeagueMatchModel
 from src.services.league.league_player_service import LeaguePlayerService
@@ -35,6 +35,13 @@ class LeagueTeamService:
                                                                     league_team_id=league_team.league_team_id, 
                                                                     league_category_id=league_category.league_category_id,
                                                                     player_team_ids=player_team_ids)
+            
+            stmt = (
+                update(PlayerModel)
+                .where(PlayerModel.player_id.in_(player_team_ids))
+                .values(total_join_league=PlayerModel.total_join_league + 1)
+            )
+            await session.execute(stmt)
             
             league_team.status = "Accepted"
             await session.commit()
@@ -113,6 +120,20 @@ class LeagueTeamService:
                     LeagueTeamModel.status == "Accepted",
                     LeagueTeamModel.is_eliminated.is_not(True)
                 ])
+            elif data and data.get("condition") == "RankAndFinalize":
+                conditions.extend([
+                    (LeagueTeamModel.final_rank.in_([1, 2, 3, 4])) |
+                    ((LeagueTeamModel.final_rank.is_(None)) & (LeagueTeamModel.finalized_at.isnot(None)))
+                ])
+
+                stmt = stmt.order_by(
+                    case(
+                        (LeagueTeamModel.final_rank.isnot(None), 0),
+                        else_=1
+                    ),
+                    LeagueTeamModel.final_rank.asc().nulls_last(),
+                    LeagueTeamModel.finalized_at.asc().nulls_last()
+                )
 
             stmt = stmt.where(*conditions)
 

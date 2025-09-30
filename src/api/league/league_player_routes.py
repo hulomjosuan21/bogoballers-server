@@ -8,11 +8,11 @@ league_player = Blueprint('league-player',__name__,url_prefix='/league-player')
 
 service = LeaguePlayerService()
 
-@league_player.post('/all/<league_id>')
-async def get_many_router(league_id: str):
+@league_player.post('/all/<league_category_id>')
+async def get_many_router(league_category_id: str):
     try:
         data = await request.get_json()
-        result = await service.get_many(league_id, data)
+        result = await service.get_many(league_category_id, data)
         
         return await ApiResponse.payload([p.to_json() for p in result])
     except Exception as e:

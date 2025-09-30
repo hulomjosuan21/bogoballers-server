@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 from src.models.team import LeagueTeamModel
 from src.models.edge import LeagueFlowEdgeModel
 from src.models.group import LeagueGroupModel
@@ -8,6 +8,18 @@ from src.models.match import LeagueMatchModel
 from src.extensions import AsyncSession
 
 class ManualLeagueManagementService:
+    async def count_matches_in_round(self, round_id: str, group_id: str | None = None) -> int:
+        async with AsyncSession() as session:
+            stmt = select(func.count()).select_from(LeagueMatchModel).where(
+                LeagueMatchModel.round_id == round_id
+            )
+
+            if group_id:
+                stmt = stmt.where(LeagueMatchModel.group_id == group_id)
+
+            result = await session.execute(stmt)
+            return result.scalar_one()
+    
     async def get_flow_state(self, league_id: str) -> dict:
         async with AsyncSession() as session:
             categories_result = await session.execute(
@@ -59,7 +71,6 @@ class ManualLeagueManagementService:
                     "id": group.group_id,
                     "type": "group",
                     "position": group.position or {"x": 550, "y": 50},
-                    # Changed to .to_json() for consistency
                     "data": { "type": "group", "group": group.to_dict() }
                 })
 
@@ -267,7 +278,6 @@ class ManualLeagueManagementService:
             return result.rowcount > 0
         
     async def reset_category_layout(self, category_id: str) -> bool:
-    
         async with AsyncSession() as session, session.begin():
             category = await session.get(LeagueCategoryModel, category_id)
             if not category:

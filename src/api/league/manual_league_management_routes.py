@@ -8,6 +8,18 @@ manual_league_management_bp = Blueprint('manual-league-management', __name__, ur
 
 service = ManualLeagueManagementService()
 
+
+@manual_league_management_bp.get("/match-count/<round_id>")
+async def get_match_count(round_id: str):
+    try:
+        service = ManualLeagueManagementService()
+        group_id = request.args.get('group_id', None)
+        count = await service.count_matches_in_round(round_id, group_id)
+        return await ApiResponse.payload({"count": count})
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(str(e))
+
 @manual_league_management_bp.get('/flow-state/<string:league_id>')
 async def get_flow_state_route(league_id: str):
     try:

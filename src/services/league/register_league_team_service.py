@@ -171,4 +171,3 @@ class RegisterLeagueService:
 
             return refund
         
-    # async def get_one_by_public_id(self, )
