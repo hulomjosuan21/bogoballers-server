@@ -34,6 +34,7 @@ async def get_league_category_for_validation(session, league_category_id: str):
         select(LeagueCategoryModel)
         .options(
             selectinload(LeagueCategoryModel.category),
+            selectinload(LeagueCategoryModel.teams)
         )
         .where(LeagueCategoryModel.league_category_id == league_category_id)
     )

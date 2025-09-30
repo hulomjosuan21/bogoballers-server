@@ -3,8 +3,10 @@ from typing import TYPE_CHECKING, List, Optional
 
 
 if TYPE_CHECKING:
-    from src.models.league_admin import LeagueAdministratorModel, CategoryModel
+    from src.models.team import LeagueTeamModel
+    from src.models.league_admin import LeagueAdministratorModel
     from src.models.league import LeagueCategoryModel
+    from src.models.category import CategoryModel
     
 from datetime import datetime
 from sqlalchemy import (
@@ -164,6 +166,12 @@ class LeagueCategoryModel(Base, UpdatableMixin):
         order_by="LeagueCategoryRoundModel.round_order.asc()"
     )
     
+    teams: Mapped[list["LeagueTeamModel"]] = relationship(
+        "LeagueTeamModel",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    
     position: Mapped[dict] = mapped_column(JSONB, nullable=True)
     
     league_category_status: Mapped[Optional[str]] = mapped_column(league_category_status_enum, default="Close", nullable=False)
@@ -172,7 +180,7 @@ class LeagueCategoryModel(Base, UpdatableMixin):
     
     max_team: Mapped[int] = mapped_column(Integer, default=4, nullable=False)
     accept_teams: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-
+    
     league_category_created_at: Mapped[datetime] = CreatedAt()
     league_category_updated_at: Mapped[datetime] = UpdatedAt()
     

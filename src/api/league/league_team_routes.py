@@ -24,6 +24,7 @@ async def register_team_route():
         )
         return await ApiResponse.payload(result)
     except Exception as e:
+        traceback.print_exc()
         return await ApiResponse.error(e)
 
 
@@ -44,6 +45,7 @@ async def payment_success():
             }
         )
     except Exception as e:
+        traceback.print_exc()
         return await ApiResponse.error(e)
 
 
@@ -56,33 +58,57 @@ async def payment_cancel():
             return await ApiResponse.error("League team not found", 404)
         return await ApiResponse.payload(
             {
-                "message": f"Payment cancelled for team {league_team.team_id}.",
+                "message": f"Payment cancelled for team {league_team.team.team_name}.",
                 "league_team_id": league_team.league_team_id,
                 "payment_status": league_team.payment_status,
             }
         )
     except Exception as e:
+        traceback.print_exc()
         return await ApiResponse.error(e)
 
-@league_team_bp.post("/refund")
+@league_team_bp.patch("/submission/<league_team_id>")
+async def update_league_team_route(league_team_id: str):
+    try:
+        data = await request.get_json()
+        if not data:
+            return await ApiResponse.error("Invalid JSON data in request.", 400)
+            
+        await register_service.update_league_team(league_team_id, data)
+        return await ApiResponse.success(message="Team updated successfully")
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(f"An unexpected error occurred: {e}", 500)
+
+@league_team_bp.delete("/submission/<league_team_id>")
+async def remove_league_team_route(league_team_id: str):
+    try:
+        await register_service.remove_league_team(league_team_id)
+        return await ApiResponse.success(message="Team removed successfully")
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(f"An unexpected error occurred: {e}", 500)
+
+@league_team_bp.post("/submission/refund")
 async def refund_route():
     try:
         data = await request.get_json()
-        league_team_id = data["league_team_id"]
-        amount = data["amount"]
-        reason = data.get("reason", "requested_by_customer")
-        payment_status = data.get("payment_status","Pending")
-        remove = get_bool_arg(request,'remove')
+        if not data:
+            return await ApiResponse.error("Invalid JSON data in request.", 400)
 
-        refund = await register_service.refund_payment(league_team_id, amount, payment_status, remove, reason)
-        if not refund:
-            return await ApiResponse.error("League team not found or refund failed", 404)
+        league_team_id = data.get("league_team_id")
+        amount = data.get("amount")
+        
+        if not league_team_id or amount is None:
+             return await ApiResponse.error("Missing required fields: league_team_id and amount.", 400)
 
-        msg = f"Refund successfully refundId: {refund["data"]["id"]}"
-        return await ApiResponse.success(message=msg)
+        remove = data.get("remove", False) 
+
+        await register_service.refund_payment(league_team_id, float(amount), remove, "requested_by_customer")
+        return await ApiResponse.success(message="Refund processed successfully")
     except Exception as e:
         traceback.print_exc()
-        return await ApiResponse.error(e)
+        return await ApiResponse.error(f"An unexpected error occurred: {e}", 500)
 
 service = LeagueTeamService()
 

@@ -93,3 +93,14 @@ class PaymongoClient:
                 raise Exception(f"PayMongo refund error {r.status_code}: {error_data}")
 
             return r.json()
+        
+    async def retrieve_payment(self, payment_id: str) -> dict:
+        url = f"{self.BASE_URL}/payments/{payment_id}"
+        async with httpx.AsyncClient() as client:
+            r = await client.get(url, headers=self.headers)
+            
+            if r.status_code != 200:
+                error_data = r.json()
+                raise Exception(f"PayMongo retrieve payment error {r.status_code}: {error_data}")
+                
+            return r.json()

@@ -61,9 +61,9 @@ class ValidateTeamEntry:
     def _validate_player(self, player_team: PlayerTeamModel):
         player = player_team.player  # get the actual PlayerModel
 
-        # note: team-level ban check
-        if player_team.is_ban:
-            raise ApiException(f"Player {player.full_name} is banned in this team.")
+        # # note: team-level ban check
+        # if player_team.is_ban:
+        #     raise ApiException(f"Player {player.full_name} is banned in this team.")
 
         # note: gender validation
         if self.category.player_gender != "Any" and player.gender != self.category.player_gender:

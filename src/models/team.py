@@ -78,7 +78,10 @@ class TeamModel(Base, UpdatableMixin):
             'creator': self.user.to_json(),
             'team_created_at': self.team_created_at.isoformat(),
             'team_updated_at':self.team_updated_at.isoformat(),
-            'accepted_players': [player.to_json() for player in self.players if player.is_accepted == "Accepted"],
+            'accepted_players': [
+                player.to_json() for player in self.players
+                if player.is_accepted in ["Accepted", "Guest"]
+            ],
             'pending_players': [
                 p.to_json() for p in self.players if p.is_accepted == "Pending"
             ],
@@ -109,6 +112,8 @@ payment_status_enum = SqlEnum(
     "Paid Online",
     "Paid On Site",
     "No Charge",
+    "Refunded",
+    "Partially Refunded",
     name="payment_status_enum",
     create_type=False
 )
