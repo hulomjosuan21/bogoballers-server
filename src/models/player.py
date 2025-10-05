@@ -177,7 +177,6 @@ class PlayerModel(Base, UpdatableMixin):
             'total_assists': self.total_assists,
             'total_rebounds': self.total_rebounds,
             
-            
             'total_steals': self.total_steals,
             'total_blocks': self.total_blocks,
             'total_turnovers': self.total_turnovers,

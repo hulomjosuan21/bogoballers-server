@@ -98,11 +98,8 @@ async def refund_route():
         traceback.print_exc()
         return await ApiResponse.error(f"An unexpected error occurred: {e}", 500)
 
-@league_guest_bp.get("/submissions/league/<string:league_id>")
+@league_guest_bp.get("/submissions/league/<league_id>")
 async def get_requests_by_league(league_id: str):
-    """
-    Admin route to list all guest requests for a specific league.
-    """
     try:
         requests_list = await service.list_requests_by_league(league_id)
         return await ApiResponse.payload([r.to_json() for r in requests_list])
