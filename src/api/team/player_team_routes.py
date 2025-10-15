@@ -51,3 +51,13 @@ async def add_many_to_teams_route():
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)
+    
+@player_team_bp.put('/toggle-captain/<player_team_id>')
+async def toggle_team_captain_route(player_team_id: str):
+    try:
+        result = await service.toggle_team_captain(player_team_id=player_team_id)
+        return await ApiResponse.success(message=result)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return await ApiResponse.error(e)

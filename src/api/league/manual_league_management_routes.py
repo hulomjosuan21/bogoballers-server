@@ -8,7 +8,6 @@ manual_league_management_bp = Blueprint('manual-league-management', __name__, ur
 
 service = ManualLeagueManagementService()
 
-
 @manual_league_management_bp.get("/match-count/<round_id>")
 async def get_match_count(round_id: str):
     try:

@@ -1,4 +1,4 @@
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, update
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy.orm import joinedload
 from src.services.notification_service import NotificationService
@@ -141,3 +141,67 @@ class PlayerTeamService:
         except (IntegrityError, SQLAlchemyError) as e:
             await session.rollback()
             raise e
+        
+    async def toggle_team_captain(self, player_team_id: str):
+        async with AsyncSession() as session:
+            try:
+                player_team = await self.get_player_team(session=session, player_team_id=player_team_id)
+                if not player_team:
+                    raise ApiException("No player found in this team.")
+
+                if player_team.is_team_captain:
+                    player_team.is_team_captain = False
+                    await session.commit()
+                    return f"{player_team.player.full_name} is no longer the team captain of {player_team.team.team_name}."
+
+                await session.execute(
+                    update(PlayerTeamModel)
+                    .where(
+                        and_(
+                            PlayerTeamModel.team_id == player_team.team_id,
+                            PlayerTeamModel.is_team_captain == True
+                        )
+                    )
+                    .values(is_team_captain=False)
+                )
+
+                player_team.is_team_captain = True
+                await session.commit()
+
+                return f"{player_team.player.full_name} is now the team captain of {player_team.team.team_name}."
+
+            except (IntegrityError, SQLAlchemyError) as e:
+                await session.rollback()
+                raise e
+
+    async def delete_one(self, player_team_id: str):
+        async with AsyncSession() as session:
+            try:
+                player_team = await self.get_player_team(session=session, player_team_id=player_team_id)
+                if not player_team:
+                    raise ApiException("No player found in this team.")
+
+                if player_team.is_team_captain:
+                    player_team.is_team_captain = False
+                    await session.commit()
+                    return f"{player_team.player.full_name} is no longer the team captain of {player_team.team.team_name}."
+
+                await session.execute(
+                    update(PlayerTeamModel)
+                    .where(
+                        and_(
+                            PlayerTeamModel.team_id == player_team.team_id,
+                            PlayerTeamModel.is_team_captain == True
+                        )
+                    )
+                    .values(is_team_captain=False)
+                )
+
+                player_team.is_team_captain = True
+                await session.commit()
+
+                return f"{player_team.player.full_name} is now the team captain of {player_team.team.team_name}."
+
+            except (IntegrityError, SQLAlchemyError) as e:
+                await session.rollback()
+                raise e

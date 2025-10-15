@@ -1,7 +1,7 @@
 from __future__ import annotations
 from datetime import datetime
 from typing import List, Optional
-from sqlalchemy import String, Boolean, Integer, DateTime, Enum as SqlEnum, Text, ARRAY, ForeignKey, UniqueConstraint
+from sqlalchemy import String, Boolean, Integer, DateTime, Enum as SqlEnum, Text, ARRAY, ForeignKey, UniqueConstraint, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.models.league import LeagueModel
 from src.models.team import LeagueTeamModel, TeamModel
@@ -69,11 +69,8 @@ class LeagueMatchModel(Base, UpdatableMixin):
     loser_next_match_slot: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     round_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    # bracket_side: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    # bracket_position: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     pairing_method: Mapped[str] = mapped_column(String, nullable=False, default="random")
     generated_by: Mapped[str] = mapped_column(String, nullable=False, default="system")
-    generated_by: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     display_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     is_final: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -118,6 +115,14 @@ class LeagueMatchModel(Base, UpdatableMixin):
             "away_team_id",
             name="unique_league_match_per_round"
         ),
+        CheckConstraint(
+            'home_team_id IS NULL OR away_team_id IS NULL OR home_team_id != away_team_id',
+            name="check_home_and_away_not_same"
+        ),
+        CheckConstraint(
+            'winner_team_id IS NULL OR loser_team_id IS NULL OR winner_team_id != loser_team_id',
+            name="check_winner_and_loser_not_same"
+        )
     )
 
     def to_json(self) -> dict:

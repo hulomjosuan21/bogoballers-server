@@ -20,6 +20,8 @@ class LeagueGuestService:
 
     async def submit_guest_request(
         self,
+        amount,
+        league_id: str,
         league_category_id: str,
         payment_method: str,
         success_url: str,
@@ -44,7 +46,6 @@ class LeagueGuestService:
                         raise ApiException("League category not found.", 404)
 
                     request_type = "Team" if team_id else "Player"
-                    amount = 0.0
 
                     if request_type == "Team":
                         if not league_category.category.allow_guest_team:
@@ -65,6 +66,7 @@ class LeagueGuestService:
 
                     # Create the guest request record
                     new_request = GuestRegistrationRequestModel(
+                        league_id=league_id,
                         league_category_id=league_category_id,
                         team_id=team_id, player_id=player_id, request_type=request_type,
                         payment_status="Pending",
@@ -74,29 +76,29 @@ class LeagueGuestService:
                     await session.flush()
 
                     # Handle free or on-site payments
-                    if amount == 0 or payment_method == "Pay on site":
+                    if payment_method == "Pay on site":
                         new_request.payment_status = "No Charge" if amount == 0 else "Pending"
                         await session.commit()
                         return {"guest_request_id": new_request.guest_request_id, "payment_status": new_request.payment_status, "message": "Guest request submitted successfully."}
 
                     # Create Paymongo checkout session for online payments
-                    checkout_session = await self.paymongo.create_checkout_session(
-                        amount=amount,
-                        description=f"Guest request for {league_category.category.category_name}",
-                        success_url=f"{success_url}?guest_request_id={new_request.guest_request_id}",
-                        cancel_url=f"{cancel_url}?guest_request_id={new_request.guest_request_id}",
-                    )
-                    
-                    record = dict(new_request.payment_record or {})
-                    record["checkout_session_id"] = checkout_session["data"]["id"]
-                    new_request.payment_record = record
-                    await session.commit()
+                    elif payment_method == "Pay online":
+                        centavos = int(max(amount, 1.0) * 100)
+                        checkout_session = await self.paymongo.create_checkout_session(
+                            amount=centavos,
+                            description=f"Guest request for {league_category.category.category_name}",
+                            success_url=f"{success_url}?guest_request_id={new_request.guest_request_id}",
+                            cancel_url=f"{cancel_url}?guest_request_id={new_request.guest_request_id}",
+                        )
+                        
+                        record = dict(new_request.payment_record or {})
+                        record["checkout_session_id"] = checkout_session["data"]["id"]
+                        new_request.payment_record = record
+                        await session.commit()
 
-                    return {"message": "Checkout session created.", "checkout_url": checkout_session["data"]["attributes"]["checkout_url"], "guest_request_id": new_request.guest_request_id}
+                        return {"message": "Checkout session created.", "checkout_url": checkout_session["data"]["attributes"]["checkout_url"], "guest_request_id": new_request.guest_request_id}
             except (IntegrityError, SQLAlchemyError) as e:
                 await session.rollback()
-                if 'uq_guest' in str(e).lower():
-                    raise ApiException("A guest request for this team/player already exists in this category.", 409)
                 raise
 
     async def confirm_guest_payment(self, guest_request_id: str) -> GuestRegistrationRequestModel:

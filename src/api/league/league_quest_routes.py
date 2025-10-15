@@ -12,6 +12,8 @@ async def register_guest_route():
     try:
         data = await request.get_json()
         result = await service.submit_guest_request(
+            amount=data.get("amount"),
+            league_id=data.get("league_id"),
             league_category_id=data.get("league_category_id"),
             team_id=data.get("team_id"),
             player_id=data.get("player_id"),

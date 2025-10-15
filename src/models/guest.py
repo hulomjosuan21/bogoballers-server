@@ -41,6 +41,12 @@ class GuestRegistrationRequestModel(Base, UpdatableMixin):
 
     guest_request_id: Mapped[str] = UUIDGenerator("guest-req")
 
+    league_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey("leagues_table.league_id", ondelete="CASCADE"),
+        nullable=False
+    )
+
     league_category_id: Mapped[str] = mapped_column(
         String,
         ForeignKey("league_categories_table.league_category_id", ondelete="CASCADE"),
@@ -91,21 +97,19 @@ class GuestRegistrationRequestModel(Base, UpdatableMixin):
     player: Mapped[Optional["PlayerModel"]] = relationship(lazy="joined")
 
     __table_args__ = (
-        # Ensures that a request is for EITHER a team OR a player, but not both or neither.
         CheckConstraint(
             "(request_type = 'Team' AND team_id IS NOT NULL AND player_id IS NULL) OR "
             "(request_type = 'Player' AND player_id IS NOT NULL AND team_id IS NULL)",
             name="chk_guest_request_entity"
         ),
-        # Prevents a team from submitting multiple requests to the same category.
         UniqueConstraint("league_category_id", "team_id", name="uq_guest_team_request"),
-        # Prevents a player from submitting multiple requests to the same category.
         UniqueConstraint("league_category_id", "player_id", name="uq_guest_player_request"),
     )
 
     def to_json(self) -> dict:
         data = {
             'guest_request_id': self.guest_request_id,
+            'league_id': self.league_id,
             'league_category_id': self.league_category_id,
             'request_type': self.request_type,
             'status': self.status,
@@ -114,7 +118,7 @@ class GuestRegistrationRequestModel(Base, UpdatableMixin):
             'payment_record': self.payment_record,
             'request_created_at': self.request_created_at.isoformat(),
             'request_processed_at': self.request_processed_at.isoformat() if self.request_processed_at else None,
-            'league_category_name': self.league_category.category.category_name if self.league_category and self.league_category.category else None,
+            'league_category': self.league_category.to_json()
         }
         if self.request_type == "Team" and self.team:
             data['details'] = self.team.to_json()

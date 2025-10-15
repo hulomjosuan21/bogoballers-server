@@ -6,6 +6,7 @@ from src.models.group import LeagueGroupModel
 from src.models.league import LeagueCategoryModel, LeagueCategoryRoundModel
 from src.models.match import LeagueMatchModel
 from src.extensions import AsyncSession
+from sqlalchemy.exc import IntegrityError
 
 class ManualLeagueManagementService:
     async def count_matches_in_round(self, round_id: str, group_id: str | None = None) -> int:
@@ -187,20 +188,33 @@ class ManualLeagueManagementService:
 
     async def assign_team_to_match(self, match_id: str, team_id: str, slot: str) -> dict:
         async with AsyncSession() as session:
-            match = await session.get(LeagueMatchModel, match_id)
-            if not match:
-                raise ValueError(f"Match with ID {match_id} not found.")
+            try:
+                match = await session.get(LeagueMatchModel, match_id)
+                if not match:
+                    raise ValueError(f"Match with ID {match_id} not found.")
 
-            if slot == 'home':
-                match.home_team_id = team_id
-            elif slot == 'away':
-                match.away_team_id = team_id
-            else:
-                raise ValueError("Invalid slot specified. Must be 'home' or 'away'.")
-            
-            await session.commit()
-            await session.refresh(match)
-            return match.to_json()
+                if match.home_team_id == team_id or match.away_team_id == team_id:
+                    raise ValueError("This team is already assigned to this match.")
+
+                if slot == 'home':
+                    match.home_team_id = team_id
+                elif slot == 'away':
+                    match.away_team_id = team_id
+                else:
+                    raise ValueError("Invalid slot specified. Must be 'home' or 'away'.")
+
+                await session.commit()
+                await session.refresh(match)
+                return match.to_json()
+
+            except IntegrityError as e:
+                await session.rollback()
+                if "check_home_and_away_not_same" in str(e.orig):
+                    raise ValueError("A team cannot be both home and away in the same match.")
+                raise
+            except Exception:
+                await session.rollback()
+                raise
             
     async def update_match_connections(self, match_id: str, data: dict) -> dict:
         async with AsyncSession() as session:
