@@ -147,18 +147,6 @@ async def update_node_position_route(node_type: str, node_id: str):
         traceback.print_exc()
         return await ApiResponse.error(str(e))
 
-@manual_league_management_bp.put('/categories/<string:category_id>/reset-layout')
-async def reset_category_layout_route(category_id: str):
-    try:
-        success = await service.reset_category_layout(category_id)
-        if success:
-            return await ApiResponse.success(message="Category layout has been reset.")
-        else:
-            return await ApiResponse.error("Category not found.", status_code=404)
-    except Exception as e:
-        traceback.print_exc()
-        return await ApiResponse.error(str(e))
-
 @manual_league_management_bp.delete('/edges/<string:edge_id>')
 async def delete_edge_route(edge_id: str):
     try:

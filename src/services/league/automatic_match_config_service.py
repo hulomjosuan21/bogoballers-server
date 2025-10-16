@@ -2,27 +2,23 @@
 
 from typing import Optional, Tuple
 import uuid
-from sqlalchemy import and_, delete, select
+from sqlalchemy import and_, delete, select, update
 from src.extensions import AsyncSession
 from src.models.edge import LeagueFlowEdgeModel
 from src.models.format import LeagueRoundFormatModel
 from src.models.league import LeagueCategoryModel, LeagueCategoryRoundModel
 
-# Allowed connections (type strings are node.type from frontend)
 ALLOWED_CONNECTIONS = {
     ("leagueCategory", "leagueCategoryRound"): ("category-out", "round-in"),
     ("leagueCategoryRound", "leagueCategoryRound"): ("round-out", "round-in"),
     ("roundFormat", "leagueCategoryRound"): ("format-out", "round-format-in"),
 }
 
-
 def _is_permanent_round_id(round_id: str) -> bool:
     return round_id.startswith("lround-")
 
-
 def _is_permanent_format_id(format_id: str) -> bool:
     return format_id.startswith("lformat-")
-
 
 ROUND_NAME_TO_ORDER = {
     # You can tune these based on RoundTypeEnum
@@ -32,19 +28,11 @@ ROUND_NAME_TO_ORDER = {
     "Final": 3,
 }
 
-
 class AutomaticMatchConfigService:
     async def _resolve_league_category_id_from_node(
         self, session, node_id: str, node_type: str
     ) -> Optional[str]:
-        """
-        Resolve league_category_id from the given node id/type.
-        - leagueCategory: the node id itself is the league_category_id.
-        - leagueCategoryRound: read round and return its league_category_id.
-        - roundFormat: resolve to its round, then to the category_id.
-        """
         if node_type == "leagueCategory":
-            # Node id is the league_category_id
             lc = await session.get(LeagueCategoryModel, node_id)
             return lc.league_category_id if lc else None
 
@@ -157,7 +145,6 @@ class AutomaticMatchConfigService:
                         "data": {
                             "type": "league_category_round_format",
                             "format_name": f.format_name,
-                            # Frontend treats this as enum label; send as name for now
                             "format_type": f.format_name,
                             "format_obj": f.to_dict(),
                         },
@@ -185,7 +172,6 @@ class AutomaticMatchConfigService:
         position: Optional[dict],
     ) -> dict:
         async with AsyncSession() as session:
-            # Validate category exists and is manage_automatic
             lc = await session.get(LeagueCategoryModel, league_category_id)
             if not lc:
                 raise ValueError("League Category not found.")
@@ -208,15 +194,14 @@ class AutomaticMatchConfigService:
         self,
         format_name: str,
         round_id: str,
+        format_type: str,
         position: Optional[dict],
-        format: Optional[dict],
     ) -> dict:
         async with AsyncSession() as session:
             r = await session.get(LeagueCategoryRoundModel, round_id)
             if not r:
                 raise ValueError("Round not found.")
 
-            # Enforce one format per round
             existing = (
                 await session.execute(
                     select(LeagueRoundFormatModel).where(LeagueRoundFormatModel.round_id == round_id)
@@ -225,7 +210,6 @@ class AutomaticMatchConfigService:
 
             if existing:
                 existing.format_name = format_name
-                existing.format = format or {}
                 if position is not None:
                     existing.position = position
                 await session.commit()
@@ -233,10 +217,9 @@ class AutomaticMatchConfigService:
                 return existing.to_dict()
 
             new_format = LeagueRoundFormatModel(
-                format_id=f"lformat-{uuid.uuid4()}",
                 round_id=round_id,
                 format_name=format_name,
-                format=format or {},
+                format_type=format_type,
                 position=position,
             )
             session.add(new_format)
@@ -250,7 +233,6 @@ class AutomaticMatchConfigService:
             if not r:
                 raise ValueError("Round not found.")
 
-            # Ensure target round has no format yet
             occupied = (
                 await session.execute(
                     select(LeagueRoundFormatModel).where(LeagueRoundFormatModel.round_id == round_id)
@@ -263,7 +245,6 @@ class AutomaticMatchConfigService:
             if not fmt:
                 raise ValueError("Format not found.")
 
-            # Ensure this format isn't attached elsewhere
             if fmt.round_id and fmt.round_id != round_id:
                 raise ValueError("This format is already attached to another round.")
 
@@ -296,9 +277,7 @@ class AutomaticMatchConfigService:
     async def _infer_types_from_ids(
         self, session, source_id: str, target_id: str
     ) -> Tuple[Optional[str], Optional[str]]:
-        """
-        Best-effort inference of node types using ID prefixes and DB existence.
-        """
+       
         def _type_from_id(id_: str) -> Optional[str]:
             if id_.startswith("lround-"):
                 return "leagueCategoryRound"
@@ -311,7 +290,6 @@ class AutomaticMatchConfigService:
         src_type = _type_from_id(source_id)
         dst_type = _type_from_id(target_id)
 
-        # Fallback check DB if prefix unknown
         if not src_type:
             if await session.get(LeagueCategoryRoundModel, source_id):
                 src_type = "leagueCategoryRound"
@@ -377,7 +355,6 @@ class AutomaticMatchConfigService:
             stmt = delete(model).where(pk_column == node_id)
             result = await session.execute(stmt)
 
-            # also delete edges connected to this node
             edge_stmt = delete(LeagueFlowEdgeModel).where(
                 (LeagueFlowEdgeModel.source_node_id == node_id) |
                 (LeagueFlowEdgeModel.target_node_id == node_id)
@@ -386,3 +363,23 @@ class AutomaticMatchConfigService:
 
             await session.commit()
             return result.rowcount > 0
+        
+    async def update_format(self, format_id: str, format_name: str, format_obj: dict):
+        async with AsyncSession() as session:
+            stmt = (
+                update(LeagueRoundFormatModel)
+                .where(LeagueRoundFormatModel.format_id == format_id)
+                .values(
+                    format_name=format_name,
+                    format_obj=format_obj
+                )
+                .execution_options(synchronize_session="fetch")
+            )
+
+            result = await session.execute(stmt)
+            if result.rowcount == 0:
+                raise ValueError("Format not found")
+
+            await session.commit()
+            
+            return "Success"

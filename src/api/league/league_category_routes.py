@@ -53,3 +53,12 @@ async def update_many_route():
         return await ApiResponse.success(message=result)
     except Exception as e:
         return await ApiResponse.error(e)
+    
+@league_category_bp.get('/rounds-groups-names/<league_id>')
+async def round_group_access(league_id: str):
+    try:
+        result = await service.get_category_round_group_names(league_id)
+        return await ApiResponse.payload(result)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)

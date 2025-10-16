@@ -37,18 +37,9 @@ async def create_or_attach_format_route():
         saved = await service.create_or_attach_format(
             format_name=data.get("format_name"),
             round_id=data.get("round_id"),
+            format_type=data.get("format_type"),
             position=data.get("position"),
-            format=data.get("format") or {},
         )
-        return await ApiResponse.payload(saved)
-    except Exception as e:
-        traceback.print_exc()
-        return await ApiResponse.error(str(e))
-
-@auto_match_config_bp.put('/formats/<string:format_id>/attach/<string:round_id>')
-async def attach_format_to_round_route(format_id: str, round_id: str):
-    try:
-        saved = await service.attach_format_to_round(format_id, round_id)
         return await ApiResponse.payload(saved)
     except Exception as e:
         traceback.print_exc()
@@ -104,3 +95,15 @@ async def delete_node_route(node_type: str, node_id: str):
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(str(e))
+    
+@auto_match_config_bp.patch('/nodes/format/<string:format_id>')
+async def update_format(format_id: str):
+    try:
+        data = await request.get_json()
+        format_name = data.get('format_name')
+        format_obj = data.get('format_obj')
+        ok = await service.update_format(format_id,format_name,format_obj)
+        return await ApiResponse.success(message=ok)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)

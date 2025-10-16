@@ -11,11 +11,10 @@ from src.utils.mixins import SerializationMixin
 from src.utils.db_utils import CreatedAt, UUIDGenerator, UpdatedAt
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSONB
-
 class LeagueRoundFormatModel(Base, SerializationMixin):
     __tablename__ = "league_round_format_table"
 
-    format_id: Mapped[str] = mapped_column(String, nullable=False, primary_key=True)
+    format_id: Mapped[str] = UUIDGenerator("lformat")
     
     round_id: Mapped[str] = mapped_column(
         String,
@@ -25,7 +24,8 @@ class LeagueRoundFormatModel(Base, SerializationMixin):
     )
 
     format_name: Mapped[str] = mapped_column(String, nullable=False)
-    format: Mapped[str] = mapped_column(JSONB, nullable=True)
+    format_type: Mapped[str] = mapped_column(String, nullable=False)
+    format_obj: Mapped[str] = mapped_column(JSONB, nullable=True)
     
     position: Mapped[dict] = mapped_column(JSONB, nullable=True)
     

@@ -291,44 +291,6 @@ class ManualLeagueManagementService:
             await session.commit()
             return result.rowcount > 0
         
-    async def reset_category_layout(self, category_id: str) -> bool:
-        async with AsyncSession() as session, session.begin():
-            category = await session.get(LeagueCategoryModel, category_id)
-            if not category:
-                return False
-            category.position = None
-
-            rounds_stmt = select(LeagueCategoryRoundModel).where(LeagueCategoryRoundModel.league_category_id == category_id)
-            rounds = (await session.execute(rounds_stmt)).scalars().all()
-            if not rounds:
-                await session.commit()
-                return True
-            round_ids = [r.round_id for r in rounds]
-            for r in rounds:
-                r.position = None
-
-            groups_stmt = select(LeagueGroupModel).where(LeagueGroupModel.round_id.in_(round_ids))
-            groups = (await session.execute(groups_stmt)).scalars().all()
-            group_ids = [g.group_id for g in groups]
-            for g in groups:
-                g.position = None
-
-            matches_stmt = select(LeagueMatchModel).where(LeagueMatchModel.round_id.in_(round_ids))
-            matches = (await session.execute(matches_stmt)).scalars().all()
-            match_ids = [m.league_match_id for m in matches]
-            for m in matches:
-                m.position = None
-
-            all_node_ids = {category_id, *round_ids, *group_ids, *match_ids}
-            
-            edges_delete_stmt = delete(LeagueFlowEdgeModel).where(
-                (LeagueFlowEdgeModel.source_node_id.in_(all_node_ids)) |
-                (LeagueFlowEdgeModel.target_node_id.in_(all_node_ids))
-            )
-            await session.execute(edges_delete_stmt)
-            
-            return True
-
     async def synchronize_bracket(self, league_id: str) -> dict:
         async with AsyncSession() as session, session.begin():
             resolved_matches_stmt = select(LeagueMatchModel).where(
