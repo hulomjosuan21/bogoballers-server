@@ -1,12 +1,12 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, List, Optional
 
-
 if TYPE_CHECKING:
     from src.models.team import LeagueTeamModel
     from src.models.league_admin import LeagueAdministratorModel
     from src.models.league import LeagueCategoryModel
     from src.models.category import CategoryModel
+    from src.models.format import LeagueRoundFormatModel
     
 from datetime import datetime
 from sqlalchemy import (
@@ -224,18 +224,11 @@ class LeagueCategoryRoundModel(Base, UpdatableMixin):
     round_order: Mapped[int] = mapped_column(Integer, nullable=False)
 
     position: Mapped[dict] = mapped_column(JSONB, nullable=True)
-
-    format_type: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    round_format: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True, default=None)
-    format_config: Mapped[dict] = mapped_column(
-        JSONB,
-        default=dict,
-        nullable=False
-    )
-    format_options: Mapped[dict] = mapped_column(
-        JSONB,
-        default=dict,
-        nullable=False
+    format: Mapped[Optional["LeagueRoundFormatModel"]] = relationship(
+        "LeagueRoundFormatModel",
+        back_populates="round",
+        uselist=False,
+        lazy="selectin"
     )
     
     matches_generated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -246,9 +239,6 @@ class LeagueCategoryRoundModel(Base, UpdatableMixin):
         String, ForeignKey("league_category_rounds_table.round_id", ondelete="SET NULL"), nullable=True
     )
 
-    league_category_round_created_at: Mapped[datetime] = CreatedAt()
-    league_category_round_updated_at: Mapped[datetime] = UpdatedAt()
-    
     def to_json(self) -> dict:
         return {
             'round_id': self.round_id,
@@ -258,14 +248,8 @@ class LeagueCategoryRoundModel(Base, UpdatableMixin):
             'round_order': self.round_order,
             'round_status': self.round_status,
             'matches_generated': self.matches_generated,
-            'format_type': self.format_type or None,
-            'round_format': self.round_format or None,
-            'format_config': self.format_config or None,
-            'format_options': self.format_options or None,
-            'position': self.position or None,
-            'next_round_id': self.next_round_id or None,
-            'league_category_round_created_at': self.league_category_round_created_at.isoformat(),
-            'league_category_round_updated_at': self.league_category_round_updated_at.isoformat()
+            'position': self.position if self.position else None,
+            'next_round_id': self.next_round_id if self.next_round_id else None,
         }
 
 _current_module = globals()

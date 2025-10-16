@@ -29,9 +29,6 @@ class LeagueGroupModel(Base, SerializationMixin):
     
     position: Mapped[dict] = mapped_column(JSONB, nullable=True)
     
-    league_group_created_at: Mapped[datetime] = CreatedAt()
-    league_group_updated_at: Mapped[datetime] = UpdatedAt()
-    
 _current_module = globals()
 __all__ = [
     name for name, obj in _current_module.items()
