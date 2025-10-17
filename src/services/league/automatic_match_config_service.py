@@ -3,6 +3,8 @@
 from typing import Optional, Tuple
 import uuid
 from sqlalchemy import and_, delete, select, update
+from src.engines.auto_match_engine import AutoMatchEngine
+from src.models.match import LeagueMatchModel
 from src.extensions import AsyncSession
 from src.models.edge import LeagueFlowEdgeModel
 from src.models.format import LeagueRoundFormatModel
@@ -29,32 +31,6 @@ ROUND_NAME_TO_ORDER = {
 }
 
 class AutomaticMatchConfigService:
-    async def _resolve_league_category_id_from_node(
-        self, session, node_id: str, node_type: str
-    ) -> Optional[str]:
-        if node_type == "leagueCategory":
-            lc = await session.get(LeagueCategoryModel, node_id)
-            return lc.league_category_id if lc else None
-
-        if node_type == "leagueCategoryRound":
-            r = await session.get(LeagueCategoryRoundModel, node_id)
-            return r.league_category_id if r else None
-
-        if node_type == "roundFormat":
-            fmt = await session.get(LeagueRoundFormatModel, node_id)
-            if not fmt or not fmt.round_id:
-                return None
-            r = await session.get(LeagueCategoryRoundModel, fmt.round_id)
-            return r.league_category_id if r else None
-
-        return None
-
-    async def _validate_handles(self, src_type: str, dst_type: str, sh: Optional[str], th: Optional[str]) -> bool:
-        allowed = ALLOWED_CONNECTIONS.get((src_type, dst_type))
-        if not allowed:
-            return False
-        return allowed == (sh, th)
-
     async def get_flow_state(self, league_id: str) -> dict:
         async with AsyncSession() as session:
             categories = (
@@ -68,16 +44,13 @@ class AutomaticMatchConfigService:
                 )
             ).scalars().all()
 
+            category_ids = [c.league_category_id for c in categories]
+            
             rounds = (
                 await session.execute(
                     select(LeagueCategoryRoundModel)
                     .join(LeagueCategoryModel)
-                    .where(
-                        and_(
-                            LeagueCategoryModel.league_id == league_id,
-                            LeagueCategoryModel.manage_automatic.is_(True),
-                        )
-                    )
+                    .where(LeagueCategoryRoundModel.league_category_id.in_(category_ids))
                 )
             ).scalars().all()
 
@@ -163,6 +136,33 @@ class AutomaticMatchConfigService:
             ]
 
             return {"nodes": nodes, "edges": edge_list}
+        
+    async def _resolve_league_category_id_from_node(
+        self, session, node_id: str, node_type: str
+    ) -> Optional[str]:
+        if node_type == "leagueCategory":
+            lc = await session.get(LeagueCategoryModel, node_id)
+            return lc.league_category_id if lc else None
+
+        if node_type == "leagueCategoryRound":
+            r = await session.get(LeagueCategoryRoundModel, node_id)
+            return r.league_category_id if r else None
+
+        if node_type == "roundFormat":
+            fmt = await session.get(LeagueRoundFormatModel, node_id)
+            if not fmt or not fmt.round_id:
+                return None
+            r = await session.get(LeagueCategoryRoundModel, fmt.round_id)
+            return r.league_category_id if r else None
+
+        return None
+
+    async def _validate_handles(self, src_type: str, dst_type: str, sh: Optional[str], th: Optional[str]) -> bool:
+        allowed = ALLOWED_CONNECTIONS.get((src_type, dst_type))
+        if not allowed:
+            return False
+        return allowed == (sh, th)
+
 
     async def create_round(
         self,
@@ -364,14 +364,15 @@ class AutomaticMatchConfigService:
             await session.commit()
             return result.rowcount > 0
         
-    async def update_format(self, format_id: str, format_name: str, format_obj: dict):
+    async def update_format(self, format_id: str, format_name: str, format_obj: dict, is_configured: bool):
         async with AsyncSession() as session:
             stmt = (
                 update(LeagueRoundFormatModel)
                 .where(LeagueRoundFormatModel.format_id == format_id)
                 .values(
                     format_name=format_name,
-                    format_obj=format_obj
+                    format_obj=format_obj,
+                    is_configured=is_configured
                 )
                 .execution_options(synchronize_session="fetch")
             )
@@ -383,3 +384,82 @@ class AutomaticMatchConfigService:
             await session.commit()
             
             return "Success"
+        
+    async def generate_matches(self, round_id: str) -> list[dict]:
+        async with AsyncSession() as session:
+            round_obj = await session.get(LeagueCategoryRoundModel, round_id)
+            if not round_obj:
+                raise ValueError("Round not found")
+
+            if round_obj.matches_generated:
+                raise ValueError("Matches already generated for this round")
+
+            # Load teams and format
+            category = await session.get(LeagueCategoryModel, round_obj.league_category_id)
+            teams = category.teams
+            format_obj = round_obj.format.parsed_format_obj
+
+            engine = AutoMatchEngine(
+                league_id=category.league_id,
+                round_obj=round_obj,
+                teams=teams,
+                format_config=format_obj
+            )
+
+            matches = engine.generate()
+
+            # Persist generated matches
+            for m in matches:
+                session.add(m)
+            round_obj.matches_generated = True
+            round_obj.round_status = "Ongoing"
+
+            await session.commit()
+            return [m.to_json() for m in matches]
+
+    async def progress_round(self, round_id: str) -> dict:
+        async with AsyncSession() as session:
+            round_obj = await session.get(LeagueCategoryRoundModel, round_id)
+            if not round_obj:
+                raise ValueError("Round not found")
+
+            # All matches must be finished
+            matches = (
+                await session.execute(
+                    select(LeagueMatchModel).where(LeagueMatchModel.round_id == round_id)
+                )
+            ).scalars().all()
+
+            if any(m.status != "Finished" for m in matches):
+                raise ValueError("Cannot progress: some matches are not finished")
+
+            category = await session.get(LeagueCategoryModel, round_obj.league_category_id)
+            engine = AutoMatchEngine(
+                league_id=category.league_id,
+                round_obj=round_obj,
+                teams=category.teams,
+                format_config=round_obj.format.parsed_format_obj
+            )
+
+            result = await engine.progress(session)
+
+            # Mark round finished if last stage
+            round_obj.round_status = "Finished"
+            await session.commit()
+            return result
+
+    async def reset_round(self, round_id: str) -> dict:
+        async with AsyncSession() as session:
+            round_obj = await session.get(LeagueCategoryRoundModel, round_id)
+            if not round_obj:
+                raise ValueError("Round not found")
+
+            # Delete matches
+            await session.execute(
+                delete(LeagueMatchModel).where(LeagueMatchModel.round_id == round_id)
+            )
+
+            round_obj.matches_generated = False
+            round_obj.round_status = "Upcoming"
+            await session.commit()
+            return {"message": f"Matches for round {round_id} have been reset"}

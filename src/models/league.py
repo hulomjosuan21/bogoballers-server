@@ -20,6 +20,7 @@ from datetime import date
 from src.extensions import Base
 from src.utils.db_utils import CreatedAt, PublicIDGenerator, UpdatedAt, UUIDGenerator
 from src.utils.mixins import UpdatableMixin
+from sqlalchemy.ext.hybrid import hybrid_property
 
 league_status_enum = SqlEnum(
     "Pending",
@@ -228,8 +229,9 @@ class LeagueCategoryRoundModel(Base, UpdatableMixin):
         "LeagueRoundFormatModel",
         back_populates="round",
         uselist=False,
-        lazy="selectin"
+        lazy="joined"
     )
+    current_stage: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     
     matches_generated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
@@ -238,6 +240,21 @@ class LeagueCategoryRoundModel(Base, UpdatableMixin):
     next_round_id: Mapped[Optional[str]] = mapped_column(
         String, ForeignKey("league_category_rounds_table.round_id", ondelete="SET NULL"), nullable=True
     )
+    
+    @hybrid_property
+    def total_stages(self) -> int:
+        if not self.format:
+            return 1
+        parsed = self.format.parsed_format_obj
+        if not parsed:
+            return 1
+
+        if hasattr(parsed, "stages"):
+            return len(parsed.stages)
+        elif hasattr(parsed, "total_stages"):
+            return parsed.total_stages
+        else:
+            return 1
 
     def to_json(self) -> dict:
         return {
@@ -249,6 +266,8 @@ class LeagueCategoryRoundModel(Base, UpdatableMixin):
             'round_status': self.round_status,
             'matches_generated': self.matches_generated,
             'position': self.position if self.position else None,
+            'total_stages': self.total_stages,
+            'current_stage': self.current_stage,
             'next_round_id': self.next_round_id if self.next_round_id else None,
         }
 

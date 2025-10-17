@@ -3,18 +3,19 @@ from typing import Dict, List, Literal, Optional, Union
 from dataclasses import dataclass, asdict, field
 
 @dataclass
+class TwiceToBeatConfig:
+    type: Literal["TwiceToBeat"] = "TwiceToBeat"
+    advantaged_team: Optional[str] = None
+    challenger_team: Optional[str] = None
+    max_games: int = 2
+    
+@dataclass
 class RoundRobinConfig:
     type: Literal["RoundRobin"] = "RoundRobin"
     group_count: int = 1
     advances_per_group: int = 1
     use_point_system: bool = False
 
-@dataclass
-class TwiceToBeatConfig:
-    type: Literal["TwiceToBeat"] = "TwiceToBeat"
-    advantaged_team: Optional[str] = None
-    challenger_team: Optional[str] = None
-    max_games: int = 2
 
 @dataclass
 class KnockoutConfig:
@@ -47,7 +48,6 @@ RoundConfig = Union[
     KnockoutConfig,
     DoubleEliminationConfig,
     BestOfConfig,
-    TwiceToBeatConfig,
 ]
 
 def infer_format_type(config: dict) -> str:

@@ -102,8 +102,39 @@ async def update_format(format_id: str):
         data = await request.get_json()
         format_name = data.get('format_name')
         format_obj = data.get('format_obj')
-        ok = await service.update_format(format_id,format_name,format_obj)
+        is_configured = data.get('is_configured')
+        ok = await service.update_format(format_id,format_name,format_obj, is_configured)
         return await ApiResponse.success(message=ok)
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)
+    
+@auto_match_config_bp.post('/rounds/<string:round_id>/generate')
+async def generate_matches_route(round_id: str):
+    try:
+        matches = await service.generate_matches(round_id)
+        return await ApiResponse.payload(matches)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(str(e))
+
+
+@auto_match_config_bp.post('/rounds/<string:round_id>/progress')
+async def progress_round_route(round_id: str):
+    try:
+        result = await service.progress_round(round_id)
+        return await ApiResponse.payload(result)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(str(e))
+
+
+@auto_match_config_bp.post('/rounds/<string:round_id>/reset')
+async def reset_round_route(round_id: str):
+    try:
+        result = await service.reset_round(round_id)
+        return await ApiResponse.payload(result)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(str(e))
+

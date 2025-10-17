@@ -9,18 +9,6 @@ from src.extensions import AsyncSession
 from sqlalchemy.exc import IntegrityError
 
 class ManualLeagueManagementService:
-    async def count_matches_in_round(self, round_id: str, group_id: str | None = None) -> int:
-        async with AsyncSession() as session:
-            stmt = select(func.count()).select_from(LeagueMatchModel).where(
-                LeagueMatchModel.round_id == round_id
-            )
-
-            if group_id:
-                stmt = stmt.where(LeagueMatchModel.group_id == group_id)
-
-            result = await session.execute(stmt)
-            return result.scalar_one()
-    
     async def get_flow_state(self, league_id: str) -> dict:
         async with AsyncSession() as session:
             categories_result = await session.execute(
@@ -29,13 +17,17 @@ class ManualLeagueManagementService:
                     LeagueCategoryModel.manage_automatic.is_(False)
                 )
             )
-            rounds_result = await session.execute(select(LeagueCategoryRoundModel).join(LeagueCategoryModel).where(LeagueCategoryModel.league_id == league_id))
+            categories = categories_result.scalars().all()
+            category_ids = [c.league_category_id for c in categories]
+            rounds_result = await session.execute(
+                select(LeagueCategoryRoundModel)
+                .where(LeagueCategoryRoundModel.league_category_id.in_(category_ids))
+            )
             groups_result = await session.execute(select(LeagueGroupModel).join(LeagueCategoryRoundModel).join(LeagueCategoryModel).where(LeagueCategoryModel.league_id == league_id))
             matches_result = await session.execute(select(LeagueMatchModel).where(LeagueMatchModel.league_id == league_id))
             edges_result = await session.execute(select(LeagueFlowEdgeModel).where(LeagueFlowEdgeModel.league_id == league_id))
             
             
-            categories = categories_result.scalars().all()
             rounds = rounds_result.scalars().all()
             groups = groups_result.scalars().all()
             matches = matches_result.scalars().all()
@@ -96,6 +88,19 @@ class ManualLeagueManagementService:
             
             final_response = {"nodes": nodes, "edges": edges}
             return final_response
+        
+    async def count_matches_in_round(self, round_id: str, group_id: str | None = None) -> int:
+        async with AsyncSession() as session:
+            stmt = select(func.count()).select_from(LeagueMatchModel).where(
+                LeagueMatchModel.round_id == round_id
+            )
+
+            if group_id:
+                stmt = stmt.where(LeagueMatchModel.group_id == group_id)
+
+            result = await session.execute(stmt)
+            return result.scalar_one()
+    
 
     async def create_new_round(self, league_category_id: str, round_name: str, round_order: int, position: dict) -> dict:
         async with AsyncSession() as session:
