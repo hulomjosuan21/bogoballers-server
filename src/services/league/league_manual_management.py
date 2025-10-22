@@ -19,18 +19,30 @@ class ManualLeagueManagementService:
             )
             categories = categories_result.scalars().all()
             category_ids = [c.league_category_id for c in categories]
+
             rounds_result = await session.execute(
                 select(LeagueCategoryRoundModel)
                 .where(LeagueCategoryRoundModel.league_category_id.in_(category_ids))
             )
-            groups_result = await session.execute(select(LeagueGroupModel).join(LeagueCategoryRoundModel).join(LeagueCategoryModel).where(LeagueCategoryModel.league_id == league_id))
-            matches_result = await session.execute(select(LeagueMatchModel).where(LeagueMatchModel.league_id == league_id))
-            edges_result = await session.execute(select(LeagueFlowEdgeModel).where(LeagueFlowEdgeModel.league_id == league_id))
-            
-            
             rounds = rounds_result.scalars().all()
+
+            groups_result = await session.execute(
+                select(LeagueGroupModel)
+                .join(LeagueCategoryRoundModel, LeagueGroupModel.round_id == LeagueCategoryRoundModel.round_id)
+                .where(LeagueCategoryRoundModel.league_category_id.in_(category_ids))
+            )
             groups = groups_result.scalars().all()
+
+            matches_result = await session.execute(
+                select(LeagueMatchModel)
+                .where(LeagueMatchModel.league_category_id.in_(category_ids))
+            )
             matches = matches_result.scalars().all()
+
+            edges_result = await session.execute(
+                select(LeagueFlowEdgeModel)
+                .where(LeagueFlowEdgeModel.league_category_id.in_(category_ids))
+            )
             flow_edges = edges_result.scalars().all()
 
             nodes = []

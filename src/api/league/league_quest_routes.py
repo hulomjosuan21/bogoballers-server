@@ -13,12 +13,10 @@ async def register_guest_route():
         data = await request.get_json()
         result = await service.submit_guest_request(
             amount=data.get("amount"),
-            league_id=data.get("league_id"),
             league_category_id=data.get("league_category_id"),
             team_id=data.get("team_id"),
             player_id=data.get("player_id"),
             payment_method=data.get("payment_method"),
-            # You should configure these URLs to point to your frontend application
             success_url=f"https://api.bogoballers.site/league-guest/payment-result/success",
             cancel_url=f"https://api.bogoballers.site/league-guest/payment-result/cancel",
         )
@@ -100,11 +98,20 @@ async def refund_route():
         traceback.print_exc()
         return await ApiResponse.error(f"An unexpected error occurred: {e}", 500)
 
-@league_guest_bp.get("/submissions/league/<league_id>")
-async def get_requests_by_league(league_id: str):
+@league_guest_bp.get("/submissions/league/<league_category_id>")
+async def get_requests_by_league(league_category_id: str):
     try:
-        requests_list = await service.list_requests_by_league(league_id)
+        requests_list = await service.list_requests_by_league(league_category_id)
         return await ApiResponse.payload([r.to_json() for r in requests_list])
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)
+    
+@league_guest_bp.get('/league-team/all/<league_category_id>')
+async def get_league_team(league_category_id: str):
+    try:
+        result = await service.get_all_team(league_category_id=league_category_id)
+        return await ApiResponse.payload([r.to_json() for r in result])
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)

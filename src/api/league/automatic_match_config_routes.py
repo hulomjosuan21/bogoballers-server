@@ -112,8 +112,8 @@ async def update_format(format_id: str):
 @auto_match_config_bp.post('/rounds/<string:round_id>/generate')
 async def generate_matches_route(round_id: str):
     try:
-        matches = await service.generate_matches(round_id)
-        return await ApiResponse.payload(matches)
+        result = await service.generate_matches(round_id)
+        return await ApiResponse.success(message=result)
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(str(e))

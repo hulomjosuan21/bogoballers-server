@@ -3,6 +3,7 @@
 from typing import Optional, Tuple
 import uuid
 from sqlalchemy import and_, delete, select, update
+from src.services.league.league_category_service import LeagueCategoryService
 from src.engines.auto_match_engine import AutoMatchEngine
 from src.models.match import LeagueMatchModel
 from src.extensions import AsyncSession
@@ -48,32 +49,25 @@ class AutomaticMatchConfigService:
             
             rounds = (
                 await session.execute(
-                    select(LeagueCategoryRoundModel)
-                    .join(LeagueCategoryModel)
-                    .where(LeagueCategoryRoundModel.league_category_id.in_(category_ids))
+                    select(LeagueCategoryRoundModel).where(
+                        LeagueCategoryRoundModel.league_category_id.in_(category_ids)
+                    )
                 )
             ).scalars().all()
 
             formats = (
                 await session.execute(
-                    select(LeagueRoundFormatModel)
-                    .join(
-                        LeagueCategoryRoundModel,
-                        LeagueRoundFormatModel.round_id == LeagueCategoryRoundModel.round_id,
-                        isouter=True,
+                    select(LeagueRoundFormatModel).where(
+                        LeagueRoundFormatModel.round_id.in_([r.round_id for r in rounds])
                     )
-                    .join(
-                        LeagueCategoryModel,
-                        LeagueCategoryRoundModel.league_category_id == LeagueCategoryModel.league_category_id,
-                        isouter=True,
-                    )
-                    .where(LeagueCategoryModel.league_id == league_id)
                 )
             ).scalars().all()
 
             edges = (
                 await session.execute(
-                    select(LeagueFlowEdgeModel).where(LeagueFlowEdgeModel.league_id == league_id)
+                    select(LeagueFlowEdgeModel).where(
+                        LeagueFlowEdgeModel.league_category_id.in_(category_ids)
+                    )
                 )
             ).scalars().all()
 
@@ -189,6 +183,38 @@ class AutomaticMatchConfigService:
             await session.commit()
             await session.refresh(new_round)
             return new_round.to_json()
+        
+    def get_default_config(self, format_type: str) -> dict:
+        match format_type:
+            case "RoundRobin":
+                return {
+                    "group_count": 1,
+                    "advances_per_group": 1,
+                    "use_point_system": False,
+                }
+            case "Knockout":
+                return {
+                    "group_count": 1,
+                    "seeding": "random",
+                    "series_config": None,
+                }
+            case "DoubleElimination":
+                return {
+                    "group_count": 1,
+                    "max_loss": 2,
+                    "progress_group": 1,
+                    "max_progress_group": 6,
+                    "advances_per_group": 1,
+                }
+            case "BestOf":
+                return {
+                    "group_count": 1,
+                    "games": 3,
+                    "advances_per_group": 1,
+                    "series_config": None,
+                }
+            case _:
+                raise ValueError(f"Invalid format_type: {format_type}")
 
     async def create_or_attach_format(
         self,
@@ -215,11 +241,17 @@ class AutomaticMatchConfigService:
                 await session.commit()
                 await session.refresh(existing)
                 return existing.to_dict()
+            
+            if not format_type:
+                raise ValueError("format_type is required when creating a new format.")
+
+            default_config = self.get_default_config(format_type)
 
             new_format = LeagueRoundFormatModel(
                 round_id=round_id,
                 format_name=format_name,
                 format_type=format_type,
+                format_obj=default_config,
                 position=position,
             )
             session.add(new_format)
@@ -394,16 +426,13 @@ class AutomaticMatchConfigService:
             if round_obj.matches_generated:
                 raise ValueError("Matches already generated for this round")
 
-            # Load teams and format
             category = await session.get(LeagueCategoryModel, round_obj.league_category_id)
-            teams = category.teams
-            format_obj = round_obj.format.parsed_format_obj
+            teams = await LeagueCategoryService.get_eligible_teams(session, category.league_category_id)
 
             engine = AutoMatchEngine(
                 league_id=category.league_id,
-                round_obj=round_obj,
+                round=round_obj,
                 teams=teams,
-                format_config=format_obj
             )
 
             matches = engine.generate()
@@ -415,7 +444,7 @@ class AutomaticMatchConfigService:
             round_obj.round_status = "Ongoing"
 
             await session.commit()
-            return [m.to_json() for m in matches]
+            return f"{len(matches)} match generated"
 
     async def progress_round(self, round_id: str) -> dict:
         async with AsyncSession() as session:
