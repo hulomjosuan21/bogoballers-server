@@ -2,10 +2,11 @@ from typing import Dict, List
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
+from src.models.group import LeagueGroupModel
 from src.models.match import LeagueMatchModel
 from src.models.team import LeagueTeamModel
 from src.extensions import AsyncSession
-from src.models.league import LeagueCategoryModel
+from src.models.league import LeagueCategoryModel, LeagueCategoryRoundModel
 from src.utils.api_response import ApiException
 
 class LeagueCategoryService:
@@ -125,3 +126,47 @@ class LeagueCategoryService:
             except (IntegrityError, SQLAlchemyError) as e:
                 await session.rollback()
                 raise e
+            
+    async def get_category_round_group_names(self, league_id: str):
+        async with AsyncSession() as session:
+            stmt = (
+                select(LeagueCategoryModel)
+                .options(
+                    joinedload(LeagueCategoryModel.rounds).joinedload(LeagueCategoryRoundModel.format),
+                    joinedload(LeagueCategoryModel.rounds).joinedload(LeagueCategoryRoundModel.format),
+                    joinedload(LeagueCategoryModel.rounds).joinedload(LeagueCategoryRoundModel.format),
+                )
+                .where(LeagueCategoryModel.league_id == league_id)
+            )
+
+            result = await session.execute(stmt)
+            categories = result.unique().scalars().all()
+
+            data = []
+            for category in categories:
+                rounds_data = []
+                for round_ in category.rounds:
+                    group_result = await session.execute(
+                        select(LeagueGroupModel).where(
+                            LeagueGroupModel.league_category_id == category.league_category_id,
+                            LeagueGroupModel.round_id == round_.round_id,
+                        )
+                    )
+                    groups = group_result.scalars().all()
+
+                    rounds_data.append({
+                        "round_id": round_.round_id,
+                        "round_name": round_.round_name,
+                        "groups": [
+                            {"group_id": g.group_id, "group_name": g.display_name}
+                            for g in groups
+                        ]
+                    })
+
+                data.append({
+                    "league_category_id": category.league_category_id,
+                    "category_name": category.category.category_name,
+                    "rounds": rounds_data,
+                })
+
+            return data

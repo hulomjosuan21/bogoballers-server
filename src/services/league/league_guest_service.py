@@ -4,13 +4,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from src.models.league import LeagueCategoryModel
-from src.models.team import LeagueTeamModel
+from src.models.team import LeagueTeamModel, TeamModel
 from src.services.team_validators.player_validator import ValidatePlayerEntry
 from src.services.team_validators.validate_team_entry import ValidateTeamEntry, get_team_for_register_validation
 from src.services.paymongo_service import PaymongoClient
 from src.models.guest import GuestRegistrationRequestModel
 from src.extensions import AsyncSession
-from src.models.player import PlayerModel, PlayerTeamModel
+from src.models.player import LeaguePlayerModel, PlayerModel, PlayerTeamModel
 from src.utils.api_response import ApiException
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
@@ -21,7 +21,6 @@ class LeagueGuestService:
     async def submit_guest_request(
         self,
         amount,
-        league_id: str,
         league_category_id: str,
         payment_method: str,
         success_url: str,
@@ -66,7 +65,7 @@ class LeagueGuestService:
 
                     # Create the guest request record
                     new_request = GuestRegistrationRequestModel(
-                        league_id=league_id,
+                        league_id=league_category.league_id,
                         league_category_id=league_category_id,
                         team_id=team_id, player_id=player_id, request_type=request_type,
                         payment_status="Pending",
@@ -205,13 +204,36 @@ class LeagueGuestService:
                 
                 return {"message": "Refund processed.", "details": refund_details}
 
-    async def list_requests_by_league(self, league_id: str) -> List[GuestRegistrationRequestModel]:
+    async def list_requests_by_league(self, league_category_id: str) -> List[GuestRegistrationRequestModel]:
         async with AsyncSession() as session:
             result = await session.execute(
                 select(GuestRegistrationRequestModel)
                 .join(LeagueCategoryModel)
-                .where(LeagueCategoryModel.league_id == league_id)
+                .where(LeagueCategoryModel.league_category_id == league_category_id)
                 .options(selectinload(GuestRegistrationRequestModel.team), selectinload(GuestRegistrationRequestModel.player), selectinload(GuestRegistrationRequestModel.league_category).selectinload(LeagueCategoryModel.category))
                 .order_by(GuestRegistrationRequestModel.request_created_at.desc())
             )
+            return result.scalars().all()
+        
+    async def get_all_team(self, league_category_id: str):
+        async with AsyncSession() as session:
+            stmt = (
+                select(LeagueTeamModel)
+                .options(
+                    selectinload(
+                        LeagueTeamModel.league_players.and_(
+                            (LeaguePlayerModel.is_ban_in_league == False) &
+                            (LeaguePlayerModel.is_allowed_in_league == True)
+                        )
+                    ),
+                    selectinload(LeagueTeamModel.team).selectinload(TeamModel.user),
+                )
+            )
+            
+            stmt = stmt.where(
+                LeagueTeamModel.status == "Accepted",
+                LeagueTeamModel.league_category_id == league_category_id
+            )
+
+            result = await session.execute(stmt)
             return result.scalars().all()
