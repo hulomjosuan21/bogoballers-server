@@ -265,6 +265,7 @@ class LeagueCategoryRoundModel(Base, UpdatableMixin):
             'round_order': self.round_order,
             'round_status': self.round_status,
             'matches_generated': self.matches_generated,
+            'format': self.format.to_dict() if self.format else None,
             'position': self.position if self.position else None,
             'total_stages': self.total_stages,
             'current_stage': self.current_stage,

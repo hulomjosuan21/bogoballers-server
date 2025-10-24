@@ -71,7 +71,7 @@ class LeagueMatchService:
                         LeagueMatchModel.round_id == round_id
                     ])
                     stmt = select(LeagueMatchModel).where(*conditions).order_by(LeagueMatchModel.display_name.asc())
-
+                    
                 elif condition == "Scheduled":
                     conditions.extend([
                         LeagueMatchModel.status == "Scheduled",
@@ -80,7 +80,15 @@ class LeagueMatchService:
                         LeagueMatchModel.away_team_id.is_not(None),
                         LeagueMatchModel.round_id == round_id
                     ])
-                    stmt = select(LeagueMatchModel).where(*conditions).order_by(LeagueMatchModel.display_name.asc())
+                    
+                    stmt = (
+                        select(LeagueMatchModel)
+                        .where(*conditions)
+                        .order_by(
+                            LeagueMatchModel.scheduled_date.asc(),
+                            # LeagueMatchModel.display_name.asc()
+                        )
+                    )
 
                 elif condition == "Completed":
                     conditions.extend([
@@ -89,20 +97,6 @@ class LeagueMatchService:
                         LeagueMatchModel.away_team_id.is_not(None),
                         LeagueMatchModel.round_id == round_id
                     ])
-                    stmt = select(LeagueMatchModel).where(*conditions).order_by(LeagueMatchModel.display_name.asc())
-
-                elif condition == "Upcoming":
-                    now = datetime.now(timezone.utc)
-                    two_days_from_now = now + timedelta(days=2)
-
-                    conditions.extend([
-                        LeagueMatchModel.status == "Scheduled",
-                        LeagueMatchModel.scheduled_date <= two_days_from_now,
-                        LeagueMatchModel.scheduled_date >= now,
-                        LeagueMatchModel.home_team_id.is_not(None),
-                        LeagueMatchModel.away_team_id.is_not(None),
-                        LeagueMatchModel.round_id == round_id
-                    ])    
                     stmt = select(LeagueMatchModel).where(*conditions).order_by(LeagueMatchModel.display_name.asc())
 
                 elif condition == "ByRound":

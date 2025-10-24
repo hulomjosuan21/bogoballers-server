@@ -119,11 +119,11 @@ async def generate_matches_route(round_id: str):
         return await ApiResponse.error(str(e))
 
 
-@auto_match_config_bp.post('/rounds/<string:round_id>/progress')
+@auto_match_config_bp.post("/rounds/<string:round_id>/progress")
 async def progress_round_route(round_id: str):
     try:
-        result = await service.progress_round(round_id)
-        return await ApiResponse.payload(result)
+        result = await service.auto_process_round(round_id)
+        return await ApiResponse.success(message=result)
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(str(e))
