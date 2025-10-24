@@ -298,6 +298,8 @@ class LeaguePlayerModel(Base, UpdatableMixin):
 
     league_player_created_at: Mapped[datetime] = CreatedAt()
     league_player_updated_at: Mapped[datetime] = UpdatedAt()
+    
+    include_first5: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     player_team: Mapped["PlayerTeamModel"] = relationship(
         "PlayerTeamModel",
@@ -325,6 +327,7 @@ class LeaguePlayerModel(Base, UpdatableMixin):
             'league_team': self.league_team.to_json(include_players=False) if self.league_team else None,
             'is_ban_in_league': self.is_ban_in_league,
             'is_allowed_in_league': self.is_allowed_in_league,
+            'include_first5': self.include_first5,
             **self.player_team.to_json(),
             'league_player_created_at': self.league_player_created_at.isoformat(),
             'league_player_updated_at': self.league_player_updated_at.isoformat()
