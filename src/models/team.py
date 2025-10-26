@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     
 from datetime import datetime
 from sqlalchemy import (
-    CheckConstraint, DateTime, Float, ForeignKey, String, Boolean, Integer, Enum as SqlEnum, Text, UniqueConstraint
+    CheckConstraint, DateTime, Float, ForeignKey, String, Boolean, Integer, Enum as SqlEnum, Text, UniqueConstraint, desc
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import JSONB
@@ -187,7 +187,8 @@ class LeagueTeamModel(Base, UpdatableMixin):
         "LeaguePlayerModel",
         back_populates="league_team",
         cascade="all, delete-orphan",
-        lazy="selectin"
+        lazy="selectin",
+        order_by="LeaguePlayerModel.include_first5.desc()"
     )
     
     def to_json(self, include_players: bool = True) -> dict:
