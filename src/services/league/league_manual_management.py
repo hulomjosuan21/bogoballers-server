@@ -307,14 +307,20 @@ class ManualLeagueManagementService:
             result = await session.execute(stmt)
             await session.commit()
             return result.rowcount > 0
-        
-    async def synchronize_bracket(self, league_id: str) -> dict:
+
+    async def synchronize_bracket(self, league_category_id: str) -> dict:
         async with AsyncSession() as session, session.begin():
+            
+            total_teams_stmt = select(func.count(LeagueTeamModel.league_team_id)).where(
+                LeagueTeamModel.league_category_id == league_category_id
+            )
+            total_teams_count = (await session.execute(total_teams_stmt)).scalar_one() or 0
+
             resolved_matches_stmt = select(LeagueMatchModel).where(
-                LeagueMatchModel.league_id == league_id,
+                LeagueMatchModel.league_category_id == league_category_id,
                 LeagueMatchModel.winner_team_id.isnot(None)
             )
-            edges_stmt = select(LeagueFlowEdgeModel).where(LeagueFlowEdgeModel.league_id == league_id)
+            edges_stmt = select(LeagueFlowEdgeModel).where(LeagueFlowEdgeModel.league_category_id == league_category_id)
             resolved_matches = (await session.execute(resolved_matches_stmt)).scalars().all()
             edges = (await session.execute(edges_stmt)).scalars().all()
 
@@ -352,11 +358,23 @@ class ManualLeagueManagementService:
 
                 if match.is_elimination and loser_id:
                     loser_team = await session.get(LeagueTeamModel, loser_id)
-                    if loser_team and not loser_team.is_eliminated:
+                    
+                    if loser_team and not loser_team.is_eliminated and loser_team.final_rank is None:
                         loser_team.is_eliminated = True
                         loser_team.eliminated_in_round_id = match.round_id
+                        
+                        already_ranked_stmt = select(func.count(LeagueTeamModel.league_team_id)).where(
+                            LeagueTeamModel.league_category_id == league_category_id,
+                            LeagueTeamModel.is_eliminated == True,
+                            LeagueTeamModel.final_rank.isnot(None)
+                        )
+                        already_ranked_count = (await session.execute(already_ranked_stmt)).scalar_one() or 0
+                        
+                        loser_team.final_rank = total_teams_count - already_ranked_count
+                        
                         eliminated_teams_count += 1
-                
+                        ranked_teams_count += 1 
+
                 if match.is_final and winner_id and loser_id:
                     champion_team = await session.get(LeagueTeamModel, winner_id)
                     if champion_team:
@@ -379,7 +397,7 @@ class ManualLeagueManagementService:
                     if fourth_place_team:
                         fourth_place_team.final_rank = 4
                         ranked_teams_count += 1
-            
+                
             await session.commit()
            
             return {"teams_progressed": progressed_teams_count}

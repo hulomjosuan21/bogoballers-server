@@ -4,6 +4,7 @@ import re
 from typing import List
 from dateutil.relativedelta import relativedelta
 from sqlalchemy import  Date,Text, and_, case, cast, func, or_, select, update
+from src.services import league_admin_service
 from src.models.player import LeaguePlayerModel
 from src.models.team import LeagueTeamModel
 from src.models.league_admin import LeagueAdministratorModel
@@ -23,6 +24,46 @@ ALLOWED_OPTION_KEYS = {
 
 
 class LeagueService:
+    def _base_stmt(self):
+        return (
+            select(LeagueModel)
+            .options(
+                joinedload(LeagueModel.creator).joinedload(LeagueAdministratorModel.account),
+                selectinload(LeagueModel.categories).joinedload(LeagueCategoryModel.category),
+                selectinload(LeagueModel.categories).selectinload(LeagueCategoryModel.rounds),
+            )
+        )
+
+    def _get_one_stmt(self):
+        return self._base_stmt().limit(1)
+
+    def _get_many_stmt(self):
+        return self._base_stmt()
+    
+    async def fetch_generic(self, user_id, param_status_list: list[str], param_filter: str | None, param_all: bool, param_active: bool):
+            async with AsyncSession() as session:
+                league_admin = await league_admin_service.get_one(session=session, user_id=user_id)
+                if not league_admin:
+                    raise ApiException("LeagueAdmin not found")
+                
+                conditions = [LeagueModel.league_administrator_id == league_admin.league_administrator_id]
+                
+                if param_active is True:
+                    valid_active_statuses = [
+                        s for s in param_status_list
+                        if s in ('Scheduled', 'Ongoing')
+                    ]
+
+                    if valid_active_statuses:
+                        conditions.append(LeagueModel.status.in_(valid_active_statuses))
+
+                    stmt = self.get_one_stmt()
+                    stmt = stmt.where(and_(*conditions))
+                    result = await session.execute(stmt)
+                    league = result.scalar_one_or_none()
+                    return league.to_json() if league else None
+                
+                return None
     
     async def analytics(self, league_id: str):
         async with AsyncSession() as session:
@@ -281,7 +322,7 @@ class LeagueService:
                 return f"League {league_title} as been create new start managing you league categories"
         except (IntegrityError, SQLAlchemyError) as e:
             await session.rollback()
-            raise e 
+            raise e
         
     async def _get_one(self):
         return (
@@ -316,35 +357,6 @@ class LeagueService:
             if not league:
                 raise ApiException('No league found')
             
-            return league
-        
-    async def get_one(self, user_id: str, data: dict):
-        from src.services.league_admin_service import LeagueAdministratorService
-        league_admin_service = LeagueAdministratorService()
-        async with AsyncSession() as session:
-            league_admin = await league_admin_service.get_one(session=session,user_id=user_id)
-            
-            if not league_admin:
-                raise ApiException("LeagueAdmin not found")
-            
-            conditions = [LeagueModel.league_administrator_id == league_admin.league_administrator_id]
-            
-            condition = data.get('condition')
-            
-            if data:
-                if condition == "Active":
-                    conditions.append(
-                        ~LeagueModel.status.in_(["Cancelled", "Postponed", "Completed"])
-                    )
-
-            stmt = await self._get_one()
-            stmt = stmt.where(and_(*conditions))
-
-            try:
-                league = (await session.execute(stmt)).scalar_one()
-            except NoResultFound:
-                raise ApiException("No League found")
-
             return league
         
     @staticmethod

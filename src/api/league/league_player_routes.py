@@ -18,3 +18,14 @@ async def get_many_router(league_category_id: str):
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)
+    
+@league_player.put('/<league_player_id>')
+async def update_one_router(league_player_id: str):
+    try:
+        body = await request.get_json()
+        condition = body.get("condition")
+        result = await service.update_one(league_player_id, condition)
+        return await ApiResponse.payload(result)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)

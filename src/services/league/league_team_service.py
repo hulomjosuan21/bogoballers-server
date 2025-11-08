@@ -83,8 +83,12 @@ class LeagueTeamService:
             if not round_obj:
                 raise ValueError(f"Round not found: {round_id}")
 
-            stmt = select(LeagueTeamModel).where(
-                LeagueTeamModel.league_category_id == league_category_id
+            stmt = (
+                select(LeagueTeamModel)
+                .where(LeagueTeamModel.league_category_id == league_category_id)
+                .order_by(
+                    LeagueTeamModel.final_rank.asc().nulls_first()
+                )
             )
 
             result = await session.execute(stmt)
@@ -122,17 +126,11 @@ class LeagueTeamService:
                 ])
             elif data and data.get("condition") == "RankAndFinalize":
                 conditions.extend([
-                    (LeagueTeamModel.final_rank.in_([1, 2, 3, 4])) |
-                    ((LeagueTeamModel.final_rank.is_(None)) & (LeagueTeamModel.finalized_at.isnot(None)))
+                    LeagueTeamModel.status == "Accepted",
                 ])
 
                 stmt = stmt.order_by(
-                    case(
-                        (LeagueTeamModel.final_rank.isnot(None), 0),
-                        else_=1
-                    ),
-                    LeagueTeamModel.final_rank.asc().nulls_last(),
-                    LeagueTeamModel.finalized_at.asc().nulls_last()
+                    LeagueTeamModel.final_rank.asc().nulls_first()
                 )
 
             stmt = stmt.where(*conditions)

@@ -63,6 +63,7 @@ class LeagueMatchService:
 
             if data:
                 condition = data.get("condition")
+                limit = data.get("limit", None)
 
                 if condition == "Unscheduled":
                     conditions.extend([
@@ -95,9 +96,24 @@ class LeagueMatchService:
                         LeagueMatchModel.status == "Completed",
                         LeagueMatchModel.home_team_id.is_not(None),
                         LeagueMatchModel.away_team_id.is_not(None),
-                        LeagueMatchModel.round_id == round_id
+                        LeagueMatchModel.league_category_id == league_category_id,
                     ])
-                    stmt = select(LeagueMatchModel).where(*conditions).order_by(LeagueMatchModel.display_name.asc())
+                    if round_id is not None:
+                        conditions.append(LeagueMatchModel.round_id == round_id)
+                    stmt = select(LeagueMatchModel).where(*conditions).order_by(LeagueMatchModel.league_match_updated_at.desc())
+                    if limit is not None:
+                        stmt = stmt.limit(limit)
+                elif condition == "Upcoming":
+                    conditions.extend([
+                        LeagueMatchModel.status == "Scheduled",
+                        LeagueMatchModel.home_team_id.is_not(None),
+                        LeagueMatchModel.away_team_id.is_not(None),
+                        LeagueMatchModel.round_id == round_id,
+                        LeagueMatchModel.scheduled_date > func.now()
+                    ])
+                    stmt = select(LeagueMatchModel).where(*conditions).order_by(LeagueMatchModel.scheduled_date.asc())
+                    if limit is not None:
+                        stmt = stmt.limit(limit)
 
                 elif condition == "ByRound":
                     conditions.append(LeagueMatchModel.round_id == round_id)

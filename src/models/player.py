@@ -2,11 +2,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, List, Optional
 
 
+
 if TYPE_CHECKING:
     from src.models.league import LeagueCategoryModel
     from src.models.user import UserModel
     from src.models.team import TeamModel
     from src.models.league import LeagueTeamModel, LeagueModel
+    from src.models.player_valid_documents import PlayerValidDocument
     
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import String, Boolean, Float, Integer, Date, ForeignKey, Enum as SqlEnum, Text, UniqueConstraint, case, cast
@@ -88,6 +90,12 @@ class PlayerModel(Base, UpdatableMixin):
         "UserModel",
         back_populates="player",
         lazy="joined"
+    )
+    
+    valid_documents: Mapped[List[PlayerValidDocument]] = relationship(
+        "PlayerValidDocument",
+        cascade="all, delete-orphan",
+        lazy="selectin"
     )
         
     @hybrid_property
@@ -191,7 +199,7 @@ class PlayerModel(Base, UpdatableMixin):
             'total_join_league': self.total_join_league,
             'is_ban': self.is_ban,
             'is_allowed': self.is_allowed,
-            'valid_documents': self.valid_documents,
+            'valid_documents': [d.to_json() for d in self.valid_documents] if self.valid_documents else [],
             'user': self.user.to_json(),
             'player_created_at': self.player_created_at.isoformat(),
             'player_updated_at': self.player_updated_at.isoformat(),

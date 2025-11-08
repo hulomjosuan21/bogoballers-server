@@ -8,6 +8,25 @@ league_bp = Blueprint("league", __name__, url_prefix="/league")
 
 service = LeagueService()
 
+@league_bp.get('/fetch')
+async def fetch_league():
+    try:
+        user_id = request.args.get('user_id') or current_user.auth_id
+        param_status_list = request.args.getlist('status')
+        param_filter = request.args.get('filter', None)
+        param_all = request.args.get('all', 'false').lower() == 'true'
+        param_active = request.args.get('active', 'false').lower() == 'true'
+        
+        result = await service.fetch_generic(user_id=user_id,
+                                             param_status_list=param_status_list,
+                                             param_filter=param_filter,
+                                             param_all=param_all,
+                                             param_active=param_active)
+        return await ApiResponse.payload(result)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)        
+
 @league_bp.post('/<public_league_id>/public-view')
 async def get_one_by_public_id(public_league_id: str):
     try:
@@ -48,17 +67,6 @@ async def create_new_league_route():
         user_id = current_user.auth_id
         result = await service.create_one(user_id, form, files)
         return await ApiResponse.success(message=result)
-    except Exception as e:
-        traceback.print_exc()
-        return await ApiResponse.error(e)
-    
-@league_bp.post('/active')
-async def get_one_route():
-    try:
-        data = await request.get_json()
-        user_id = request.args.get('user_id') or current_user.auth_id
-        result = await service.get_one(user_id, data)
-        return await ApiResponse.payload(result.to_json())
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)
