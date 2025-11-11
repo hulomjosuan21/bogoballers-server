@@ -8,6 +8,14 @@ league_bp = Blueprint("league", __name__, url_prefix="/league")
 
 service = LeagueService()
 
+@league_bp.get('/print/<league_id>')
+async def print_league(league_id: str):
+    try:
+        return await service.print_league(league_id)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e) 
+
 @league_bp.get('/fetch')
 async def fetch_league():
     try:

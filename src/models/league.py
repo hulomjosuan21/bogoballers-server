@@ -89,6 +89,12 @@ class LeagueModel(Base, UpdatableMixin):
         lazy="selectin"
     )
     
+    teams: Mapped[list["LeagueTeamModel"]] = relationship(
+        "LeagueTeamModel",
+        cascade="all, delete-orphan",
+        lazy="selectin"
+    )
+    
     def _league_schedule_serialized(self):
         try:
             return [
@@ -101,8 +107,8 @@ class LeagueModel(Base, UpdatableMixin):
                 self.league_schedule.upper.isoformat()
             ]
             
-    def to_json(self) -> dict:
-        return {
+    def to_json(self, include_team = False) -> dict:
+        data = {
             'league_id': self.league_id,
             'public_league_id': self.public_league_id,
             'league_administrator_id': self.league_administrator_id,
@@ -126,6 +132,11 @@ class LeagueModel(Base, UpdatableMixin):
             'creator': self.creator.to_json(),
             'league_categories': [c.to_json() for c in self.categories]
         }
+        
+        if include_team is True:
+            data["teams"] = [team.to_json() for team in self.teams]
+        
+        return data
 
 
 league_category_status_enum = SqlEnum(
