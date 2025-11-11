@@ -14,7 +14,34 @@ from src.services.team_validators.validate_team_entry import get_team_for_regist
 
 league_player_service = LeaguePlayerService()
 
-class LeagueTeamService:    
+class LeagueTeamService:
+    def _base_stmt(self): 
+        return (
+            select(LeagueTeamModel)
+            .options(
+                selectinload(
+                    LeagueTeamModel.league_players.and_(
+                        (LeaguePlayerModel.is_ban_in_league == False) &
+                        (LeaguePlayerModel.is_allowed_in_league == True)
+                    )
+                ),
+                selectinload(LeagueTeamModel.team).selectinload(TeamModel.user),
+            )
+        )
+        
+    def _get_one_stmt(self):
+        return self._base_stmt().limit(1)
+
+    def _get_many_stmt(self):
+        return self._base_stmt()        
+            
+    async def fetch_generic(self, league_category_id: str | None, param_filter: str | None, param_all: bool):
+        async with AsyncSession() as session:
+            conditions = []
+            
+            
+            
+            return None
     
     async def validate_team_entry(self, league_id: str, league_team_id: str, league_category_id: str):
         async with AsyncSession() as session:
@@ -83,8 +110,12 @@ class LeagueTeamService:
             if not round_obj:
                 raise ValueError(f"Round not found: {round_id}")
 
-            stmt = select(LeagueTeamModel).where(
-                LeagueTeamModel.league_category_id == league_category_id
+            stmt = (
+                select(LeagueTeamModel)
+                .where(LeagueTeamModel.league_category_id == league_category_id)
+                .order_by(
+                    LeagueTeamModel.final_rank.asc().nulls_first()
+                )
             )
 
             result = await session.execute(stmt)
@@ -122,17 +153,11 @@ class LeagueTeamService:
                 ])
             elif data and data.get("condition") == "RankAndFinalize":
                 conditions.extend([
-                    (LeagueTeamModel.final_rank.in_([1, 2, 3, 4])) |
-                    ((LeagueTeamModel.final_rank.is_(None)) & (LeagueTeamModel.finalized_at.isnot(None)))
+                    LeagueTeamModel.status == "Accepted",
                 ])
 
                 stmt = stmt.order_by(
-                    case(
-                        (LeagueTeamModel.final_rank.isnot(None), 0),
-                        else_=1
-                    ),
-                    LeagueTeamModel.final_rank.asc().nulls_last(),
-                    LeagueTeamModel.finalized_at.asc().nulls_last()
+                    LeagueTeamModel.final_rank.asc().nulls_first()
                 )
 
             stmt = stmt.where(*conditions)

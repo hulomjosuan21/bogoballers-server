@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from src.services.player_validator.player_no_team_validator import ValidateLeaguePlayer
 from src.models.team import LeagueTeamModel, TeamModel
 from src.models.player import LeaguePlayerModel, PlayerModel, PlayerTeamModel
@@ -113,3 +113,32 @@ class LeaguePlayerService:
     async def assign_player_to_team(self, league_team_id: str):
         async with AsyncSession() as session:
             ...
+            
+    async def update_one(self, league_player_id: str, condition: str):
+        async with AsyncSession() as session:
+            player = await session.get(LeaguePlayerModel, league_player_id)
+            if not player:
+                raise ApiException("League player not found", 404)
+
+            if condition == "Include first 5":
+                if not player.include_first5:  # only enforce when turning ON
+                    stmt = (
+                        select(func.count(LeaguePlayerModel.league_player_id))
+                        .where(
+                            LeaguePlayerModel.league_team_id == player.league_team_id,
+                            LeaguePlayerModel.include_first5.is_(True),
+                        )
+                    )
+                    result = await session.execute(stmt)
+                    count = result.scalar_one()
+                    if count >= 5:
+                        raise ApiException("A team can only have 5 starters", 400)
+                player.include_first5 = not player.include_first5
+
+            # More conditions can go here...
+            # elif condition == "Ban player": ...
+            # elif condition == "Unban player": ...
+
+            await session.commit()
+            await session.refresh(player)
+            return player.to_json()

@@ -1,28 +1,263 @@
+import io
 import json
 from datetime import datetime
+import os
+import platform
 import re
+import tempfile
 from typing import List
+import subprocess
 from dateutil.relativedelta import relativedelta
+from quart import send_file
 from sqlalchemy import  Date,Text, and_, case, cast, func, or_, select, update
+from src.services import league_admin_service
 from src.models.player import LeaguePlayerModel
 from src.models.team import LeagueTeamModel
 from src.models.league_admin import LeagueAdministratorModel
 from src.models.league import LeagueModel, LeagueCategoryModel
 from src.services.cloudinary_service import CloudinaryService
-from src.extensions import AsyncSession, settings
+from src.extensions import LEAGUE_TEMPLATE_PATH, AsyncSession, settings
 from src.utils.api_response import ApiException, ApiResponse
 from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.exc import NoResultFound
 from src.utils.server_utils import validate_required_fields
-
+from docxtpl import DocxTemplate
 ALLOWED_OPTION_KEYS = {
     "player_residency_certificate_required",
     "player_residency_certificate_valid_until"
 }
 
-
+DATETIME_FORMAT = "%b %d, %Y %I:%M %p" 
+DATE_ONLY_FORMAT = "%b %d, %Y"
 class LeagueService:
+    def format_datetime_with_time(self, date_str):
+        try:
+            dt_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+            return dt_obj.strftime(DATETIME_FORMAT)
+        except Exception:
+            return date_str
+
+    def format_date_only(self, date_str):
+        try:
+            dt_obj = datetime.strptime(date_str, "%Y-%m-%d")
+            return dt_obj.strftime(DATE_ONLY_FORMAT)
+        except Exception:
+            return date_str
+    
+    async def print_league(self, league_id: str):
+        async with AsyncSession() as session:
+
+            stmt = (
+                select(LeagueModel)
+                .where(LeagueModel.league_id == league_id)
+                .options(
+                    joinedload(LeagueModel.creator).joinedload(LeagueAdministratorModel.account),
+                    selectinload(LeagueModel.categories).joinedload(LeagueCategoryModel.category),
+                    selectinload(LeagueModel.categories).selectinload(LeagueCategoryModel.rounds),
+                    selectinload(LeagueModel.teams).joinedload(LeagueTeamModel.team)
+                )
+            )
+
+            result = await session.execute(stmt)
+            league = result.scalar_one_or_none()
+
+            if not league:
+                raise ApiException("League not found")
+
+            data = league.to_json(include_team=True)
+
+        creator = data["creator"]
+        admin_account = creator["account"]
+
+        # ✅ TABLE DATA → Matches Docx Jinja loops
+        courts_table = [
+            {
+                "court_name": c.get("name","Unnamed"),
+                "location": c.get("location","N/A"),
+            }
+            for c in data["league_courts"]
+        ]
+
+        officials_table = [
+            {
+                "full_name": o.get("full_name","Unnamed"),
+                "role": o.get("role", "N/A"),
+                "contact_info": o.get("contact_info","N/A")
+            }
+            for o in data["league_officials"]
+        ]
+
+        referees_table = [
+            {
+                "full_name": r.get("full_name","Unnamed"),
+                "contact_info": r.get("contact_info", "N/A"),
+            }
+            for r in data["league_referees"]
+        ]
+        
+
+        affiliates_table = [
+            {
+                "name": a.get("name", "Unnamed"),
+                "value": a.get("value", "N/A"),
+                "contact_info": a.get("contact_info", "N/A")
+            }
+            for a in data["league_affiliates"]
+        ]
+
+        categories_table = [
+            {
+                "category_name": c.get("category_name", "Unnamed Category"),
+                "max_team": c.get("max_team", "N/A")
+            }
+            for c in data["league_categories"]
+        ]
+
+        teams_table = [
+            {
+                "team_name": t.get("team_name", "Unnamed Team"),
+                "coach_name": t.get("coach_name", "N/A"),
+                "assistant_coach_name": t.get("assistant_coach_name", "N/A")
+            }
+            for t in data["teams"]
+        ]
+        
+        league_commissioner = next(
+            (o["full_name"] for o in data["league_officials"] if o["role"].lower() == "league commissioner"),
+            "N/A"
+        )
+
+        league_director = next(
+            (o["full_name"] for o in data["league_officials"] if o["role"].lower() == "league director"),
+            "N/A"
+        )
+
+        # ✅ Context matches Docx template
+        context = {
+            "league_director": league_director,
+            "league_commissioner": league_commissioner,
+            
+            "league_title": data["league_title"],
+            "league_description": data["league_description"],
+            "league_address": data["league_address"],
+            "league_budget": data["league_budget"],
+            "registration_deadline": self.format_datetime_with_time(data["registration_deadline"]),
+            "opening_date": self.format_datetime_with_time(data["opening_date"]),
+            "schedule_start": self.format_date_only(data["league_schedule"][0]),
+            "schedule_end": self.format_date_only(data["league_schedule"][1]),
+            "season_year": data["season_year"],
+
+            "organization_name": creator["organization_name"],
+            "organization_address": creator["organization_address"],
+            "organization_email": admin_account["email"],
+            "organization_contact": admin_account["contact_number"],
+
+            "courts_table": courts_table,
+            "officials_table": officials_table,
+            "referees_table": referees_table,
+            "affiliates_table": affiliates_table,
+            "categories_table": categories_table,
+            "teams_table": teams_table,
+        }
+
+        # Render Docx
+        doc = DocxTemplate(LEAGUE_TEMPLATE_PATH)
+        doc.render(context)
+
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp_doc:
+            doc.save(tmp_doc.name)
+            tmp_doc_path = tmp_doc.name
+
+        # Convert to PDF
+        LO_PATH = r"C:\Program Files\LibreOffice\program\soffice.exe" if platform.system() == "Windows" else "libreoffice"
+        output_dir = tempfile.gettempdir()
+
+        subprocess.run([
+            LO_PATH, "--headless", "--convert-to", "pdf", tmp_doc_path, "--outdir", output_dir
+        ], check=True)
+
+        pdf_temp_path = os.path.join(
+            output_dir, os.path.basename(tmp_doc_path).replace(".docx", ".pdf")
+        )
+
+        with open(pdf_temp_path, "rb") as f:
+            pdf_bytes = f.read()
+
+        return await send_file(
+            io.BytesIO(pdf_bytes),
+            mimetype="application/pdf",
+            as_attachment=True,
+            attachment_filename=f"{data['league_title']}_document.pdf"
+        )
+    
+    def _base_stmt(self):
+        return (
+            select(LeagueModel)
+            .options(
+                joinedload(LeagueModel.creator).joinedload(LeagueAdministratorModel.account),
+                selectinload(LeagueModel.categories).joinedload(LeagueCategoryModel.category),
+                selectinload(LeagueModel.categories).selectinload(LeagueCategoryModel.rounds),
+            )
+        )
+
+    def _get_one_stmt(self):
+        return self._base_stmt().limit(1)
+
+    def _get_many_stmt(self):
+        return self._base_stmt()
+    
+    async def fetch_generic(self, user_id, param_status_list: list[str], param_filter: str | None, param_all: bool, param_active: bool):
+            from src.services.league_admin_service import LeagueAdministratorService
+            league_admin_service = LeagueAdministratorService()
+            async with AsyncSession() as session:
+                league_admin = await league_admin_service.get_one(session=session, user_id=user_id)
+                if not league_admin:
+                    raise ApiException("LeagueAdmin not found")
+                
+                conditions = [LeagueModel.league_administrator_id == league_admin.league_administrator_id]
+                
+                if param_active is True:
+                    valid_active_statuses = [
+                        s for s in param_status_list
+                        if s in ('Pending','Scheduled', 'Ongoing')
+                    ]
+                    if valid_active_statuses:
+                        conditions.append(LeagueModel.status.in_(valid_active_statuses))
+                    
+                    stmt = self._get_one_stmt()
+                    stmt = stmt.where(and_(*conditions))
+                    result = await session.execute(stmt)
+                    league = result.scalar_one_or_none()
+                    return league.to_json() if league else None
+                elif param_all is True and param_filter == 'record':
+                    active_statuses = ('Pending', 'Scheduled', 'Ongoing')
+                    is_active_case = case(
+                        (LeagueModel.status.in_(active_statuses), 0),
+                        else_=1
+                    )
+
+                    if param_status_list:
+                        conditions.append(LeagueModel.status.in_(param_status_list))
+
+                    stmt = (
+                        self._get_many_stmt()
+                        .where(and_(*conditions))
+                        .order_by(
+                            is_active_case.asc(),
+                            LeagueModel.opening_date.desc()
+                        )
+                    )
+
+                    result = await session.execute(stmt)
+                    leagues = result.scalars().all()
+                    return [league.to_json(include_team=True) for league in leagues]
+                else:
+                    stmt = self._get_one_stmt()
+                    stmt = stmt.where(and_(*conditions))
+                    result = await session.execute(stmt)
+                    league = result.scalar_one_or_none()
+                    return league.to_json() if league else None 
     
     async def analytics(self, league_id: str):
         async with AsyncSession() as session:
@@ -281,7 +516,7 @@ class LeagueService:
                 return f"League {league_title} as been create new start managing you league categories"
         except (IntegrityError, SQLAlchemyError) as e:
             await session.rollback()
-            raise e 
+            raise e
         
     async def _get_one(self):
         return (
@@ -316,35 +551,6 @@ class LeagueService:
             if not league:
                 raise ApiException('No league found')
             
-            return league
-        
-    async def get_one(self, user_id: str, data: dict):
-        from src.services.league_admin_service import LeagueAdministratorService
-        league_admin_service = LeagueAdministratorService()
-        async with AsyncSession() as session:
-            league_admin = await league_admin_service.get_one(session=session,user_id=user_id)
-            
-            if not league_admin:
-                raise ApiException("LeagueAdmin not found")
-            
-            conditions = [LeagueModel.league_administrator_id == league_admin.league_administrator_id]
-            
-            condition = data.get('condition')
-            
-            if data:
-                if condition == "Active":
-                    conditions.append(
-                        ~LeagueModel.status.in_(["Cancelled", "Postponed", "Completed"])
-                    )
-
-            stmt = await self._get_one()
-            stmt = stmt.where(and_(*conditions))
-
-            try:
-                league = (await session.execute(stmt)).scalar_one()
-            except NoResultFound:
-                raise ApiException("No League found")
-
             return league
         
     @staticmethod

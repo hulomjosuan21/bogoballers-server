@@ -28,7 +28,7 @@ def path_in(*parts):
     return BASE_DIR.joinpath(*parts)
 
 DATA_DIR = path_in("data", "json")
-TEMPLATE_PATH = path_in("templates", "league_template.docx")
+LEAGUE_TEMPLATE_PATH = path_in("templates", "league_template.docx")
 
 # SERVICE_ACCOUNT_PATH = Path(__file__).parent.parent / "firebase.json"
 redis_client = aioredis.from_url(Config.REDIS_URL, decode_responses=True)

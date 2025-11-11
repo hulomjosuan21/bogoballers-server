@@ -169,10 +169,10 @@ async def delete_single_node_route(node_type: str, node_id: str):
         traceback.print_exc()
         return await ApiResponse.error(str(e))
     
-@manual_league_management_bp.post('/leagues/<string:league_id>/synchronize')
-async def synchronize_bracket_route(league_id: str):
+@manual_league_management_bp.post('/leagues/<string:league_category_id>/synchronize')
+async def synchronize_bracket_route(league_category_id: str):
     try:
-        result = await service.synchronize_bracket(league_id)
+        result = await service.synchronize_bracket(league_category_id)
         return await ApiResponse.success(message=f"Bracket synchronized. {result.get('teams_progressed', 0)} teams progressed.")
     except Exception as e:
         traceback.print_exc()

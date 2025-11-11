@@ -2,12 +2,23 @@ import traceback
 from typing import Optional
 from quart import Blueprint, request
 from quart_auth import current_user, login_required
+from src.services.player.player_upload_doc_service import PlayerUploadDocService
 from src.utils.api_response import ApiResponse
 from src.services.player.player_service import PlayerService
 
 player_bp = Blueprint('player', __name__, url_prefix='/player')
 
 service = PlayerService()
+upload_service = PlayerUploadDocService()
+
+@player_bp.post("/upload-doc/<player_id>")
+async def upload_doc(player_id: str):
+    try:
+        result = await upload_service.upload(player_id)
+        return await ApiResponse.success(message=result)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)
 
 @player_bp.post('/create')
 async def create_one_route():
@@ -40,6 +51,7 @@ async def auth_route():
         payload = await service.get_authenticated_player(user_id, current_user.auth_id)
         return await ApiResponse.payload(payload)
     except Exception as e:
+        traceback.print_exc()
         return await ApiResponse.error(e)
 
 @player_bp.get('/all')
