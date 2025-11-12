@@ -19,6 +19,7 @@ from src.api.league.manual_league_management_routes import manual_league_managem
 from src.api.league.automatic_match_config_routes import auto_match_config_bp
 from src.api.verification_routes import verification_bp
 from src.api.league.league_quest_routes import league_guest_bp
+from src.api.ai_mentor import ai_mentor_bp
 
 all_blueprints = [
     static_data_bp,
@@ -41,5 +42,6 @@ all_blueprints = [
     manual_league_management_bp,
     auto_match_config_bp,
     verification_bp,
-    league_guest_bp
+    league_guest_bp,
+    ai_mentor_bp
 ]
