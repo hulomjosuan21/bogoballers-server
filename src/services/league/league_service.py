@@ -10,9 +10,10 @@ import subprocess
 from dateutil.relativedelta import relativedelta
 from quart import send_file
 from sqlalchemy import  Date,Text, and_, case, cast, func, or_, select, update
+from src.models.match import LeagueMatchModel
 from src.services import league_admin_service
-from src.models.player import LeaguePlayerModel
-from src.models.team import LeagueTeamModel
+from src.models.player import LeaguePlayerModel, PlayerTeamModel
+from src.models.team import LeagueTeamModel, TeamModel
 from src.models.league_admin import LeagueAdministratorModel
 from src.models.league import LeagueModel, LeagueCategoryModel
 from src.services.cloudinary_service import CloudinaryService
@@ -207,6 +208,106 @@ class LeagueService:
     def _get_many_stmt(self):
         return self._base_stmt()
     
+    async def fetch_participation(
+        self, 
+        user_id: str | None = None, 
+        player_id: str | None = None
+    ):
+        async with AsyncSession() as session:
+
+            if player_id:
+                result_pt = await session.execute(
+                    select(PlayerTeamModel).where(PlayerTeamModel.player_id == player_id)
+                )
+                pts = result_pt.unique().scalars().all()
+                team_ids = [pt.team_id for pt in pts]
+
+                result_lt = await session.execute(
+                    select(LeagueTeamModel)
+                    .where(LeagueTeamModel.team_id.in_(team_ids))
+                    .options(
+                        joinedload(LeagueTeamModel.team),
+                        joinedload(LeagueTeamModel.league),
+                        joinedload(LeagueTeamModel.league_players)
+                    )
+                )
+                league_teams = result_lt.unique().scalars().all()
+
+                response = []
+
+                for lt in league_teams:
+                    result_m = await session.execute(
+                        select(LeagueMatchModel)
+                        .where(
+                            (LeagueMatchModel.home_team_id == lt.league_team_id) |
+                            (LeagueMatchModel.away_team_id == lt.league_team_id)
+                        )
+                        .options(
+                            joinedload(LeagueMatchModel.home_team).joinedload(LeagueTeamModel.team),
+                            joinedload(LeagueMatchModel.away_team).joinedload(LeagueTeamModel.team),
+                        )
+                    )
+                    matches = result_m.unique().scalars().all()
+
+                    response.append({
+                        "league": lt.league.to_json(),
+                        "teams": [lt.to_json()],
+                        "matches": [m.to_json() for m in matches]
+                    })
+
+                return response
+            
+            if user_id:
+                result_tm = await session.execute(
+                    select(TeamModel).where(TeamModel.user_id == user_id)
+                )
+                teams = result_tm.unique().scalars().all()
+                team_ids = [t.team_id for t in teams]
+
+                result_lt = await session.execute(
+                    select(LeagueTeamModel)
+                    .where(LeagueTeamModel.team_id.in_(team_ids))
+                    .options(
+                        joinedload(LeagueTeamModel.team),
+                        joinedload(LeagueTeamModel.league),
+                        joinedload(LeagueTeamModel.league_players)
+                    )
+                )
+                league_teams = result_lt.unique().scalars().all()
+
+                leagues_dict = {}
+                for lt in league_teams:
+                    leagues_dict.setdefault(lt.league_id, []).append(lt)
+
+                response = []
+
+                for league_id, lt_list in leagues_dict.items():
+                    league_obj = lt_list[0].league
+                    lt_ids = [lt.league_team_id for lt in lt_list]
+
+                    result_m = await session.execute(
+                        select(LeagueMatchModel)
+                        .where(
+                            (LeagueMatchModel.home_team_id.in_(lt_ids)) |
+                            (LeagueMatchModel.away_team_id.in_(lt_ids))
+                        )
+                        .options(
+                            joinedload(LeagueMatchModel.home_team).joinedload(LeagueTeamModel.team),
+                            joinedload(LeagueMatchModel.away_team).joinedload(LeagueTeamModel.team),
+                        )
+                    )
+                    matches = result_m.unique().scalars().all()
+
+                    response.append({
+                        "league": league_obj.to_json(),
+                        "teams": [lt.to_json() for lt in lt_list],
+                        "matches": [m.to_json() for m in matches]
+                    })
+
+                return response
+
+            return None
+    
     async def fetch_generic(self, user_id, param_status_list: list[str], param_filter: str | None, param_all: bool, param_active: bool):
             from src.services.league_admin_service import LeagueAdministratorService
             league_admin_service = LeagueAdministratorService()
@@ -215,7 +316,7 @@ class LeagueService:
                 if not league_admin:
                     raise ApiException("LeagueAdmin not found")
                 
-                conditions = [LeagueModel.league_administrator_id == league_admin.league_administrator_id]
+                conditions = []
                 
                 if param_active is True:
                     valid_active_statuses = [
@@ -223,7 +324,10 @@ class LeagueService:
                         if s in ('Pending','Scheduled', 'Ongoing')
                     ]
                     if valid_active_statuses:
-                        conditions.append(LeagueModel.status.in_(valid_active_statuses))
+                        conditions.extend([
+                            LeagueModel.status.in_(valid_active_statuses),
+                            LeagueModel.league_administrator_id == league_admin.league_administrator_id
+                        ])
                     
                     stmt = self._get_one_stmt()
                     stmt = stmt.where(and_(*conditions))
@@ -238,7 +342,10 @@ class LeagueService:
                     )
 
                     if param_status_list:
-                        conditions.append(LeagueModel.status.in_(param_status_list))
+                        conditions.extend([
+                            LeagueModel.status.in_(param_status_list),
+                            LeagueModel.league_administrator_id == league_admin.league_administrator_id
+                        ])
 
                     stmt = (
                         self._get_many_stmt()
@@ -253,11 +360,29 @@ class LeagueService:
                     leagues = result.scalars().all()
                     return [league.to_json(include_team=True) for league in leagues]
                 else:
+                    conditions.append(LeagueModel.league_administrator_id == league_admin.league_administrator_id)
                     stmt = self._get_one_stmt()
                     stmt = stmt.where(and_(*conditions))
                     result = await session.execute(stmt)
                     league = result.scalar_one_or_none()
                     return league.to_json() if league else None 
+                
+    async def fetch_carousel(self):
+        conditions = []
+        async with AsyncSession() as session:
+            conditions.append(LeagueModel.status.in_(['Pending', 'Scheduled']))
+
+            stmt = (
+                self._get_many_stmt()
+                .where(and_(*conditions))
+                .order_by(
+                    LeagueModel.opening_date.desc()
+                )
+            )
+
+            result = await session.execute(stmt)
+            leagues = result.scalars().all()
+            return [league.to_json(include_team=True) for league in leagues]
     
     async def analytics(self, league_id: str):
         async with AsyncSession() as session:

@@ -2,8 +2,6 @@ import asyncio
 import os
 from typing import Optional
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from langchain_core.prompts import PromptTemplate
 from langchain_classic.memory import ConversationBufferMemory
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -27,6 +25,7 @@ class BasketballMentorAgent:
         self.prompt = PromptTemplate.from_template(
             """
             You are *Coach Wan*, an advanced AI basketball performance mentor.
+            **You must respond entirely in Bisaya (Cebuano) language.**
             You must respond with clear, concise, and actionable coaching advice only.
             Avoid small talk, greetings, or motivational fluff.
 
@@ -34,20 +33,20 @@ class BasketballMentorAgent:
             statistics, drills, techniques, or strategy adjustments.
 
             If player data is available, reference it directly.
-
+            
             ---
             Conversation so far:
             {chat_history}
 
             Player: {input}
-            Coach (concise, expert answer):
+            Coach (concise, expert answer in Bisaya):
             """
         )
 
         self.chain = LLMChain(llm=self.llm, prompt=self.prompt, memory=self.memory)
 
 
-    async def _get_player_profile(self, session: AsyncSession, user_id: str) -> str:
+    async def _get_player_profile(self, session, user_id: str) -> str:
         result = await session.execute(select(PlayerModel).filter_by(user_id=user_id))
         player = result.scalar_one_or_none()
 
@@ -65,7 +64,7 @@ class BasketballMentorAgent:
     def _get_player_profile_sync(self, user_id: str) -> str:
         return "Use async _get_player_profile from endpoint context."
 
-    async def _initialize_memory(self, session: AsyncSession, user_id: str):
+    async def _initialize_memory(self, session, user_id: str):
         self.memory.clear()
         history = await self.convo_service.load_history(session, user_id)
         for msg in history:
@@ -76,7 +75,7 @@ class BasketballMentorAgent:
         return await loop.run_in_executor(None, self.chain.run, {"input": message})
 
 
-    async def chat(self, session: AsyncSession, user_id: str, message: str) -> str:
+    async def chat(self, session, user_id: str, message: str) -> str:
         if not self.memory.buffer:
             await self._initialize_memory(session, user_id)
 

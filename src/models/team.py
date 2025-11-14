@@ -182,6 +182,8 @@ class LeagueTeamModel(Base, UpdatableMixin):
     league_team_updated_at: Mapped[datetime] = UpdatedAt()
     
     team: Mapped["TeamModel"] = relationship("TeamModel", lazy="joined")
+    
+    league: Mapped["LeagueModel"] = relationship("LeagueModel", lazy="joined")
 
     league_players: Mapped[List["LeaguePlayerModel"]] = relationship(
         "LeaguePlayerModel",

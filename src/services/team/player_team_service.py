@@ -104,9 +104,15 @@ class PlayerTeamService:
         async with AsyncSession() as session:
             try:
                 new_player_teams = []
+
                 for team_data in team_data_list:
                     team_id = team_data.get("team_id")
                     player_ids = team_data.get("player_ids")
+
+                    if not team_id:
+                        raise ValueError("team_id is required")
+                    if not player_ids:
+                        raise ValueError("player_ids must not be empty")
 
                     for player_id in player_ids:
                         new_player_teams.append(
@@ -122,9 +128,9 @@ class PlayerTeamService:
 
                 return f"Total added players: {len(new_player_teams)}"
 
-            except (IntegrityError, SQLAlchemyError) as e:
+            except (IntegrityError, SQLAlchemyError):
                 await session.rollback()
-                raise e
+                raise
 
     async def update_one(self, player_team_id: str, data: dict):
         try:

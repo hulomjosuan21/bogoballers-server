@@ -8,6 +8,26 @@ league_bp = Blueprint("league", __name__, url_prefix="/league")
 
 service = LeagueService()
 
+@league_bp.get('/participation')
+async def fetch_participation():
+    try:
+        user_id = request.args.get('user_id', None)
+        player_id = request.args.get('player_id', None)
+        result = await service.fetch_participation(user_id=user_id,player_id=player_id)
+        
+        return await ApiResponse.payload(result)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)
+    
+@league_bp.get('/carousel')
+async def fetch_carousel():
+    try:
+        return await service.fetch_carousel()
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e) 
+
 @league_bp.get('/print/<league_id>')
 async def print_league(league_id: str):
     try:

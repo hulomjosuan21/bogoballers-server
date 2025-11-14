@@ -309,21 +309,6 @@ class LeagueMatchService:
         )
         return result.scalar_one_or_none()
 
-
-    STATS_MAP = {
-        "fg2m": "total_fg2_made",
-        "fg2a": "total_fg2_attempts",
-        "fg3m": "total_fg3_made",
-        "fg3a": "total_fg3_attempts",
-        "ftm": "total_ft_made",
-        "fta": "total_ft_attempts",
-        "reb": "total_rebounds",
-        "ast": "total_assists",
-        "stl": "total_steals",
-        "blk": "total_blocks",
-        "tov": "total_turnovers",
-    }
-
     async def finalize_match_result(
         self,
         league_match_id: str,
@@ -372,7 +357,7 @@ class LeagueMatchService:
                 
                 home_total_score = data['home_total_score']
                 away_total_score = data['away_total_score']
-                
+
                 match.home_team_score = home_total_score
                 match.away_team_score = away_total_score
 
@@ -380,10 +365,16 @@ class LeagueMatchService:
                     match.winner_team_id = match.home_team_id
                     match.loser_team_id = match.away_team_id
                     winner_name = match.home_team.team.team_name
+                    winner_score = home_total_score
+                    loser_score = away_total_score
+
                 elif away_total_score > home_total_score:
                     match.winner_team_id = match.away_team_id
                     match.loser_team_id = match.home_team_id
                     winner_name = match.away_team.team.team_name
+                    winner_score = away_total_score
+                    loser_score = home_total_score
+
                 else:
                     raise ValueError("Draws are not allowed in this format")
 
@@ -401,25 +392,31 @@ class LeagueMatchService:
 
                 if winner_team:
                     winner_team.wins += 1
-                    winner_team.points += (
-                        match.home_team_score if match.winner_team_id == match.home_team_id else match.away_team_score
-                    )
+                    winner_team.points += winner_score
 
                 if loser_team:
                     loser_team.losses += 1
-                    loser_team.points += (
-                        match.home_team_score if match.loser_team_id == match.home_team_id else match.away_team_score
-                    )
+                    loser_team.points += loser_score
+
+                if winner_team:
+                    main_team = winner_team.team
+                    main_team.total_wins += 1
+                    main_team.total_points += winner_score
+
+                if loser_team:
+                    main_team = loser_team.team
+                    main_team.total_losses += 1
+                    main_team.total_points += loser_score
 
                 await session.commit()
                 await session.refresh(match)
-                
+
                 return f"{match.home_team.team.team_name} vs {match.away_team.team.team_name} finalized winner: {winner_name}"
 
         except KeyError as e:
             raise ValueError(f"Malformed match data: missing key {e}") from e
         except Exception as e:
-            raise
+            raise e
         
     async def get_user_matches(self, user_id: str, data: dict):
         async with AsyncSession() as session:
