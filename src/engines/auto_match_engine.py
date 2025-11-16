@@ -33,7 +33,6 @@ class AutoMatchEngine:
             return default
 
     def _group_teams(self, teams: List[LeagueTeamModel], group_count: int) -> List[List[LeagueTeamModel]]:
-        """Divide teams into N groups and assign group_label."""
         group_count = self._to_int(group_count, 1)
 
         if group_count <= 1 or group_count >= len(teams):

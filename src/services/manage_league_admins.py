@@ -1,8 +1,10 @@
 from typing import List
-from sqlalchemy import select
+from sqlalchemy import func, select
+from src.models.user import UserModel
 from src.models.league import LeagueModel
 from src.models.league_admin import LeagueAdministratorModel
 from src.extensions import AsyncSession
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 class ManageLeagueAdministratorService:
     async def get_all_administrators(self) -> List[LeagueAdministratorModel]:
@@ -10,7 +12,12 @@ class ManageLeagueAdministratorService:
             try:
                 stmt = (
                     select(LeagueAdministratorModel)
-                    .order_by(LeagueAdministratorModel.league_admin_created_at.desc())
+                    .join(LeagueAdministratorModel.account)
+                    .where(UserModel.account_type != "League_Administrator_LGU")
+                    .order_by(func.coalesce(
+                        LeagueAdministratorModel.league_admin_updated_at,
+                        LeagueAdministratorModel.league_admin_created_at
+                    ).desc())
                 )
                 result = await session.execute(stmt)
                 admins = result.scalars().unique().all()
@@ -57,6 +64,8 @@ class ManageLeagueAdministratorService:
                 await session.commit()
                 await session.refresh(league)
                 return league
-            except:
+            except (IntegrityError, SQLAlchemyError) as e:
                 await session.rollback()
+                raise e
+            except:
                 return None

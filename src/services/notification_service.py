@@ -37,6 +37,7 @@ class NotificationService:
                 )
                 
                 await notif.send_notification(settings.get("enable_notification", False))
+                print("Notification sent!")
                 return notif
             except SQLAlchemyError as e:
                 await session.rollback()

@@ -16,6 +16,20 @@ from sqlalchemy.orm import aliased, selectinload
 from src.utils.api_response import ApiException
 
 class LeagueMatchService:
+    STATS_MAP = {
+        "fg2m": "total_fg2_made",
+        "fg2a": "total_fg2_attempts",
+        "fg3m": "total_fg3_made",
+        "fg3a": "total_fg3_attempts",
+        "ftm": "total_ft_made",
+        "fta": "total_ft_attempts",
+        "reb": "total_rebounds",
+        "ast": "total_assists",
+        "stl": "total_steals",
+        "blk": "total_blocks",
+        "tov": "total_turnovers",
+    }
+    
     async def update_one(self, league_match_id: str, data: dict):
         try:
             async with AsyncSession() as session:
@@ -313,13 +327,25 @@ class LeagueMatchService:
         self,
         league_match_id: str,
         data: dict,
-    ) -> Optional[LeagueMatchModel]:
+    ) -> Optional[str]:
         try:
             async with AsyncSession() as session:
-                match = await LeagueMatchService.get_match_by_id(session, league_match_id)
+                stmt = (
+                    select(LeagueMatchModel)
+                    .where(LeagueMatchModel.league_match_id == league_match_id)
+                    .options(
+                        selectinload(LeagueMatchModel.home_team),
+                        selectinload(LeagueMatchModel.away_team), 
+                        selectinload(LeagueMatchModel.home_team, LeagueTeamModel.team),
+                        selectinload(LeagueMatchModel.away_team, LeagueTeamModel.team),
+                    )
+                )
+                res = await session.execute(stmt)
+                match = res.scalars().first()
+
                 if not match:
                     raise ValueError(f"Match {league_match_id} not found")
-                    
+
                 if match.status == "Completed":
                     raise ValueError(f"Match {league_match_id} has already been finalized")
 
@@ -348,13 +374,13 @@ class LeagueMatchService:
                         continue
 
                     player_model.total_games_played += 1
-                    player_model.total_points_scored += player_data['total_score']
+                    player_model.total_points_scored += player_data.get('total_score', 0)
 
                     for json_key, model_attr in self.STATS_MAP.items():
-                        stat_value = player_stats[json_key]
-                        current_value = getattr(player_model, model_attr)
+                        stat_value = player_stats.get(json_key, 0)
+                        current_value = getattr(player_model, model_attr, 0)
                         setattr(player_model, model_attr, current_value + stat_value)
-                
+
                 home_total_score = data['home_total_score']
                 away_total_score = data['away_total_score']
 
@@ -379,34 +405,48 @@ class LeagueMatchService:
                     raise ValueError("Draws are not allowed in this format")
 
                 match.status = "Completed"
+                match.finalized_at = datetime.utcnow()
 
+                league_team_ids = [match.home_team_id, match.away_team_id]
                 stmt = select(LeagueTeamModel).where(
-                    LeagueTeamModel.team_id.in_([match.home_team_id, match.away_team_id]),
+                    LeagueTeamModel.league_team_id.in_(league_team_ids),
                     LeagueTeamModel.league_category_id == match.league_category_id
                 )
                 result = await session.execute(stmt)
-                team_models = {team.team_id: team for team in result.scalars().all()}
+                team_models = {team.league_team_id: team for team in result.scalars().all()}
 
-                winner_team = team_models.get(match.winner_team_id)
-                loser_team = team_models.get(match.loser_team_id)
+                if not team_models:
+                    stmt = select(LeagueTeamModel).where(
+                        LeagueTeamModel.team_id.in_(league_team_ids),
+                        LeagueTeamModel.league_category_id == match.league_category_id
+                    )
+                    result = await session.execute(stmt)
+                    team_models = {team.team_id: team for team in result.scalars().all()}
+
+                winner_team = team_models.get(match.winner_team_id) or next(
+                    (t for t in team_models.values() if t.team_id == match.winner_team_id or t.league_team_id == match.winner_team_id),
+                    None
+                )
+                loser_team = team_models.get(match.loser_team_id) or next(
+                    (t for t in team_models.values() if t.team_id == match.loser_team_id or t.league_team_id == match.loser_team_id),
+                    None
+                )
 
                 if winner_team:
                     winner_team.wins += 1
                     winner_team.points += winner_score
 
+                    if winner_team.team:
+                        winner_team.team.total_wins += 1
+                        winner_team.team.total_points += winner_score
+
                 if loser_team:
                     loser_team.losses += 1
                     loser_team.points += loser_score
 
-                if winner_team:
-                    main_team = winner_team.team
-                    main_team.total_wins += 1
-                    main_team.total_points += winner_score
-
-                if loser_team:
-                    main_team = loser_team.team
-                    main_team.total_losses += 1
-                    main_team.total_points += loser_score
+                    if loser_team.team:
+                        loser_team.team.total_losses += 1
+                        loser_team.team.total_points += loser_score
 
                 await session.commit()
                 await session.refresh(match)
@@ -415,8 +455,8 @@ class LeagueMatchService:
 
         except KeyError as e:
             raise ValueError(f"Malformed match data: missing key {e}") from e
-        except Exception as e:
-            raise e
+        except Exception:
+            raise
         
     async def get_user_matches(self, user_id: str, data: dict):
         async with AsyncSession() as session:

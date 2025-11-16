@@ -50,7 +50,7 @@ class Worker:
 
     def _register_tasks(self):
         tasks_with_session = {
-            self.task.daily_match_reminder_job: CronTrigger(hour='7,18')
+            self.task.daily_match_reminder_job: CronTrigger(hour='10', minute='18,19,20,21,22')
         }
 
         tasks_without_session = {

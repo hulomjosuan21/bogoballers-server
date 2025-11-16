@@ -117,7 +117,6 @@ class ManualLeagueManagementService:
     async def create_new_round(self, league_category_id: str, round_name: str, round_order: int, position: dict) -> dict:
         async with AsyncSession() as session:
             new_round = LeagueCategoryRoundModel(
-                round_id=f"lround-{uuid.uuid4()}",
                 league_category_id=league_category_id,
                 round_name=round_name,
                 round_order=round_order,
@@ -137,11 +136,11 @@ class ManualLeagueManagementService:
         position: dict,
         is_final: bool,
         group_id: str | None,
-        is_runner_up: bool,
         is_elimination: bool,
         is_third_place: bool
     ) -> dict:
         async with AsyncSession() as session:
+            
             new_match = LeagueMatchModel(
                 league_id=league_id,
                 league_category_id=league_category_id,
@@ -150,7 +149,6 @@ class ManualLeagueManagementService:
                 position=position,
                 group_id=group_id,
                 is_final=is_final,
-                is_runner_up=is_runner_up,
                 is_elimination=is_elimination,
                 is_third_place=is_third_place,
                 pairing_method="manual",

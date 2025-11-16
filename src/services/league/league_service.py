@@ -308,64 +308,79 @@ class LeagueService:
 
             return None
     
-    async def fetch_generic(self, user_id, param_status_list: list[str], param_filter: str | None, param_all: bool, param_active: bool):
+    async def fetch_generic(
+        self,
+        user_id,
+        param_public_league_id: str | None,
+        param_status_list: list[str],
+        param_filter: str | None,
+        param_all: bool,
+        param_active: bool
+    ):
+        async with AsyncSession() as session:
+            
+            if param_filter == 'public' and param_public_league_id is not None:
+                stmt = (
+                    self._get_one_stmt()
+                    .where(LeagueModel.public_league_id == param_public_league_id)
+                )
+                result = await session.execute(stmt)
+                league = result.scalar_one_or_none()
+                return league.to_json(include_team=False) if league else None
+
             from src.services.league_admin_service import LeagueAdministratorService
             league_admin_service = LeagueAdministratorService()
-            async with AsyncSession() as session:
-                league_admin = await league_admin_service.get_one(session=session, user_id=user_id)
-                if not league_admin:
-                    raise ApiException("LeagueAdmin not found")
-                
-                conditions = []
-                
-                if param_active is True:
-                    valid_active_statuses = [
-                        s for s in param_status_list
-                        if s in ('Pending','Scheduled', 'Ongoing')
-                    ]
-                    if valid_active_statuses:
-                        conditions.extend([
-                            LeagueModel.status.in_(valid_active_statuses),
-                            LeagueModel.league_administrator_id == league_admin.league_administrator_id
-                        ])
-                    
-                    stmt = self._get_one_stmt()
-                    stmt = stmt.where(and_(*conditions))
-                    result = await session.execute(stmt)
-                    league = result.scalar_one_or_none()
-                    return league.to_json() if league else None
-                elif param_all is True and param_filter == 'record':
-                    active_statuses = ('Pending', 'Scheduled', 'Ongoing')
-                    is_active_case = case(
-                        (LeagueModel.status.in_(active_statuses), 0),
-                        else_=1
+
+            league_admin = await league_admin_service.get_one(session=session, user_id=user_id)
+            if not league_admin:
+                raise ApiException("LeagueAdmin not found")
+
+            conditions = []
+
+            if param_active is True:
+                active_statuses = ('Pending', 'Scheduled', 'Ongoing')
+                conditions.extend([
+                    LeagueModel.status.in_(active_statuses),
+                    LeagueModel.league_administrator_id == league_admin.league_administrator_id
+                ])
+
+                stmt = self._get_one_stmt().where(and_(*conditions))
+                result = await session.execute(stmt)
+                league = result.scalar_one_or_none()
+                return league.to_json() if league else None
+
+            elif param_all is True and param_filter == 'record':
+                active_statuses = ('Pending', 'Scheduled', 'Ongoing')
+                is_active_case = case(
+                    (LeagueModel.status.in_(active_statuses), 0),
+                    else_=1
+                )
+
+                if param_status_list:
+                    conditions.extend([
+                        LeagueModel.status.in_(param_status_list),
+                        LeagueModel.league_administrator_id == league_admin.league_administrator_id
+                    ])
+
+                stmt = (
+                    self._get_many_stmt()
+                    .where(and_(*conditions))
+                    .order_by(
+                        is_active_case.asc(),
+                        LeagueModel.opening_date.desc()
                     )
+                )
 
-                    if param_status_list:
-                        conditions.extend([
-                            LeagueModel.status.in_(param_status_list),
-                            LeagueModel.league_administrator_id == league_admin.league_administrator_id
-                        ])
+                result = await session.execute(stmt)
+                leagues = result.scalars().all()
+                return [league.to_json(include_team=True) for league in leagues]
 
-                    stmt = (
-                        self._get_many_stmt()
-                        .where(and_(*conditions))
-                        .order_by(
-                            is_active_case.asc(),
-                            LeagueModel.opening_date.desc()
-                        )
-                    )
-
-                    result = await session.execute(stmt)
-                    leagues = result.scalars().all()
-                    return [league.to_json(include_team=True) for league in leagues]
-                else:
-                    conditions.append(LeagueModel.league_administrator_id == league_admin.league_administrator_id)
-                    stmt = self._get_one_stmt()
-                    stmt = stmt.where(and_(*conditions))
-                    result = await session.execute(stmt)
-                    league = result.scalar_one_or_none()
-                    return league.to_json() if league else None 
+            else:
+                conditions.append(LeagueModel.league_administrator_id == league_admin.league_administrator_id)
+                stmt = self._get_one_stmt().where(and_(*conditions))
+                result = await session.execute(stmt)
+                league = result.scalar_one_or_none()
+                return league.to_json() if league else None
                 
     async def fetch_carousel(self):
         conditions = []

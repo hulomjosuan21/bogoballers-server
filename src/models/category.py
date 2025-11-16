@@ -48,6 +48,7 @@ class CategoryModel(Base, UpdatableMixin):
     allow_guest_team: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     allow_guest_player: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     guest_player_fee_amount: Mapped[float] = mapped_column(Float, default=0.0, nullable=True)
+    guest_team_fee_amount: Mapped[float] = mapped_column(Float, default=0.0, nullable=True)
     team_entrance_fee_amount: Mapped[float] = mapped_column(Float, default=0.0, nullable=True)
     
     requires_valid_document: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -71,6 +72,7 @@ class CategoryModel(Base, UpdatableMixin):
             'allow_guest_team': self.allow_guest_team,
             'allow_guest_player': self.allow_guest_player,
             'guest_player_fee_amount': self.guest_player_fee_amount,
+            'guest_team_fee_amount': self.guest_team_fee_amount,
             'team_entrance_fee_amount': self.team_entrance_fee_amount,
             'requires_valid_document': self.requires_valid_document,
             'allowed_documents': self.allowed_documents,

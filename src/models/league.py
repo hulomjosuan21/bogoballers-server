@@ -27,6 +27,7 @@ league_status_enum = SqlEnum(
     "Scheduled",
     "Ongoing",
     "Completed",
+    "Rejected",
     "Postponed",
     "Cancelled",
     name="league_status_enum",
@@ -220,10 +221,19 @@ round_status_enum = SqlEnum(
     create_type=False
 )
 
+round_name_enum = SqlEnum(
+    "Elimination",
+    "Quarterfinal",
+    "Semifinal",
+    "Final",
+    name="round_name_enum",
+    create_type=False
+)
+
 class LeagueCategoryRoundModel(Base, UpdatableMixin):
     __tablename__ = "league_category_rounds_table"
 
-    round_id: Mapped[str] = mapped_column(String, nullable=False, primary_key=True)
+    round_id: Mapped[str] = UUIDGenerator("lround")
     public_round_id: Mapped[str] = PublicIDGenerator('r')
     
     league_category_id: Mapped[str] = mapped_column(
@@ -232,7 +242,7 @@ class LeagueCategoryRoundModel(Base, UpdatableMixin):
         nullable=False
     )
 
-    round_name: Mapped[str] = mapped_column(String, nullable=False)
+    round_name: Mapped[str] = mapped_column(round_name_enum, nullable=False)
     round_order: Mapped[int] = mapped_column(Integer, nullable=False)
 
     position: Mapped[dict] = mapped_column(JSONB, nullable=True)

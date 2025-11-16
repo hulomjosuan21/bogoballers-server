@@ -56,7 +56,6 @@ async def create_match_route():
             group_id=data.get('group_id', None),
             is_elimination=data.get("is_elimination", False),
             is_third_place=data.get("is_third_place", False),
-            is_runner_up=data.get("is_runner_up", False),
             is_final=data.get("is_final", False),
         )
         return await ApiResponse.payload(new_match)

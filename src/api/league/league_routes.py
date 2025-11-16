@@ -44,10 +44,12 @@ async def fetch_league():
         param_filter = request.args.get('filter', None)
         param_all = request.args.get('all', 'false').lower() == 'true'
         param_active = request.args.get('active', 'false').lower() == 'true'
+        param_public_league_id = request.args.get('public_league_id', None)
         
         result = await service.fetch_generic(user_id=user_id,
                                              param_status_list=param_status_list,
                                              param_filter=param_filter,
+                                             param_public_league_id=param_public_league_id,
                                              param_all=param_all,
                                              param_active=param_active)
         return await ApiResponse.payload(result)

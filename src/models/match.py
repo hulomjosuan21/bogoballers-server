@@ -1,7 +1,7 @@
 from __future__ import annotations
 from datetime import datetime
 from typing import List, Optional
-from sqlalchemy import String, Boolean, Integer, DateTime, Enum as SqlEnum, Text, ARRAY, ForeignKey, UniqueConstraint, CheckConstraint
+from sqlalchemy import Index, text, String, Boolean, Integer, DateTime, Enum as SqlEnum, Text, ARRAY, ForeignKey, UniqueConstraint, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.models.league import LeagueModel
 from src.models.team import LeagueTeamModel, TeamModel
@@ -74,7 +74,6 @@ class LeagueMatchModel(Base, UpdatableMixin):
     display_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     is_final: Mapped[bool] = mapped_column(Boolean, default=False)
-    is_runner_up: Mapped[bool] = mapped_column(Boolean, default=False)
     is_third_place: Mapped[bool] = mapped_column(Boolean, default=False)
     
     is_elimination: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -122,6 +121,24 @@ class LeagueMatchModel(Base, UpdatableMixin):
         CheckConstraint(
             'winner_team_id IS NULL OR loser_team_id IS NULL OR winner_team_id != loser_team_id',
             name="check_winner_and_loser_not_same"
+        ),
+        Index(
+            "unique_final_per_category",
+            "league_category_id",
+            unique=True,
+            postgresql_where=text("is_final = TRUE")
+        ),
+        Index(
+            "unique_runner_up_per_category",
+            "league_category_id",
+            unique=True,
+            postgresql_where=text("is_runner_up = TRUE")
+        ),
+        Index(
+            "unique_third_place_per_category",
+            "league_category_id",
+            unique=True,
+            postgresql_where=text("is_third_place = TRUE")
         )
     )
 
@@ -182,7 +199,6 @@ class LeagueMatchModel(Base, UpdatableMixin):
 
             "is_final": wrap_bool(self.is_final),
             "is_third_place": wrap_bool(self.is_third_place),
-            "is_runner_up": wrap_bool(self.is_runner_up),
             "is_elimination": wrap_bool(self.is_elimination),
             "status": wrap_str(self.status),
             "league": self.league.to_json(),
