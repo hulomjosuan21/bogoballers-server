@@ -89,5 +89,3 @@ def parse_round_config(config: dict) -> RoundConfig:
             return BestOfConfig(**config, series_config=series_config)
         case _:
             raise ValueError(f"Unknown format type: {format_type}")
-
-

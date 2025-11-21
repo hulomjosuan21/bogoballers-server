@@ -10,6 +10,7 @@ import subprocess
 from dateutil.relativedelta import relativedelta
 from quart import send_file
 from sqlalchemy import  Date,Text, and_, case, cast, func, or_, select, update
+from src.models.league_log_model import LeagueLogModel
 from src.models.match import LeagueMatchModel
 from src.services import league_admin_service
 from src.models.player import LeaguePlayerModel, PlayerTeamModel
@@ -753,3 +754,22 @@ class LeagueService:
         except (IntegrityError, SQLAlchemyError) as e:
             await session.rollback()
             raise e 
+
+    async def get_logs(self, league_id: str = None, round_id: str = None, team_id: str = None, limit: int = 100):
+        async with AsyncSession() as session:
+            stmt = select(LeagueLogModel).order_by(LeagueLogModel.log_created_at.desc())
+            
+            conditions = []
+            if league_id:
+                conditions.append(LeagueLogModel.league_id == league_id)
+            if round_id:
+                conditions.append(LeagueLogModel.round_id == round_id)
+            if team_id:
+                conditions.append(LeagueLogModel.team_id == team_id)
+            if conditions:
+                stmt = stmt.where(and_(*conditions))
+            
+            stmt = stmt.limit(limit)
+            
+            result = await session.execute(stmt)
+            return result.scalars().all()

@@ -93,7 +93,8 @@ class LeagueModel(Base, UpdatableMixin):
     teams: Mapped[list["LeagueTeamModel"]] = relationship(
         "LeagueTeamModel",
         cascade="all, delete-orphan",
-        lazy="selectin"
+        lazy="selectin",
+        back_populates="league"
     )
     
     def _league_schedule_serialized(self):
@@ -174,6 +175,7 @@ class LeagueCategoryModel(Base, UpdatableMixin):
 
     rounds: Mapped[list["LeagueCategoryRoundModel"]] = relationship(
         "LeagueCategoryRoundModel",
+        back_populates="league_category",
         cascade="all, delete-orphan",
         lazy="selectin",
         order_by="LeagueCategoryRoundModel.round_order.asc()"
@@ -260,6 +262,13 @@ class LeagueCategoryRoundModel(Base, UpdatableMixin):
 
     next_round_id: Mapped[Optional[str]] = mapped_column(
         String, ForeignKey("league_category_rounds_table.round_id", ondelete="SET NULL"), nullable=True
+    )
+    
+    league_category: Mapped["LeagueCategoryModel"] = relationship(
+        "LeagueCategoryModel",
+        back_populates="rounds",
+        foreign_keys=[league_category_id],
+        lazy="selectin" 
     )
     
     @hybrid_property

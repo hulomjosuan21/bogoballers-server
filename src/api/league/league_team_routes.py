@@ -112,10 +112,10 @@ async def refund_route():
 
 service = LeagueTeamService()
 
-@league_team_bp.get("/all-checked/<league_category_id>/<round_id>")
-async def get_all_with_elimination_check_route(league_category_id: str, round_id: str):
+@league_team_bp.get("/all-checked/<league_category_id>")
+async def get_all_with_elimination_check_route(league_category_id: str):
     try:
-        teams = await service.get_all_with_elimination_check(league_category_id,round_id)
+        teams = await service.get_all_with_elimination_check(league_category_id)
         return await ApiResponse.payload([team.to_json() for team in teams])
     except Exception as e:
         traceback.print_exc()

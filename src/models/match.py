@@ -129,12 +129,6 @@ class LeagueMatchModel(Base, UpdatableMixin):
             postgresql_where=text("is_final = TRUE")
         ),
         Index(
-            "unique_runner_up_per_category",
-            "league_category_id",
-            unique=True,
-            postgresql_where=text("is_runner_up = TRUE")
-        ),
-        Index(
             "unique_third_place_per_category",
             "league_category_id",
             unique=True,

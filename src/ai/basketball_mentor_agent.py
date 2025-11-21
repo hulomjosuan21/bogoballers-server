@@ -2,7 +2,7 @@ import os
 from typing import Optional
 from sqlalchemy import select
 from langchain_core.prompts import PromptTemplate
-from langchain_core.runnables import RunnableSequence, RunnablePassthrough
+from langchain_core.runnables import RunnablePassthrough
 from langchain_google_genai import ChatGoogleGenerativeAI
 from dotenv import load_dotenv
 from src.models.player import PlayerModel

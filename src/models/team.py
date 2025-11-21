@@ -183,7 +183,7 @@ class LeagueTeamModel(Base, UpdatableMixin):
     
     team: Mapped["TeamModel"] = relationship("TeamModel", lazy="joined")
     
-    league: Mapped["LeagueModel"] = relationship("LeagueModel", lazy="joined")
+    league: Mapped["LeagueModel"] = relationship("LeagueModel", lazy="joined",back_populates="teams")
 
     league_players: Mapped[List["LeaguePlayerModel"]] = relationship(
         "LeaguePlayerModel",

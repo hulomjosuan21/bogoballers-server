@@ -104,12 +104,8 @@ class LeagueTeamService:
             
             return league_team
     
-    async def get_all_with_elimination_check(self, league_category_id: str, round_id: str) -> List[LeagueTeamModel]:
+    async def get_all_with_elimination_check(self, league_category_id: str) -> List[LeagueTeamModel]:
         async with AsyncSession() as session:
-            round_obj = await session.get(LeagueCategoryRoundModel, round_id)
-            if not round_obj:
-                raise ValueError(f"Round not found: {round_id}")
-
             stmt = (
                 select(LeagueTeamModel)
                 .where(LeagueTeamModel.league_category_id == league_category_id)
@@ -120,12 +116,6 @@ class LeagueTeamService:
 
             result = await session.execute(stmt)
             teams = result.scalars().all()
-
-            if round_obj.round_status == "Finished":
-                for team in teams:
-                    team.eliminated_in_this_round = (team.eliminated_in_round_id == round_id)
-            else:
-                teams = [team for team in teams if not team.is_eliminated]
 
             return teams
 
