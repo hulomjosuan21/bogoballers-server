@@ -108,33 +108,5 @@ async def update_format(format_id: str):
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)
-    
-@auto_match_config_bp.post('/rounds/<string:round_id>/generate')
-async def generate_matches_route(round_id: str):
-    try:
-        result = await service.generate_matches(round_id)
-        return await ApiResponse.success(message=result)
-    except Exception as e:
-        traceback.print_exc()
-        return await ApiResponse.error(str(e))
 
-
-@auto_match_config_bp.post("/rounds/<string:round_id>/progress")
-async def progress_round_route(round_id: str):
-    try:
-        result = await service.auto_process_round(round_id)
-        return await ApiResponse.success(message=result)
-    except Exception as e:
-        traceback.print_exc()
-        return await ApiResponse.error(str(e))
-
-
-@auto_match_config_bp.post('/rounds/<string:round_id>/reset')
-async def reset_round_route(round_id: str):
-    try:
-        result = await service.reset_round(round_id)
-        return await ApiResponse.payload(result)
-    except Exception as e:
-        traceback.print_exc()
-        return await ApiResponse.error(str(e))
 

@@ -4,10 +4,9 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 import uuid
 from sqlalchemy import and_, delete, select, update
-from src.models.match_types import BestOfConfig, DoubleEliminationConfig, KnockoutConfig, RoundConfig, RoundRobinConfig
+from src.schemas.format_schemas import RoundConfig
 from src.models.team import LeagueTeamModel
 from src.services.league.league_category_service import LeagueCategoryService
-from src.engines.auto_match_engine import AutoMatchEngine
 from src.models.match import LeagueMatchModel
 from src.extensions import AsyncSession
 from src.models.edge import LeagueFlowEdgeModel
@@ -35,50 +34,6 @@ ROUND_NAME_TO_ORDER = {
 }
 
 class AutomaticMatchConfigService:
-    async def generate_matches(self, round_id: str) -> list[dict]:
-        async with AsyncSession() as session:
-            round_obj = await session.get(LeagueCategoryRoundModel, round_id)
-            if not round_obj:
-                raise ValueError("Round not found")
-
-            if round_obj.matches_generated:
-                raise ValueError("Matches already generated for this round")
-
-            category = await session.get(LeagueCategoryModel, round_obj.league_category_id)
-            teams = await LeagueCategoryService.get_eligible_teams(session, category.league_category_id)
-
-            engine = AutoMatchEngine(
-                league_id=category.league_id,
-                round=round_obj,
-                teams=teams,
-            )
-
-            matches = engine.generate()
-
-            for m in matches:
-                session.add(m)
-            round_obj.matches_generated = True
-            round_obj.round_status = "Ongoing"
-
-            await session.commit()
-            return f"{len(matches)} match generated"
-
-    async def reset_round(self, round_id: str) -> dict:
-        async with AsyncSession() as session:
-            round_obj = await session.get(LeagueCategoryRoundModel, round_id)
-            if not round_obj:
-                raise ValueError("Round not found")
-
-            # Delete matches
-            await session.execute(
-                delete(LeagueMatchModel).where(LeagueMatchModel.round_id == round_id)
-            )
-
-            round_obj.matches_generated = False
-            round_obj.round_status = "Upcoming"
-            await session.commit()
-            return {"message": f"Matches for round {round_id} have been reset"}
-    
     async def get_flow_state(self, league_id: str) -> dict:
         async with AsyncSession() as session:
             categories = (
@@ -464,145 +419,6 @@ class AutomaticMatchConfigService:
             
             return "Success"
         
-        # process round
-        
-    async def auto_process_round(self, round_id: str) -> str:
-        """
-        One button to do everything:
-        - If first time (no matches_generated): generate matches for this round.
-        - Else if all matches finished:
-            - If DoubleElimination and more stages remain -> bump stage and generate next stage matches.
-            - Else finish this round:
-                - eliminate teams (mark eliminated, rank them)
-                - if next_round_id exists, auto-generate matches for the next round
-                - if Final, crown champion / runner-up / 3rd place
-        - If there are unfinished matches, stop.
-        Returns: str message summary
-        """
-        async with AsyncSession() as session:
-            # --- Load round + category + format ---
-            r: LeagueCategoryRoundModel = await session.get(LeagueCategoryRoundModel, round_id)
-            if not r:
-                raise ValueError("Round not found.")
-
-            cat: LeagueCategoryModel = await session.get(LeagueCategoryModel, r.league_category_id)
-            if not cat:
-                raise ValueError("League category not found.")
-
-            if not r.format or not r.format.parsed_format_obj:
-                raise ValueError("Round format missing or not configured.")
-
-            cfg: RoundConfig = r.format.parsed_format_obj
-
-            # Eligible teams are those not eliminated
-            teams: List[LeagueTeamModel] = await LeagueCategoryService.get_eligible_teams(
-                session, cat.league_category_id
-            )
-
-            # --- First time: generate matches for this round ---
-            if not r.matches_generated:
-                engine = AutoMatchEngine(league_id=cat.league_id, round=r, teams=teams)
-                matches = engine.generate()
-                for m in matches:
-                    session.add(m)
-
-                r.matches_generated = True
-                r.round_status = "Ongoing"
-                await session.commit()
-                return f"Generated {len(matches)} matches for round {r.round_name}."
-
-            # --- Load matches for this round ---
-            round_matches: List[LeagueMatchModel] = (
-                await session.execute(
-                    select(LeagueMatchModel).where(LeagueMatchModel.round_id == r.round_id)
-                )
-            ).scalars().all()
-
-            if not round_matches:
-                # Defensive re-generate
-                engine = AutoMatchEngine(league_id=cat.league_id, round=r, teams=teams)
-                matches = engine.generate()
-                for m in matches:
-                    session.add(m)
-                r.matches_generated = True
-                r.round_status = "Ongoing"
-                await session.commit()
-                return f"Generated {len(matches)} matches for round {r.round_name}."
-
-            # --- Ensure all matches are finished AND have results ---
-            unfinished = [
-                m for m in round_matches
-                if m.status != "Completed" or not m.winner_team_id or not m.loser_team_id
-            ]
-            if unfinished:
-                raise ValueError(
-                    f"Cannot process round {r.round_name}. "
-                    f"{len(unfinished)} matches are still unfinished or missing results."
-                )
-
-            # --- Everything finished, collect results ---
-            winners, losers = self._collect_winners_losers(round_matches)
-            eliminated_ids, advanced_ids = await self._apply_elimination_and_ranking(
-                session, r, cfg, teams, winners, losers
-            )
-
-            # --- Double Elimination staged ---
-            if r.format.format_type == 'DoubleElimination':
-                if r.current_stage < r.total_stages:
-                    r.current_stage += 1
-                    teams = await LeagueCategoryService.get_eligible_teams(session, cat.league_category_id)
-                    engine = AutoMatchEngine(league_id=cat.league_id, round=r, teams=teams)
-                    next_stage_matches = engine.generate()
-                    for m in next_stage_matches:
-                        session.add(m)
-                    r.round_status = "Ongoing"
-                    await session.commit()
-                    return (
-                        f"Advanced to stage {r.current_stage} of Double Elimination. "
-                        f"Generated {len(next_stage_matches)} matches. "
-                        f"Eliminated {len(eliminated_ids)} teams."
-                    )
-
-                # last stage finished => fall through to close the round
-
-            # --- Close this round ---
-            r.round_status = "Finished"
-
-            # --- Final round crown ---
-            if (r.round_name or "").lower() == "final":
-                await self._finalize_championship(session, r, round_matches)
-                await session.commit()
-                return f"Final round completed. Champion and runner-up assigned."
-
-            # --- Advance to next round ---
-            if r.next_round_id:
-                next_r: LeagueCategoryRoundModel = await session.get(LeagueCategoryRoundModel, r.next_round_id)
-                if not next_r:
-                    await session.commit()
-                    return f"Round {r.round_name} finished. No valid next round found."
-
-                next_eligible = await LeagueCategoryService.get_eligible_teams(session, cat.league_category_id)
-                if not next_r.format or not next_r.format.parsed_format_obj:
-                    await session.commit()
-                    return f"Round {r.round_name} finished. Next round exists but missing format."
-
-                if not next_r.matches_generated:
-                    next_engine = AutoMatchEngine(league_id=cat.league_id, round=next_r, teams=next_eligible)
-                    next_matches = next_engine.generate()
-                    for m in next_matches:
-                        session.add(m)
-                    next_r.matches_generated = True
-                    next_r.round_status = "Ongoing"
-
-                await session.commit()
-                return f"Round {r.round_name} finished. Advanced to round {next_r.round_name}."
-
-            # --- No next round ---
-            await session.commit()
-            return f"Round {r.round_name} finished. No further rounds."
-
-    # ------------------ Helpers ------------------
-
     def _collect_winners_losers(
         self, matches: List[LeagueMatchModel]
     ) -> Tuple[List[str], List[str]]:

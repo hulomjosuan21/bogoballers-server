@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 import inspect
 from sqlalchemy import Boolean, ForeignKey, String
 from src.extensions import Base
-from src.models.match_types import RoundConfig, parse_round_config
+from src.schemas.format_schemas import RoundConfig, parse_round_config
 from src.utils.mixins import SerializationMixin
 from src.utils.db_utils import CreatedAt, UUIDGenerator, UpdatedAt
 from sqlalchemy.orm import Mapped, mapped_column, relationship
