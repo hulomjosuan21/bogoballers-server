@@ -38,14 +38,16 @@ class LeagueMatchModel(Base, UpdatableMixin):
         "LeagueTeamModel",
         foreign_keys=[home_team_id],
         uselist=False,
-        lazy="joined"
+        lazy="joined",
+        back_populates="home_matches"
     )
 
     away_team: Mapped[Optional["LeagueTeamModel"]] = relationship(
         "LeagueTeamModel",
         foreign_keys=[away_team_id],
         uselist=False,
-        lazy="joined"
+        lazy="joined",
+        back_populates="away_matches"
     )
 
     home_team_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)

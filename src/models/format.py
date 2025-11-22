@@ -27,6 +27,12 @@ class LeagueRoundFormatModel(Base, SerializationMixin):
         nullable=True
     )
 
+    league_category_id: Mapped[Optional[str]] = mapped_column(
+        String,
+        ForeignKey("league_categories_table.league_category_id", ondelete="CASCADE"),
+        nullable=True
+    )
+
     format_name: Mapped[str] = mapped_column(String, nullable=False)
     format_type: Mapped[str] = mapped_column(String, nullable=False)
     format_obj: Mapped[str] = mapped_column(JSONB, nullable=True)

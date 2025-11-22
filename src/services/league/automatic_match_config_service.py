@@ -115,6 +115,7 @@ class AutomaticMatchConfigService:
                             "type": "league_category_round_format",
                             "format_name": f.format_name,
                             "format_type": f.format_name,
+                            "league_category_id": f.league_category_id,
                             "format_obj": f.to_dict(),
                         },
                     }
@@ -253,6 +254,7 @@ class AutomaticMatchConfigService:
                 round_id=round_id,
                 format_name=format_name,
                 format_type=format_type,
+                league_category_id=r.league_category_id,
                 format_obj=default_config,
                 position=position,
             )

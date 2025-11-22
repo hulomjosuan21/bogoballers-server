@@ -268,3 +268,20 @@ class LeagueTeamService:
         except (IntegrityError, SQLAlchemyError):
             await session.rollback()
             raise ApiException("Your team is already registered for this league", 409)
+        
+    async def get_remaining_teams(self, league_category_id: str) -> List[LeagueTeamModel]:
+        async with AsyncSession() as session:
+            stmt = (
+                select(LeagueTeamModel)
+                .where(
+                    LeagueTeamModel.league_category_id == league_category_id,
+                    LeagueTeamModel.is_eliminated.is_(False)
+                )
+                .options(
+                    selectinload(LeagueTeamModel.team),
+                    selectinload(LeagueTeamModel.team).selectinload(TeamModel.user),
+                )
+            )
+
+            result = await session.execute(stmt)
+            return result.scalars().all()

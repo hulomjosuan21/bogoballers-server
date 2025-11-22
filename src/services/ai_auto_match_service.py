@@ -98,24 +98,43 @@ class AutoMatchService:
         You are an expert Basketball League Commissioner AI for a Philippine 'Barangay' League.
         
         **CRITICAL INSTRUCTION ON LANGUAGE:**
-        - The user is NOT technical. Do NOT use words like 'CRUD', 'Database', 'Boolean', 'Schema', 'Object'.
-        - Write the 'explanation' in simple, plain English suitable for a local sports organizer.
-        - Example GOOD Explanation: "Team A won Game 1, so they advance to the Finals. Team B is eliminated."
-        - Example BAD Explanation: "Updated boolean flag is_eliminated for ID 123 and generated record."
+        - The user is NOT technical. Do NOT use words like 'CRUD', 'Database', 'Boolean', 'Schema'.
+        - Write the 'explanation' in simple, plain English (e.g., "Team A won Game 1, so we are scheduling Game 2").
+        
+        **CRITICAL INSTRUCTION ON RANKING:**
+        - **ONLY** provide a `rank` if the team is being ELIMINATED (e.g. 3rd, 4th) or is the CHAMPION/RUNNER-UP.
+        - **NEVER** assign a rank to a team that is 'advancing' to the next round.
 
         **FORMAT RULES:**
         1. **Round Robin:** All teams play every other team in their group.
         2. **Single Elimination:** If a team loses, action="eliminate". Winner advances.
-        3. **Double Elimination:** - 1st Loss -> Send to Losers Bracket. 
-           - 2nd Loss -> action="eliminate".
-        4. **Twice-to-Beat:** - Advantaged Team (Higher Seed) needs to win ONCE to eliminate opponent.
-           - Challenger (Lower Seed) needs to win TWICE to eliminate Advantaged Team.
-           - If Challenger wins Game 1, you MUST generate Game 2 (Do-or-Die).
+        3. **Double Elimination:** - Teams start in Winners Bracket. 1st Loss -> Losers Bracket. 2nd Loss -> Eliminate.
+        
+        **SERIES LOGIC (Best-Of-X / Twice-to-Beat):**
+        - **Best-Of-X (e.g. Best of 3):**
+          1. Look at `match_history` for matches between the SAME two teams in this round.
+          2. Count wins for Team A and Team B.
+          3. Calculate `Wins_Needed = (Total_Games // 2) + 1`. (e.g. Best of 3 needs 2 wins).
+          4. If Team A wins >= Wins_Needed -> Team A wins series.
+          5. If Team B wins >= Wins_Needed -> Team B wins series.
+          6. **IMPORTANT:** If neither team has reached Wins_Needed, you **MUST** generate the next game (e.g. Game 2 or Game 3).
+        
+        - **Twice-to-Beat:**
+          1. **READ** the `format_config` to find the `advantaged_team` ID and `challenger_team` ID.
+          2. **CHECK** the `match_history`.
+          3. **IF** `match_history` is empty: Generate **Game 1** (Advantaged vs Challenger).
+          4. **IF** Game 1 exists and is finished:
+             - If **Advantaged Team** (`winner_id` == `advantaged_team`) won: They win the series. Eliminate Challenger.
+             - If **Challenger Team** (`winner_id` == `challenger_team`) won: You **MUST** generate **Game 2** (Do-or-Die).
+          5. **IF** Game 2 exists and is finished:
+             - The winner of Game 2 wins the series. Eliminate the loser.
 
         **YOUR TASK:**
         Analyze the `match_history` and `teams` stats.
         - If `mode`='generate' and no matches exist: Create the initial pairings.
-        - If `mode`='progress': Check completed matches. Update team status (eliminate/advance). Generate NEXT matches if needed.
+        - If `mode`='progress': Check completed matches.
+          - **For Series:** Check if the series is tied or ongoing. If so, **create the next match immediately**.
+          - If a series ends, eliminate the loser and advance the winner.
         - If a team becomes champion (last one standing), set action="champion".
 
         Output strictly JSON matching the provided schema.
@@ -175,6 +194,8 @@ class AutoMatchService:
             if team:
                 if update_plan.action == "eliminate":
                     team.is_eliminated = True
+                    if update_plan.rank:
+                        team.final_rank = update_plan.rank
                 elif update_plan.action == "champion":
                     team.is_champion = True
                     team.final_rank = 1
@@ -182,12 +203,12 @@ class AutoMatchService:
                     team.final_rank = 2
                 elif update_plan.action == "third_place":
                     team.final_rank = 3
-                
-                if update_plan.rank:
-                    team.final_rank = update_plan.rank
+                elif update_plan.action == "advance":
+                    pass
 
         if decision.round_status_update:
             round_obj.round_status = decision.round_status_update
+            
         new_log = LeagueLogModel(
             league_id=round_obj.league_category.league_id, 
             round_id=round_obj.round_id,

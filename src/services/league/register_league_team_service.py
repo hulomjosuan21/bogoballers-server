@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from typing import Optional
 import httpx
 from sqlalchemy import select
+from src.models.league_log_model import LeagueLogModel
 from src.services.team_validators.validate_league_team_entry import get_league_category_for_validation
 from src.services.team_validators.validate_team_entry import ValidateTeamEntry, get_team_for_register_validation
 from src.services.paymongo_service import PaymongoClient
@@ -125,6 +126,14 @@ class RegisterLeagueService:
             league_team.payment_record = record
             await session.commit()
             await session.refresh(league_team)
+                
+            new_log = LeagueLogModel(
+                league_id=league_team.league_id,
+                action_type="Payment Confirmed",
+                message=f"Team '{league_team.team.team_name}' successfully completed online payment.",
+            )
+            session.add(new_log)
+            await session.commit()
             return league_team
 
     async def cancel_payment(self, league_team_id: str):
@@ -147,6 +156,14 @@ class RegisterLeagueService:
             league_team.payment_record = record
             await session.commit()
             await session.refresh(league_team)
+            
+            new_log = LeagueLogModel(
+                league_id=league_team.league_id,
+                action_type="Payment Cancelled",
+                message=f"Payment for team '{league_team.team.team_name}' has been cancelled.",
+            )
+            session.add(new_log)
+            await session.commit()
             return league_team
 
     async def update_league_team(self, league_team_id: str, data: dict) -> LeagueTeamModel:

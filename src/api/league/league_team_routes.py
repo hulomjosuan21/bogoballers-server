@@ -116,7 +116,7 @@ service = LeagueTeamService()
 async def get_all_with_elimination_check_route(league_category_id: str):
     try:
         teams = await service.get_all_with_elimination_check(league_category_id)
-        return await ApiResponse.payload([team.to_json() for team in teams])
+        return await ApiResponse.payload([team.to_json(include_schedule=True) for team in teams])
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)
@@ -149,6 +149,7 @@ async def get_teams_route(league_id: str, league_category_id: str):
                                     )
         return await ApiResponse.payload([t.to_json() for t in result])
     except Exception as e:
+        traceback.print_exc()
         return await ApiResponse.error(e)
     
 @league_team_bp.put('/update/<league_team_id>')
@@ -158,13 +159,24 @@ async def update_one_route(league_team_id: str):
         result = await service.update_one(league_team_id=league_team_id,data=data)
         return await ApiResponse.success(message=result)
     except Exception as e:
+        traceback.print_exc()
         return await ApiResponse.error(e)
     
-@league_team_bp.delete('/delete/<league_team_id>')
+@league_team_bp.delete('/delete/<league_category_id>')
 async def delete_one_route(league_team_id: str):
     try:
         result = await service.delete_one(league_team_id=league_team_id)
         return await ApiResponse.success(message=result)
     except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)    
+    
+@league_team_bp.get('/remaining-teams/<league_category_id>')
+async def get_remaining(league_category_id: str):
+    try:
+        result = await service.get_remaining_teams(league_category_id=league_category_id)
+        return await ApiResponse.payload([t.to_json() for t in result])
+    except Exception as e:
+        traceback.print_exc()
         return await ApiResponse.error(e)    
     
