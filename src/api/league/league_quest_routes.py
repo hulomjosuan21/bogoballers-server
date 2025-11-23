@@ -32,11 +32,72 @@ async def payment_success():
         guest_request = await service.confirm_guest_payment(guest_request_id)
         if not guest_request:
             return await ApiResponse.error("Guest request not found", 404)
-        return await ApiResponse.payload({
-            "message": "Payment completed for guest request.",
-            "guest_request_id": guest_request.guest_request_id,
-            "payment_status": guest_request.payment_status,
-        })
+        html_content = f"""
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Payment Receipt</title>
+            <style>
+                body {{
+                    font-family: 'Arial', sans-serif;
+                    background-color: #f7f7f7;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    height: 100vh;
+                    margin: 0;
+                    padding: 0;
+                }}
+                .receipt-container {{
+                    background-color: #fff;
+                    padding: 20px;
+                    border-radius: 10px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                    width: 90%;
+                    max-width: 400px;
+                    text-align: center;
+                }}
+                .success-icon {{
+                    font-size: 50px;
+                    color: #4BB543;
+                    margin-bottom: 10px;
+                }}
+                h1 {{
+                    font-size: 24px;
+                    margin-bottom: 10px;
+                }}
+                p {{
+                    font-size: 16px;
+                    margin: 5px 0;
+                }}
+                .info {{
+                    font-weight: bold;
+                    margin-top: 15px;
+                }}
+                .footer {{
+                    margin-top: 20px;
+                    font-size: 12px;
+                    color: #999;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="receipt-container">
+                <div class="success-icon">✔️</div>
+                <h1>Payment Successful!</h1>
+                <p>Guest request ID: <span class="info">{guest_request.guest_request_id}</span></p>
+                <p>Payment Status: <span class="info">{guest_request.payment_status}</span></p>
+                <div class="footer">
+                    Thank you for your payment.
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        return html_content
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)
@@ -48,11 +109,72 @@ async def payment_cancel():
         guest_request = await service.cancel_guest_payment(guest_request_id)
         if not guest_request:
             return await ApiResponse.error("Guest request not found", 404)
-        return await ApiResponse.payload({
-            "message": "Payment cancelled for guest request.",
-            "guest_request_id": guest_request.guest_request_id,
-            "payment_status": guest_request.payment_status,
-        })
+        html_content = f"""
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Payment Cancelled</title>
+            <style>
+                body {{
+                    font-family: 'Arial', sans-serif;
+                    background-color: #f7f7f7;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    height: 100vh;
+                    margin: 0;
+                    padding: 0;
+                }}
+                .receipt-container {{
+                    background-color: #fff;
+                    padding: 20px;
+                    border-radius: 10px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                    width: 90%;
+                    max-width: 400px;
+                    text-align: center;
+                }}
+                .cancel-icon {{
+                    font-size: 50px;
+                    color: #FF4C4C;
+                    margin-bottom: 10px;
+                }}
+                h1 {{
+                    font-size: 24px;
+                    margin-bottom: 10px;
+                }}
+                p {{
+                    font-size: 16px;
+                    margin: 5px 0;
+                }}
+                .info {{
+                    font-weight: bold;
+                    margin-top: 15px;
+                }}
+                .footer {{
+                    margin-top: 20px;
+                    font-size: 12px;
+                    color: #999;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="receipt-container">
+                <div class="cancel-icon">❌</div>
+                <h1>Payment Cancelled</h1>
+                <p>Guest request ID: <span class="info">{guest_request.guest_request_id}</span></p>
+                <p>Payment Status: <span class="info">{guest_request.payment_status}</span></p>
+                <div class="footer">
+                    Please try again or contact support.
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        return html_content
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)

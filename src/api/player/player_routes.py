@@ -72,3 +72,13 @@ async def get_leaderboard():
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)
+    
+@player_bp.post('/insert-ocuments-for-all')
+async def insert_documents_for_all_players_route():
+    try:
+        data = await request.get_json()
+        result = await service.insert_documents_for_all_players(documents_json=data)
+        return await ApiResponse.success(message=result)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)

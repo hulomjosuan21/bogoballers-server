@@ -1,9 +1,9 @@
 import json
 import os
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
+from sqlalchemy import and_, select, update
 from sqlalchemy.orm import selectinload
-
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
@@ -14,7 +14,7 @@ from src.models.match import LeagueMatchModel
 from src.models.team import LeagueTeamModel
 from src.schemas.ai_match_schemas import CommissionerDecision
 
-class AutoMatchService:
+class AiAutoMatchService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.llm = ChatGoogleGenerativeAI(
@@ -25,11 +25,6 @@ class AutoMatchService:
         self.parser = PydanticOutputParser(pydantic_object=CommissionerDecision)
 
     async def get_round_context(self, round_id: str):
-        """
-        Fetches teams, matches, and format config from DB
-        and creates a clean JSON context for the AI.
-        """
-        # 1. Fetch Round with Format and Category Teams
         stmt = select(LeagueCategoryRoundModel).options(
             selectinload(LeagueCategoryRoundModel.format),
             selectinload(LeagueCategoryRoundModel.league_category).selectinload(LeagueCategoryModel.teams).selectinload(LeagueTeamModel.team)
@@ -41,14 +36,23 @@ class AutoMatchService:
         if not round_data:
             raise ValueError("Round not found")
 
-        # 2. Fetch Existing Matches in this round
         matches_stmt = select(LeagueMatchModel).where(
             LeagueMatchModel.round_id == round_id
         ).order_by(LeagueMatchModel.league_match_created_at.asc())
         matches_res = await self.session.execute(matches_stmt)
         matches = matches_res.scalars().all()
-
-        # 3. Prepare Data for AI (simplify objects to save tokens)
+        
+        teams_stmt = select(LeagueTeamModel).options(
+            selectinload(LeagueTeamModel.team) 
+        ).where(
+            and_(
+                LeagueTeamModel.league_category_id == round_data.league_category_id,
+                LeagueTeamModel.status == "Accepted"
+            )
+        )
+        
+        teams_res = await self.session.execute(teams_stmt)
+        valid_teams = teams_res.scalars().all()
         teams_context = [
             {
                 "id": t.league_team_id,
@@ -59,7 +63,7 @@ class AutoMatchService:
                 "status": t.status,
                 "is_eliminated": t.is_eliminated
             }
-            for t in round_data.league_category.teams
+            for t in valid_teams
         ]
 
         matches_context = [
@@ -68,13 +72,12 @@ class AutoMatchService:
                 "home_id": m.home_team_id,
                 "away_id": m.away_team_id,
                 "winner_id": m.winner_team_id,
-                "status": m.status, # Completed, Unscheduled
+                "status": m.status,
                 "label": m.display_name
             }
             for m in matches
         ]
 
-        # Extract Format Config safely
         format_config = {}
         if round_data.format:
             format_config = round_data.format.parsed_format_obj.__dict__ if round_data.format.parsed_format_obj else {}
@@ -89,11 +92,6 @@ class AutoMatchService:
         }, round_data
 
     async def consult_ai(self, context_data: dict, mode: str = "progress") -> CommissionerDecision:
-        """
-        Sends data to Gemini and asks for the CommissionerDecision.
-        mode: 'generate' (start of round) or 'progress' (during round)
-        """
-        
         system_prompt = """
         You are an expert Basketball League Commissioner AI for a Philippine 'Barangay' League.
         
@@ -160,65 +158,62 @@ class AutoMatchService:
             })
             return decision
         except Exception as e:
-            print(f"AI Processing Error: {e}")
-            # Return a safe fallback or re-raise
             raise e
 
     async def execute_decision(self, decision: CommissionerDecision, round_obj: LeagueCategoryRoundModel, action_type: str):
-        """
-        Performs the actual Database Inserts/Updates based on AI plan.
-        """
-        
-        # 1. Create New Matches
-        for match_plan in decision.create_matches:
-            new_match = LeagueMatchModel(
-                league_id=round_obj.league_category.league_id,
-                league_category_id=round_obj.league_category_id,
+        try:
+            for match_plan in decision.create_matches:
+                new_match = LeagueMatchModel(
+                    league_id=round_obj.league_category.league_id,
+                    league_category_id=round_obj.league_category_id,
+                    round_id=round_obj.round_id,
+                    home_team_id=match_plan.home_team_id,
+                    away_team_id=match_plan.away_team_id,
+                    display_name=match_plan.match_label,
+                    is_placeholder=match_plan.is_placeholder,
+                    bracket_stage_label=match_plan.placeholder_label,
+                    depends_on_match_ids=match_plan.depends_on_match_ids,
+                    status="Unscheduled",
+                    generated_by="ai_commissioner"
+                )
+                self.session.add(new_match)
+
+            for update_plan in decision.update_teams:
+                stmt = select(LeagueTeamModel).where(LeagueTeamModel.league_team_id == update_plan.team_id)
+                res = await self.session.execute(stmt)
+                team = res.scalar_one_or_none()
+                
+                if team:
+                    if update_plan.action == "eliminate":
+                        team.is_eliminated = True
+                        if update_plan.rank:
+                            team.final_rank = update_plan.rank
+                    elif update_plan.action == "champion":
+                        team.is_champion = True
+                        team.final_rank = 1
+                    elif update_plan.action == "runner_up":
+                        team.final_rank = 2
+                    elif update_plan.action == "third_place":
+                        team.final_rank = 3
+                    elif update_plan.action == "advance":
+                        pass
+
+            if decision.round_status_update:
+                round_obj.round_status = decision.round_status_update
+                
+            new_log = LeagueLogModel(
+                league_id=round_obj.league_category.league_id, 
                 round_id=round_obj.round_id,
-                home_team_id=match_plan.home_team_id,
-                away_team_id=match_plan.away_team_id,
-                display_name=match_plan.match_label,
-                is_placeholder=match_plan.is_placeholder,
-                bracket_stage_label=match_plan.placeholder_label,
-                depends_on_match_ids=match_plan.depends_on_match_ids,
-                status="Unscheduled",
-                generated_by="ai_commissioner"
+                action_type=action_type,
+                message=decision.explanation,
+                meta_data={
+                    "matches_created": len(decision.create_matches),
+                    "teams_updated": len(decision.update_teams),
+                    "round_status_update": decision.round_status_update
+                }
             )
-            self.session.add(new_match)
-
-        for update_plan in decision.update_teams:
-            stmt = select(LeagueTeamModel).where(LeagueTeamModel.league_team_id == update_plan.team_id)
-            res = await self.session.execute(stmt)
-            team = res.scalar_one_or_none()
-            
-            if team:
-                if update_plan.action == "eliminate":
-                    team.is_eliminated = True
-                    if update_plan.rank:
-                        team.final_rank = update_plan.rank
-                elif update_plan.action == "champion":
-                    team.is_champion = True
-                    team.final_rank = 1
-                elif update_plan.action == "runner_up":
-                    team.final_rank = 2
-                elif update_plan.action == "third_place":
-                    team.final_rank = 3
-                elif update_plan.action == "advance":
-                    pass
-
-        if decision.round_status_update:
-            round_obj.round_status = decision.round_status_update
-            
-        new_log = LeagueLogModel(
-            league_id=round_obj.league_category.league_id, 
-            round_id=round_obj.round_id,
-            action_type=action_type,
-            message=decision.explanation,
-            meta_data={
-                "matches_created": len(decision.create_matches),
-                "teams_updated": len(decision.update_teams),
-                "round_status_update": decision.round_status_update
-            }
-        )
-        self.session.add(new_log)
-        await self.session.commit()
+            self.session.add(new_log)
+            await self.session.commit()
+        except (IntegrityError, SQLAlchemyError) as e:
+            await self.session.rollback()
+            raise e

@@ -108,7 +108,7 @@ class LeagueTeamService:
         async with AsyncSession() as session:
             stmt = (
                 select(LeagueTeamModel)
-                .where(LeagueTeamModel.league_category_id == league_category_id)
+                .where(LeagueTeamModel.league_category_id == league_category_id,LeagueTeamModel.status == "Accepted")
                 .order_by(
                     LeagueTeamModel.final_rank.asc().nulls_first()
                 )

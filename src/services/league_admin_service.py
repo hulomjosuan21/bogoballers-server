@@ -149,6 +149,7 @@ class LeagueAdministratorService:
             try:
                 email = form.get('email')
                 password_str = form.get('password_str')
+
                 user = UserModel(
                     email=email,
                     contact_number=form.get('contact_number'),
@@ -156,16 +157,15 @@ class LeagueAdministratorService:
                     is_verified=False
                 )
                 user.set_password(password_str)
-                
+
                 token = secrets.token_urlsafe(32)
                 user.verification_token = token
                 user.verification_token_created_at = datetime.now(timezone.utc)
-                
+
                 session.add(user)
                 await session.flush()
-                
                 verify_url = f"{base_url}/verification/verify-email?token={token}&uid={user.user_id}"
-                
+
                 organization_name = form.get('organization_name')
 
                 league_admin = LeagueAdministratorModel(
@@ -176,36 +176,31 @@ class LeagueAdministratorService:
                     organization_logo_url=None
                 )
                 session.add(league_admin)
-                await session.commit()
 
                 organization_logo_url = None
-                organization_logo_str = form.get('organization_logo_str')
-                
-
                 if organization_logo:
-                    try:
-                        organization_logo_url = await CloudinaryService.upload_file(
-                            file=organization_logo,
-                            folder=settings['league_admin_organization_logo_folder']
-                        )
-                    except Exception as e:
-                        raise ApiException("⚠ Logo upload failed")
-
-                elif organization_logo_str and organization_logo_str.strip():
-                    organization_logo_url = organization_logo_str.strip()
+                    if hasattr(organization_logo, "filename"):
+                        try:
+                            organization_logo_url = await CloudinaryService.upload_file(
+                                file=organization_logo,
+                                folder=settings['league_admin_organization_logo_folder']
+                            )
+                        except Exception:
+                            raise ApiException("⚠ Logo upload failed")
+                    elif isinstance(organization_logo, str) and organization_logo.strip():  # direct URL
+                        organization_logo_url = organization_logo.strip()
 
                 if organization_logo_url:
-                    async with AsyncSession() as session:
-                        result = await session.get(LeagueAdministratorModel, league_admin.league_administrator_id)
-                        if result:
-                            result.organization_logo_url = organization_logo_url
-                            await session.commit()
-                            
+                    league_admin.organization_logo_url = organization_logo_url
+
+                await session.commit()
+
                 subject = "Verify your Basketball League account"
                 body = f"Welcome {organization_name},\n\nClick the link below to verify your account:\n{verify_url}\n\nThis link expires in 24 hours."
                 await MailerService.send_email(to=email, subject=subject, body=body)
 
                 return "Check your email to verify your account"
+
             except (IntegrityError, SQLAlchemyError):
                 await session.rollback()
                 raise
