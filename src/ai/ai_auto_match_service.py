@@ -99,8 +99,14 @@ class AiAutoMatchService:
         - The user is NOT technical. Do NOT use words like 'CRUD', 'Database', 'Boolean', 'Schema'.
         - Write the 'explanation' in simple, plain English (e.g., "Team A won Game 1, so we are scheduling Game 2").
         
-        **CRITICAL INSTRUCTION ON RANKING:**
-        - **ONLY** provide a `rank` if the team is being ELIMINATED (e.g. 3rd, 4th) or is the CHAMPION/RUNNER-UP.
+        **RANKING RULES (REVERSE ORDER):**
+        - If a team is being **ELIMINATED**, you **MUST** provide a specific integer `rank`.
+        - **Ranking Logic:** The rank for an eliminated team should correspond to the **remaining places**.
+        - **Rule:** The FIRST teams eliminated get the HIGHEST rank number (Worst Place).
+          - Example: If `total_teams_count` is 8. The first team eliminated gets Rank 8.
+          - If multiple teams are eliminated in the same stage (e.g. Quarterfinals), they typically share the same lowest rank (e.g. Rank 5-8 -> Rank 8 or Rank 5 depending on tie-break, usually assign the shared lower bracket rank).
+        - **Champion:** Rank 1
+        - **Runner-Up:** Rank 2
         - **NEVER** assign a rank to a team that is 'advancing' to the next round.
 
         **FORMAT RULES:**
@@ -128,7 +134,7 @@ class AiAutoMatchService:
              - The winner of Game 2 wins the series. Eliminate the loser.
 
         **YOUR TASK:**
-        Analyze the `match_history` and `teams` stats.
+        Analyze the `match_history`, `teams`, and `total_teams_count`.
         - If `mode`='generate' and no matches exist: Create the initial pairings.
         - If `mode`='progress': Check completed matches.
           - **For Series:** Check if the series is tied or ongoing. If so, **create the next match immediately**.
