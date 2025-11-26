@@ -11,4 +11,4 @@ COPY . .
 
 EXPOSE 5000
 
-CMD ["hypercorn", "src.server:app", "--bind", "0.0.0.0:5000", "--workers", "2", "--log-level", "info"]
+CMD ["python", "run.py"]
