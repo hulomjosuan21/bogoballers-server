@@ -77,6 +77,7 @@ class LeagueMatchModel(Base, UpdatableMixin):
 
     is_final: Mapped[bool] = mapped_column(Boolean, default=False)
     is_third_place: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_round_robin: Mapped[bool] = mapped_column(Boolean, default=False)
     
     is_elimination: Mapped[bool] = mapped_column(Boolean, default=False)
 
@@ -196,6 +197,7 @@ class LeagueMatchModel(Base, UpdatableMixin):
             "is_final": wrap_bool(self.is_final),
             "is_third_place": wrap_bool(self.is_third_place),
             "is_elimination": wrap_bool(self.is_elimination),
+            "is_round_robin": wrap_bool(self.is_round_robin),
             "status": wrap_str(self.status),
             "league": self.league.to_json(),
 

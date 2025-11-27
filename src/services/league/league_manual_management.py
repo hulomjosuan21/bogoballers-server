@@ -136,6 +136,7 @@ class ManualLeagueManagementService:
         position: dict,
         is_final: bool,
         group_id: str | None,
+        is_round_robin: bool,
         is_elimination: bool,
         is_third_place: bool
     ) -> dict:
@@ -150,6 +151,7 @@ class ManualLeagueManagementService:
                 group_id=group_id,
                 is_final=is_final,
                 is_elimination=is_elimination,
+                is_round_robin=is_round_robin,
                 is_third_place=is_third_place,
                 pairing_method="manual",
             )

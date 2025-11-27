@@ -8,7 +8,7 @@ from src.utils.api_response import ApiResponse
 
 auto_matcher_bp = Blueprint('ai-matcher', __name__, url_prefix='/ai-auto-match')
 
-@auto_matcher_bp.route('/generate', methods=['POST'])
+@auto_matcher_bp.post('/generate')
 async def generate_matches():
     try:
         data = await request.get_json()
@@ -42,7 +42,7 @@ async def generate_matches():
         return await ApiResponse.error(e)
 
 
-@auto_matcher_bp.route('/progress', methods=['POST'])
+@auto_matcher_bp.post('/progress')
 async def progress_round():
     try:
         data = await request.get_json()
@@ -66,7 +66,7 @@ async def progress_round():
         traceback.print_exc()
         return await ApiResponse.error(e)
     
-@auto_matcher_bp.route('/reset', methods=['POST'])
+@auto_matcher_bp.post('/reset')
 async def reset_round():
     try:
         data = await request.get_json()
@@ -89,10 +89,10 @@ async def reset_round():
             round_obj.current_stage = 0
             
             for team in round_obj.league_category.teams:
-                team.is_eliminated = False
-                team.status = "Pending"
-                team.final_rank = None
-                team.is_champion = False
+                if team.is_eliminated is not True:
+                    team.is_eliminated = False
+                    team.final_rank = None
+                    team.is_champion = False
 
             await session.commit()
             

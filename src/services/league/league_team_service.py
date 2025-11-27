@@ -285,3 +285,39 @@ class LeagueTeamService:
 
             result = await session.execute(stmt)
             return result.scalars().all()
+
+    async def get_grouped_teams(self, league_category_id: str) -> list[LeagueTeamModel]:
+        async with AsyncSession() as session:
+            stmt = (
+                select(LeagueTeamModel)
+                .options(
+                    selectinload(LeagueTeamModel.team),
+                )
+                .where(
+                    LeagueTeamModel.league_category_id == league_category_id,
+                    LeagueTeamModel.is_eliminated == False
+                )
+                .order_by(LeagueTeamModel.group_label)
+            )
+            result = await session.execute(stmt)
+            return result.scalars().all()
+
+    async def update_group_teams(self, league_category_id: str, group_updates: list[dict]) -> bool:
+        async with AsyncSession() as session:
+            try:
+                for item in group_updates:
+                    stmt = (
+                        update(LeagueTeamModel)
+                        .where(
+                            LeagueTeamModel.league_team_id == item['league_team_id'],
+                            LeagueTeamModel.league_category_id == league_category_id
+                        )
+                        .values(group_label=str(item['group_label']))
+                    )
+                    await session.execute(stmt)
+                
+                await session.commit()
+                return True
+            except Exception as e:
+                await session.rollback()
+                raise e

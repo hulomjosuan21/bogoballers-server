@@ -125,6 +125,11 @@ class LeagueTeamModel(Base, UpdatableMixin):
 
     league_team_id: Mapped[str] = UUIDGenerator("league-team")
     league_team_public_id: Mapped[str] = PublicIDGenerator("lt")
+    
+    league_team_group_id: Mapped[Optional[str]] = mapped_column(
+        String,
+        nullable=True)
+    
     team_id: Mapped[str] = mapped_column(
         String,
         ForeignKey("teams_table.team_id", ondelete="CASCADE"),
@@ -241,6 +246,7 @@ class LeagueTeamModel(Base, UpdatableMixin):
             'status': self.status,
             'is_eliminated': self.is_eliminated,
             'amount_paid': self.amount_paid,
+            'league_team_group_id': self.league_team_group_id,
             'payment_status': self.payment_status,
             'wins': self.wins,
             'losses': self.losses,
