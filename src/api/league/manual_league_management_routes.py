@@ -1,8 +1,12 @@
 import traceback
 from quart import Blueprint, request
-
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from src.models.team import LeagueTeamModel
+from src.models.match import LeagueMatchModel
+from src.extensions import AsyncSession
 from src.services.league.league_manual_management import ManualLeagueManagementService
-from src.utils.api_response import ApiResponse
+from src.utils.api_response import ApiException, ApiResponse
 
 manual_league_management_bp = Blueprint('manual-league-management', __name__, url_prefix='/manual-league-management')
 
@@ -55,6 +59,7 @@ async def create_match_route():
             position=data.get("position"),
             group_id=data.get('group_id', None),
             is_elimination=data.get("is_elimination", False),
+            is_round_robin=data.get("is_round_robin", False),
             is_third_place=data.get("is_third_place", False),
             is_final=data.get("is_final", False),
         )
@@ -176,3 +181,95 @@ async def synchronize_bracket_route(league_category_id: str):
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(str(e))  
+    
+@manual_league_management_bp.put('/<match_id>/score')
+async def update_match_score(
+    match_id: str,
+):
+    async with AsyncSession() as session:
+        try:
+            data = await request.get_json()
+            slot = data.get('slot')
+            score = data.get('score')
+
+            if slot not in ['home', 'away']:
+                raise ApiException("Slot must be 'home' or 'away'")
+
+            if not isinstance(score, int) or score < 0:
+                raise ApiException("Score must be a non-negative integer")
+
+            result = await session.execute(
+                select(LeagueMatchModel).where(LeagueMatchModel.league_match_id == match_id)
+            )
+            match = result.scalar_one_or_none()
+
+            if not match:
+                raise ApiException("Match not found")
+
+            if slot == "home":
+                match.home_team_score = score
+            else:
+                match.away_team_score = score
+
+            if match.home_team_score is not None and match.away_team_score is not None:
+                if match.home_team_score > match.away_team_score:
+                    match.winner_team_id = match.home_team_id
+                    match.loser_team_id = match.away_team_id
+                elif match.away_team_score > match.home_team_score:
+                    match.winner_team_id = match.away_team_id
+                    match.loser_team_id = match.home_team_id
+                else:
+                    match.winner_team_id = None
+                    match.loser_team_id = None
+
+            await session.commit()
+
+            return await ApiResponse.success(message="Score updated successfully")
+        except (IntegrityError, SQLAlchemyError) as se:
+            traceback.print_exc()
+            await session.rollback()
+            return await ApiResponse.error(se)
+        except Exception as e:
+            traceback.print_exc()
+            return await ApiResponse.error(e)
+        
+@manual_league_management_bp.put("/<team_id>/eliminate")
+async def eliminate_team(team_id: str):
+    async with AsyncSession() as session:
+        try:
+            result = await session.execute(
+                select(LeagueTeamModel).where(LeagueTeamModel.league_team_id == team_id)
+            )
+            team = result.scalar_one_or_none()
+
+            if not team:
+                raise ApiException("Team not found")
+
+            if team.is_eliminated:
+                raise ApiException("Team already eliminated")
+
+            active_count_result = await session.execute(
+                select(func.count()).select_from(LeagueTeamModel)
+                .where(
+                    LeagueTeamModel.league_category_id == team.league_category_id,
+                    LeagueTeamModel.is_eliminated.is_(False)
+                )
+            )
+            active_count = active_count_result.scalar_one()
+
+            team.is_eliminated = True
+            team.final_rank = active_count
+            # team.finalized_at = datetime.utcnow()
+
+            await session.commit()
+
+            return await ApiResponse.success(
+                message=f"Team eliminated — ranked #{active_count}",
+            )
+        except (IntegrityError, SQLAlchemyError) as se:
+            traceback.print_exc()
+            await session.rollback()
+            return await ApiResponse.error(se)
+        except Exception as e:
+            traceback.print_exc()
+            return await ApiResponse.error(e)

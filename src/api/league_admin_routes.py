@@ -90,7 +90,7 @@ async def create_route():
         form = await request.form
         files = await request.files
         base_url = f"{request.scheme}://{request.host}"
-        organization_logo = files.get("organization_logo")
+        organization_logo = files.get("organization_logo") or form.get("organization_logo")
         
         result = await service.create_one(
             base_url=base_url,

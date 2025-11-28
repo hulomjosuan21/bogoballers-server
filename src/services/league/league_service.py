@@ -10,6 +10,7 @@ import subprocess
 from dateutil.relativedelta import relativedelta
 from quart import send_file
 from sqlalchemy import  Date,Text, and_, case, cast, func, or_, select, update
+from src.models.league_log_model import LeagueLogModel
 from src.models.match import LeagueMatchModel
 from src.services import league_admin_service
 from src.models.player import LeaguePlayerModel, PlayerTeamModel
@@ -401,7 +402,6 @@ class LeagueService:
     
     async def analytics(self, league_id: str):
         async with AsyncSession() as session:
-            # Load active league with categories + rounds (no teams relationship anymore)
             stmt_league = (
                 select(LeagueModel)
                 .options(
@@ -418,7 +418,6 @@ class LeagueService:
             if not active_league:
                 raise ApiException("No found league.")
             
-            # Count accepted teams for this league
             stmt_teams = (
                 select(
                     func.count(LeagueTeamModel.league_team_id).label("team_count"),
@@ -427,7 +426,7 @@ class LeagueService:
                 .where(
                     LeagueTeamModel.league_id == active_league.league_id,
                     LeagueTeamModel.status == "Accepted",
-                    LeagueTeamModel.payment_status.in_(["Paid Online", "Paid On Site"]),
+                    LeagueTeamModel.payment_status.notin_(["Pending"])
                 )
             )
             result_teams = await session.execute(stmt_teams)
@@ -435,7 +434,6 @@ class LeagueService:
             total_accepted_teams = team_stats.team_count
             teams_last_update = team_stats.last_update.isoformat() if team_stats.last_update else None
 
-            # Profit calculation
             stmt_profit = (
                 select(
                     func.coalesce(func.sum(LeagueTeamModel.amount_paid), 0).label("total_profit"),
@@ -444,7 +442,7 @@ class LeagueService:
                 .where(
                     LeagueTeamModel.league_id == active_league.league_id,
                     LeagueTeamModel.status == "Accepted",
-                    LeagueTeamModel.payment_status.in_(["Paid Online", "Paid On Site"]),
+                    LeagueTeamModel.payment_status.notin_(["Pending","No Charge","Refunded"])
                 )
             )
             result_profit = await session.execute(stmt_profit)
@@ -452,7 +450,6 @@ class LeagueService:
             total_profit = profit_stats.total_profit
             profit_last_update = profit_stats.last_update.isoformat() if profit_stats.last_update else None
 
-            # Profit chart (daily aggregation)
             stmt_profit_chart = (
                 select(
                     cast(LeagueTeamModel.league_team_updated_at, Date).label("date"),
@@ -461,7 +458,7 @@ class LeagueService:
                 .where(
                     LeagueTeamModel.league_id == active_league.league_id,
                     LeagueTeamModel.status == "Accepted",
-                    LeagueTeamModel.payment_status.in_(["Paid Online", "Paid On Site"]),
+                    LeagueTeamModel.payment_status.notin_(["Pending","No Charge","Refunded"])
                 )
                 .group_by(cast(LeagueTeamModel.league_team_updated_at, Date))
                 .order_by(cast(LeagueTeamModel.league_team_updated_at, Date))
@@ -484,7 +481,6 @@ class LeagueService:
             total_players = player_stats.player_count
             players_last_update = player_stats.last_update.isoformat() if player_stats.last_update else None
 
-            # Categories count (now only directly from league_id)
             stmt_categories = (
                 select(
                     func.count(LeagueCategoryModel.league_category_id).label("category_count"),
@@ -496,6 +492,39 @@ class LeagueService:
             category_stats = result_categories.one()
             total_categories = category_stats.category_count
             categories_last_update = category_stats.last_update.isoformat() if category_stats.last_update else None
+
+            date_expression = cast(LeagueMatchModel.scheduled_date, Date)
+
+            stmt_matches_chart = (
+                select(
+                    date_expression.label("date"),
+                    func.count(LeagueMatchModel.league_match_id).label("count")
+                )
+                .where(
+                    LeagueMatchModel.league_id == active_league.league_id,
+                    LeagueMatchModel.scheduled_date.is_not(None)
+                )
+                .group_by(date_expression)
+                .order_by(date_expression)
+            )
+
+            result_matches_chart = await session.execute(stmt_matches_chart)
+            rows = result_matches_chart.all()
+            
+            matches_chart_list = [
+                {"date": row.date.isoformat(), "count": row.count}
+                for row in rows
+            ]
+
+            total_matches_days = 0
+            last_match_date_str = None
+
+            if rows:
+                start_date = rows[0].date
+                end_date = rows[-1].date
+                last_match_date_str = end_date.isoformat()
+                # Delta days + 1 to include both start and end date
+                total_matches_days = (end_date - start_date).days + 1
 
             return {
                 "active_league": active_league.to_json(),
@@ -516,6 +545,11 @@ class LeagueService:
                     "count": total_players,
                     "last_update": players_last_update,
                 },
+                "matches_chart_data": {
+                    "chart": matches_chart_list,
+                    "total_days": total_matches_days,
+                    "last_match_date": last_match_date_str
+                }
             }
         
     async def search_leagues(self, session, search: str, limit: int = 10) -> list[LeagueModel]:
@@ -753,3 +787,22 @@ class LeagueService:
         except (IntegrityError, SQLAlchemyError) as e:
             await session.rollback()
             raise e 
+
+    async def get_logs(self, league_id: str = None, round_id: str = None, team_id: str = None, limit: int = 100):
+        async with AsyncSession() as session:
+            stmt = select(LeagueLogModel).order_by(LeagueLogModel.log_created_at.desc())
+            
+            conditions = []
+            if league_id:
+                conditions.append(LeagueLogModel.league_id == league_id)
+            if round_id:
+                conditions.append(LeagueLogModel.round_id == round_id)
+            if team_id:
+                conditions.append(LeagueLogModel.team_id == team_id)
+            if conditions:
+                stmt = stmt.where(and_(*conditions))
+            
+            stmt = stmt.limit(limit)
+            
+            result = await session.execute(stmt)
+            return result.scalars().all()

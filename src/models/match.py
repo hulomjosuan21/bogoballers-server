@@ -38,14 +38,16 @@ class LeagueMatchModel(Base, UpdatableMixin):
         "LeagueTeamModel",
         foreign_keys=[home_team_id],
         uselist=False,
-        lazy="joined"
+        lazy="joined",
+        back_populates="home_matches"
     )
 
     away_team: Mapped[Optional["LeagueTeamModel"]] = relationship(
         "LeagueTeamModel",
         foreign_keys=[away_team_id],
         uselist=False,
-        lazy="joined"
+        lazy="joined",
+        back_populates="away_matches"
     )
 
     home_team_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
@@ -75,6 +77,7 @@ class LeagueMatchModel(Base, UpdatableMixin):
 
     is_final: Mapped[bool] = mapped_column(Boolean, default=False)
     is_third_place: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_round_robin: Mapped[bool] = mapped_column(Boolean, default=False)
     
     is_elimination: Mapped[bool] = mapped_column(Boolean, default=False)
 
@@ -127,12 +130,6 @@ class LeagueMatchModel(Base, UpdatableMixin):
             "league_category_id",
             unique=True,
             postgresql_where=text("is_final = TRUE")
-        ),
-        Index(
-            "unique_runner_up_per_category",
-            "league_category_id",
-            unique=True,
-            postgresql_where=text("is_runner_up = TRUE")
         ),
         Index(
             "unique_third_place_per_category",
@@ -200,6 +197,7 @@ class LeagueMatchModel(Base, UpdatableMixin):
             "is_final": wrap_bool(self.is_final),
             "is_third_place": wrap_bool(self.is_third_place),
             "is_elimination": wrap_bool(self.is_elimination),
+            "is_round_robin": wrap_bool(self.is_round_robin),
             "status": wrap_str(self.status),
             "league": self.league.to_json(),
 

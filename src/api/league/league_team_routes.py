@@ -37,13 +37,74 @@ async def payment_success():
         )
         if not league_team:
             return await ApiResponse.error("League team not found", 404)
-        return await ApiResponse.payload(
-            {
-                "message": f"Payment completed. Team {league_team.team_id} registered.",
-                "league_team_id": league_team.league_team_id,
-                "payment_status": league_team.payment_status,
-            }
-        )
+        
+        html_content = f"""
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Payment Receipt</title>
+            <style>
+                body {{
+                    font-family: 'Arial', sans-serif;
+                    background-color: #f7f7f7;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    height: 100vh;
+                    margin: 0;
+                    padding: 0;
+                }}
+                .receipt-container {{
+                    background-color: #fff;
+                    padding: 20px;
+                    border-radius: 10px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                    width: 90%;
+                    max-width: 400px;
+                    text-align: center;
+                }}
+                .success-icon {{
+                    font-size: 50px;
+                    color: #4BB543;
+                    margin-bottom: 10px;
+                }}
+                h1 {{
+                    font-size: 24px;
+                    margin-bottom: 10px;
+                }}
+                p {{
+                    font-size: 16px;
+                    margin: 5px 0;
+                }}
+                .team-info {{
+                    font-weight: bold;
+                    margin-top: 15px;
+                }}
+                .footer {{
+                    margin-top: 20px;
+                    font-size: 12px;
+                    color: #999;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="receipt-container">
+                <div class="success-icon">✔️</div>
+                <h1>Payment Successful!</h1>
+                <p>Team <span class="team-info">{league_team.team_id}</span> has been registered.</p>
+                <p>Payment Status: <span class="team-info">{league_team.payment_status}</span></p>
+                <p>League Team ID: <span class="team-info">{league_team.league_team_id}</span></p>
+                <div class="footer">
+                    Thank you for your payment.
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        return html_content
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)
@@ -56,13 +117,73 @@ async def payment_cancel():
         league_team = await register_service.cancel_payment(league_team_id)
         if not league_team:
             return await ApiResponse.error("League team not found", 404)
-        return await ApiResponse.payload(
-            {
-                "message": f"Payment cancelled for team {league_team.team.team_name}.",
-                "league_team_id": league_team.league_team_id,
-                "payment_status": league_team.payment_status,
-            }
-        )
+        html_content = f"""
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Payment Cancelled</title>
+            <style>
+                body {{
+                    font-family: 'Arial', sans-serif;
+                    background-color: #f7f7f7;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    height: 100vh;
+                    margin: 0;
+                    padding: 0;
+                }}
+                .receipt-container {{
+                    background-color: #fff;
+                    padding: 20px;
+                    border-radius: 10px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                    width: 90%;
+                    max-width: 400px;
+                    text-align: center;
+                }}
+                .cancel-icon {{
+                    font-size: 50px;
+                    color: #FF4C4C;
+                    margin-bottom: 10px;
+                }}
+                h1 {{
+                    font-size: 24px;
+                    margin-bottom: 10px;
+                }}
+                p {{
+                    font-size: 16px;
+                    margin: 5px 0;
+                }}
+                .team-info {{
+                    font-weight: bold;
+                    margin-top: 15px;
+                }}
+                .footer {{
+                    margin-top: 20px;
+                    font-size: 12px;
+                    color: #999;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="receipt-container">
+                <div class="cancel-icon">❌</div>
+                <h1>Payment Cancelled</h1>
+                <p>Team <span class="team-info">{league_team.team.team_name}</span> payment was not completed.</p>
+                <p>Payment Status: <span class="team-info">{league_team.payment_status}</span></p>
+                <p>League Team ID: <span class="team-info">{league_team.league_team_id}</span></p>
+                <div class="footer">
+                    Please try again or contact support.
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        return html_content
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)
@@ -112,11 +233,11 @@ async def refund_route():
 
 service = LeagueTeamService()
 
-@league_team_bp.get("/all-checked/<league_category_id>/<round_id>")
-async def get_all_with_elimination_check_route(league_category_id: str, round_id: str):
+@league_team_bp.get("/all-checked/<league_category_id>")
+async def get_all_with_elimination_check_route(league_category_id: str):
     try:
-        teams = await service.get_all_with_elimination_check(league_category_id,round_id)
-        return await ApiResponse.payload([team.to_json() for team in teams])
+        teams = await service.get_all_with_elimination_check(league_category_id)
+        return await ApiResponse.payload([team.to_json(include_schedule=True) for team in teams])
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)
@@ -149,6 +270,7 @@ async def get_teams_route(league_id: str, league_category_id: str):
                                     )
         return await ApiResponse.payload([t.to_json() for t in result])
     except Exception as e:
+        traceback.print_exc()
         return await ApiResponse.error(e)
     
 @league_team_bp.put('/update/<league_team_id>')
@@ -158,13 +280,49 @@ async def update_one_route(league_team_id: str):
         result = await service.update_one(league_team_id=league_team_id,data=data)
         return await ApiResponse.success(message=result)
     except Exception as e:
+        traceback.print_exc()
         return await ApiResponse.error(e)
     
-@league_team_bp.delete('/delete/<league_team_id>')
+@league_team_bp.delete('/delete/<league_category_id>')
 async def delete_one_route(league_team_id: str):
     try:
         result = await service.delete_one(league_team_id=league_team_id)
         return await ApiResponse.success(message=result)
     except Exception as e:
+        traceback.print_exc()
         return await ApiResponse.error(e)    
     
+@league_team_bp.get('/remaining-teams/<league_category_id>')
+async def get_remaining(league_category_id: str):
+    try:
+        result = await service.get_remaining_teams(league_category_id=league_category_id)
+        return await ApiResponse.payload([t.to_json() for t in result])
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)    
+    
+@league_team_bp.get('/grouped/<league_category_id>')
+async def get_grouped_teams(league_category_id: str):
+    try:
+        result = await service.get_grouped_teams(league_category_id=league_category_id)
+        return await ApiResponse.payload([r.to_json() for r in result])
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)
+
+@league_team_bp.put('/update-grouped/<league_category_id>')
+async def update_group_teams(league_category_id: str):
+    try:
+        data = await request.get_json()
+        updates = data.get('teams', [])
+        
+        await service.update_group_teams(
+            league_category_id=league_category_id, 
+            group_updates=updates
+        )
+        
+        result = await service.get_grouped_teams(league_category_id=league_category_id)
+        return await ApiResponse.payload([r.to_json() for r in result])
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)

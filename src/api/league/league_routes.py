@@ -1,6 +1,7 @@
 import traceback
-from quart import Blueprint, request
+from quart import Blueprint, jsonify, request
 from quart_auth import login_required, current_user
+from src.extensions import AsyncSession
 from src.services.league.league_service import LeagueService
 from src.utils.api_response import ApiResponse
 
@@ -112,3 +113,28 @@ async def update_league_route(league_id: str, field_name: str):
         return await ApiResponse.success(message=result)
     except Exception as e:
         return await ApiResponse.error(e)
+    
+@league_bp.get('/logs')
+async def get_logs():
+    league_id = request.args.get('league_id')
+    round_id = request.args.get('round_id')
+    team_id = request.args.get('team_id')
+    logs = await service.get_logs(
+        league_id=league_id,
+        round_id=round_id,
+        team_id=team_id
+    )
+    
+    return jsonify({
+        "status": "success",
+        "data": [
+            {
+                "id": log.league_log_id,
+                "action": log.action_type,
+                "message": log.message,
+                "meta": log.meta_data,
+                "created_at": log.log_created_at.isoformat()
+            } 
+            for log in logs
+        ]
+    })

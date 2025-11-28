@@ -1,10 +1,11 @@
 from datetime import datetime, timezone
 import json
 import secrets
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from sqlalchemy import String, case, cast, func, or_, select, asc, desc
+from sqlalchemy import String, case, cast, func, insert, or_, select, asc, desc
 from sqlalchemy.orm import joinedload, selectinload
+from src.models.player_valid_documents import PlayerValidDocument
 from src.services.mailer_service import MailerService
 from src.services.cloudinary_service import CloudinaryService
 from src.models.player import PlayerModel
@@ -12,7 +13,6 @@ from src.models.user import UserModel
 from src.extensions import AsyncSession, settings
 from src.utils.api_response import ApiException
 from src.utils.server_utils import validate_required_fields
-import traceback
 
 class PlayerService:
     async def create_one(self, form_data: dict, file, base_url: str):
@@ -258,3 +258,29 @@ class PlayerService:
             result = await session.execute(stmt)
             players = result.scalars().all()
             return [p.to_json() for p in players]
+        
+    async def insert_documents_for_all_players(
+        self,
+        documents_json: List[Dict[str, Any]]
+    ):
+        async with AsyncSession() as session:
+            player_ids = (await session.execute(select(PlayerModel.player_id))).scalars().all()
+
+            values = [
+                {
+                    "player_id": player_id,
+                    "document_type": doc["document_type"],
+                    "document_urls": doc["document_urls"],
+                    "document_format": doc.get("document_format", "single"),
+                    "uploaded_at": datetime.now(timezone.utc),
+                }
+                for player_id in player_ids
+                for doc in documents_json
+            ]
+
+            stmt = insert(PlayerValidDocument).values(values)
+            
+            await session.execute(stmt)
+            await session.commit()
+
+            return "FORCE CREATED {len(values)} document records for {len(player_ids)} players."

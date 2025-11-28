@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 import inspect
 from sqlalchemy import Boolean, ForeignKey, String
 from src.extensions import Base
-from src.models.match_types import RoundConfig, parse_round_config
+from src.schemas.format_schemas import RoundConfig, parse_round_config
 from src.utils.mixins import SerializationMixin
 from src.utils.db_utils import CreatedAt, UUIDGenerator, UpdatedAt
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -24,6 +24,12 @@ class LeagueRoundFormatModel(Base, SerializationMixin):
         String,
         ForeignKey("league_category_rounds_table.round_id", ondelete="CASCADE"),
         unique=True,
+        nullable=True
+    )
+
+    league_category_id: Mapped[Optional[str]] = mapped_column(
+        String,
+        ForeignKey("league_categories_table.league_category_id", ondelete="CASCADE"),
         nullable=True
     )
 

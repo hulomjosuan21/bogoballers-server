@@ -1,11 +1,13 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, List, Optional
 
+
 if TYPE_CHECKING:
     from src.models.player import LeaguePlayerModel
     from src.models.user import UserModel
     from src.models.player import PlayerTeamModel
-    from src.models.league import LeagueModel, LeagueCategoryModel
+    from src.models.league import LeagueModel
+    from src.models.match import LeagueMatchModel
     
 from datetime import datetime
 from sqlalchemy import (
@@ -123,6 +125,11 @@ class LeagueTeamModel(Base, UpdatableMixin):
 
     league_team_id: Mapped[str] = UUIDGenerator("league-team")
     league_team_public_id: Mapped[str] = PublicIDGenerator("lt")
+    
+    league_team_group_id: Mapped[Optional[str]] = mapped_column(
+        String,
+        nullable=True)
+    
     team_id: Mapped[str] = mapped_column(
         String,
         ForeignKey("teams_table.team_id", ondelete="CASCADE"),
@@ -183,7 +190,7 @@ class LeagueTeamModel(Base, UpdatableMixin):
     
     team: Mapped["TeamModel"] = relationship("TeamModel", lazy="joined")
     
-    league: Mapped["LeagueModel"] = relationship("LeagueModel", lazy="joined")
+    league: Mapped["LeagueModel"] = relationship("LeagueModel", lazy="joined",back_populates="teams")
 
     league_players: Mapped[List["LeaguePlayerModel"]] = relationship(
         "LeaguePlayerModel",
@@ -193,7 +200,44 @@ class LeagueTeamModel(Base, UpdatableMixin):
         order_by="LeaguePlayerModel.include_first5.desc()"
     )
     
-    def to_json(self, include_players: bool = True) -> dict:
+    home_matches: Mapped[List["LeagueMatchModel"]] = relationship(
+        "LeagueMatchModel",
+        foreign_keys="[LeagueMatchModel.home_team_id]",
+        back_populates="home_team",
+        lazy="selectin"
+    )
+
+    away_matches: Mapped[List["LeagueMatchModel"]] = relationship(
+        "LeagueMatchModel",
+        foreign_keys="[LeagueMatchModel.away_team_id]",
+        back_populates="away_team",
+        lazy="selectin"
+    )
+    
+    def get_remaining_matches(self) -> list["LeagueMatchModel"]:
+        all_matches = self.home_matches + self.away_matches
+        return [
+            m for m in all_matches
+            if m.status in ("Unscheduled", "Scheduled")  
+        ]
+
+    def get_upcoming_opponents(self) -> list[dict]:
+        opponents = []
+        for match in self.get_remaining_matches():
+            if match.home_team_id == self.league_team_id:
+                opp = match.away_team
+            else:
+                opp = match.home_team
+            
+            if opp:
+                opponents.append({
+                    "league_team_id": opp.league_team_id,
+                    "team_name": opp.team.team_name if opp.team else None
+                })
+        return opponents
+
+    
+    def to_json(self, include_players: bool = True, include_schedule: bool = False) -> dict:
         data = {
             'league_team_id': self.league_team_id,
             'league_team_public_id': self.league_team_public_id,
@@ -202,6 +246,7 @@ class LeagueTeamModel(Base, UpdatableMixin):
             'status': self.status,
             'is_eliminated': self.is_eliminated,
             'amount_paid': self.amount_paid,
+            'league_team_group_id': self.league_team_group_id,
             'payment_status': self.payment_status,
             'wins': self.wins,
             'losses': self.losses,
@@ -219,6 +264,14 @@ class LeagueTeamModel(Base, UpdatableMixin):
         if include_players:
             data['league_players'] = [player.to_json() for player in self.league_players]
 
+        if include_schedule:
+            remaining = self.get_remaining_matches()
+            data["matches_remaining"] = len(remaining)
+            data["upcoming_opponents"] = self.get_upcoming_opponents()
+        else:
+            data["matches_remaining"] = 0
+            data["upcoming_opponents"] = []
+        
         return data
 
 _current_module = globals()

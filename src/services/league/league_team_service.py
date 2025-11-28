@@ -104,15 +104,11 @@ class LeagueTeamService:
             
             return league_team
     
-    async def get_all_with_elimination_check(self, league_category_id: str, round_id: str) -> List[LeagueTeamModel]:
+    async def get_all_with_elimination_check(self, league_category_id: str) -> List[LeagueTeamModel]:
         async with AsyncSession() as session:
-            round_obj = await session.get(LeagueCategoryRoundModel, round_id)
-            if not round_obj:
-                raise ValueError(f"Round not found: {round_id}")
-
             stmt = (
                 select(LeagueTeamModel)
-                .where(LeagueTeamModel.league_category_id == league_category_id)
+                .where(LeagueTeamModel.league_category_id == league_category_id,LeagueTeamModel.status == "Accepted")
                 .order_by(
                     LeagueTeamModel.final_rank.asc().nulls_first()
                 )
@@ -120,12 +116,6 @@ class LeagueTeamService:
 
             result = await session.execute(stmt)
             teams = result.scalars().all()
-
-            if round_obj.round_status == "Finished":
-                for team in teams:
-                    team.eliminated_in_this_round = (team.eliminated_in_round_id == round_id)
-            else:
-                teams = [team for team in teams if not team.is_eliminated]
 
             return teams
 
@@ -278,3 +268,56 @@ class LeagueTeamService:
         except (IntegrityError, SQLAlchemyError):
             await session.rollback()
             raise ApiException("Your team is already registered for this league", 409)
+        
+    async def get_remaining_teams(self, league_category_id: str) -> List[LeagueTeamModel]:
+        async with AsyncSession() as session:
+            stmt = (
+                select(LeagueTeamModel)
+                .where(
+                    LeagueTeamModel.league_category_id == league_category_id,
+                    LeagueTeamModel.is_eliminated.is_(False)
+                )
+                .options(
+                    selectinload(LeagueTeamModel.team),
+                    selectinload(LeagueTeamModel.team).selectinload(TeamModel.user),
+                )
+            )
+
+            result = await session.execute(stmt)
+            return result.scalars().all()
+
+    async def get_grouped_teams(self, league_category_id: str) -> list[LeagueTeamModel]:
+        async with AsyncSession() as session:
+            stmt = (
+                select(LeagueTeamModel)
+                .options(
+                    selectinload(LeagueTeamModel.team),
+                )
+                .where(
+                    LeagueTeamModel.league_category_id == league_category_id,
+                    LeagueTeamModel.is_eliminated == False
+                )
+                .order_by(LeagueTeamModel.group_label)
+            )
+            result = await session.execute(stmt)
+            return result.scalars().all()
+
+    async def update_group_teams(self, league_category_id: str, group_updates: list[dict]) -> bool:
+        async with AsyncSession() as session:
+            try:
+                for item in group_updates:
+                    stmt = (
+                        update(LeagueTeamModel)
+                        .where(
+                            LeagueTeamModel.league_team_id == item['league_team_id'],
+                            LeagueTeamModel.league_category_id == league_category_id
+                        )
+                        .values(group_label=str(item['group_label']))
+                    )
+                    await session.execute(stmt)
+                
+                await session.commit()
+                return True
+            except Exception as e:
+                await session.rollback()
+                raise e

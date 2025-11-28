@@ -7,7 +7,6 @@ from src.api.team_manager_routes import team_mananger_bp
 from src.api.team.team_routes import team_bp
 from src.api.team.player_team_routes import player_team_bp
 from src.api.category_routes import category_bp
-from src.api.league.league_round_routes import round_bp
 from src.api.league.league_routes import league_bp
 from src.api.league.league_category_routes import league_category_bp
 from src.api.league.league_team_routes import league_team_bp
@@ -19,8 +18,9 @@ from src.api.league.manual_league_management_routes import manual_league_managem
 from src.api.league.automatic_match_config_routes import auto_match_config_bp
 from src.api.verification_routes import verification_bp
 from src.api.league.league_quest_routes import league_guest_bp
-from src.api.ai_mentor import ai_mentor_bp
+from src.api.ai_mentor_routes import ai_mentor_bp
 from src.api.manage_league_admin_routes import manage_league_admin_bp
+from src.api.ai_automatch_routes import auto_matcher_bp
 
 all_blueprints = [
     static_data_bp,
@@ -33,7 +33,6 @@ all_blueprints = [
     team_mananger_bp,
     player_team_bp,
     team_bp,
-    round_bp,
     category_bp,
     league_team_bp,
     league_player,
@@ -45,5 +44,6 @@ all_blueprints = [
     verification_bp,
     league_guest_bp,
     ai_mentor_bp,
-    manage_league_admin_bp
+    manage_league_admin_bp,
+    auto_matcher_bp
 ]
