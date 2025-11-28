@@ -39,8 +39,15 @@ with open(SETTINGS_PATH, "r", encoding="utf-8") as f:
     
 @asynccontextmanager
 async def db_session():
-    async with AsyncSession() as session:
+    session = AsyncSession()
+    try:
         yield session
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+    finally:
+        await session.close()
 
 socket_service = SocketIOService(redis_url=Config.REDIS_URL)
 sio = socket_service.sio 
