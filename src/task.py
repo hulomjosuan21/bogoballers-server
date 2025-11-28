@@ -3,7 +3,6 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import Date, and_, distinct, select
-from src.services.notification_service import NotificationService
 from src.models.user import UserModel
 from src.models.match import LeagueMatchModel
 from src.models.player import LeaguePlayerModel, PlayerModel, PlayerTeamModel
@@ -11,6 +10,7 @@ from src.models.team import LeagueTeamModel
 from firebase_admin import messaging
 from sqlalchemy.orm import joinedload
 
+from src.services.notification_service import NotificationService
 notification_service = NotificationService()
 
 class Task:

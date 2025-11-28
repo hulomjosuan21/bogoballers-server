@@ -61,6 +61,17 @@ class NotificationModel(Base):
 
     to_user: Mapped["UserModel"] = relationship("UserModel", foreign_keys=[to_id])
 
+    async def send(self, receiver_token, enable: bool = False):
+        if enable and receiver_token:
+            message = messaging.Message(
+                notification=messaging.Notification(
+                    title=self.title,
+                    body=self.message
+                ),
+                token=receiver_token
+            )
+            await to_thread(messaging.send, message)
+
     async def send_notification(self, enable: bool = False):
         receiver_token = getattr(self.to_user, "fcm_token", None)
         

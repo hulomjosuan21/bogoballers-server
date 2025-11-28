@@ -5,6 +5,27 @@ from src.models.notification import NotificationModel
 from src.extensions import settings
 from src.utils.api_response import ApiException
 
+async def create_and_send_notification(data: dict):
+    async with AsyncSession() as session:
+        try:
+            notif = NotificationModel(
+                action_type=data.get("action_type", "message_only"),
+                action_payload=data.get("action_payload"),
+                title=data.get("title"),
+                message=data["message"],
+                to_id=data["to_id"],
+                status=data.get("status", "unread"),
+            )
+            session.add(notif)
+            await session.refresh(notif)
+            
+            await notif.send(data.get("fcm_token"), settings.get("enable_notification", False))           
+            
+            await session.commit()
+        except SQLAlchemyError as e:
+            await session.rollback()
+            return None
+            
 class NotificationService:
     async def get_notifications(self, user_id: str):
         async with AsyncSession() as session:
@@ -14,6 +35,7 @@ class NotificationService:
                     .where(NotificationModel.to_id == user_id)
                     .order_by(NotificationModel.created_at.desc())
                 )
+                
                 return result.scalars().all()
             except SQLAlchemyError as e:
                 return []

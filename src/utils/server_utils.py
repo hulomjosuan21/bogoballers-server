@@ -3,8 +3,6 @@ from rich.panel import Panel
 from src.config import Config
 from src.extensions import engine, settings
 from sqlalchemy import text
-from quart import send_from_directory
-from pathlib import Path
 
 from src.utils.api_response import ApiException
 

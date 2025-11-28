@@ -2,11 +2,10 @@ import asyncio
 import os
 import logging
 from apscheduler.triggers.cron import CronTrigger
+from src.services.scheduler.scheduler import SchedulerManager
 from src.services.scheduler.job import cleanup_task, scheduled_database_task
 from src.extensions import settings, redis_client
 from apscheduler.triggers.interval import IntervalTrigger
-
-from src.services.scheduler import SchedulerManager
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +18,7 @@ class ClusterWorker:
         self._maintain_task = None
 
     async def start(self):
-        # 1. Check if worker is enabled in config
+        print("🚀 ClusterWorker: Starting up...")
         if not settings.get("enable_worker", False):
             return
         try:
@@ -73,17 +72,18 @@ class ClusterWorker:
         self._maintain_task = asyncio.create_task(self._maintain_leadership())
 
     def _register_default_jobs(self):
-        self.scheduler.add_job(
-            func=scheduled_database_task,
-            job_id="daily_db_sync",
-            trigger=CronTrigger(hour=4, minute=30)
-        )
+        # self.scheduler.add_job(
+        #     func=scheduled_database_task,
+        #     job_id="daily_db_sync",
+        #     trigger=CronTrigger(hour=4, minute=30)
+        # )
 
-        self.scheduler.add_job(
-            func=cleanup_task,
-            job_id="cleanup_service",
-            trigger=IntervalTrigger(seconds=60)
-        )
+        # self.scheduler.add_job(
+        #     func=cleanup_task,
+        #     job_id="cleanup_service",
+        #     trigger=IntervalTrigger(seconds=5)
+        # )
+        ...
 
     async def _maintain_leadership(self):
         while self.is_leader:
