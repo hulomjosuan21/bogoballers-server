@@ -1,5 +1,5 @@
 import traceback
-from quart import Blueprint, request
+from quart import Blueprint, request, Response
 from src.extensions import AsyncSession
 from src.services.verification_serice import VerificationService
 from src.utils.api_response import ApiResponse, ApiException
@@ -42,8 +42,39 @@ async def verify_user():
         async with AsyncSession() as session:
             result = await service.verify_user(token, user_id, session)
 
-        return await ApiResponse.success(payload=result)
-
+        html_content = """
+        <html>
+            <head>
+                <title>Verified</title>
+                <style>
+                    body {
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        height: 100vh;
+                        font-family: Arial, sans-serif;
+                        background-color: #f8f8f8;
+                    }
+                    .message {
+                        text-align: center;
+                        padding: 20px;
+                        border: 1px solid #ccc;
+                        border-radius: 8px;
+                        background-color: #fff;
+                        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+                    }
+                    h1 { color: #5cb85c; }
+                </style>
+            </head>
+            <body>
+                <div class="message">
+                    <h1>Account Verified</h1>
+                    <p>Your account has been successfully verified.</p>
+                </div>
+            </body>
+        </html>
+        """
+        return Response(html_content, status=200, content_type="text/html")
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)
