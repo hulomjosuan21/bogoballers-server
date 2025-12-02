@@ -21,6 +21,8 @@ from src.api.league.league_quest_routes import league_guest_bp
 from src.api.ai_mentor_routes import ai_mentor_bp
 from src.api.manage_league_admin_routes import manage_league_admin_bp
 from src.api.ai_automatch_routes import auto_matcher_bp
+from src.api.scheduler import scheduler_bp
+from src.api.test import test_bp
 
 all_blueprints = [
     static_data_bp,
@@ -45,5 +47,7 @@ all_blueprints = [
     league_guest_bp,
     ai_mentor_bp,
     manage_league_admin_bp,
-    auto_matcher_bp
+    auto_matcher_bp,
+    scheduler_bp,
+    test_bp
 ]

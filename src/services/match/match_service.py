@@ -1,6 +1,7 @@
-import json
+import asyncio
 from typing import List, Optional
 from sqlalchemy import  and_, func, or_, select, update
+from src.services.scheduler.job_wrapper import monitor_match_status_wrapper
 from src.models.player import LeaguePlayerModel, PlayerModel, PlayerTeamModel
 from src.services.league.league_category_service import LeagueCategoryService
 from src.models.match import LeagueMatchModel
@@ -30,28 +31,40 @@ class LeagueMatchService:
     async def update_one(self, league_match_id: str, data: dict):
         try:
             async with AsyncSession() as session:
+                # 1. Fetch the match
                 league_match = await session.get(LeagueMatchModel, league_match_id)
                 
                 if not league_match:
                     raise ApiException("No found match")
                 
-                if "scheduled_date" in data:
-                    raw_date = data.pop("scheduled_date")
+                raw_date = data.pop("scheduled_date", None)
+                if raw_date is None:
+                    raw_date = data.pop("scheduledDate", None)
 
-                    if raw_date is not None:
-                        if isinstance(raw_date, str):
-                            league_match.scheduled_date = datetime.fromisoformat(
-                                raw_date.replace("Z", "+00:00")
-                            )
-                        elif isinstance(raw_date, (int, float)):
-                            league_match.scheduled_date = datetime.fromtimestamp(raw_date / 1000)
-                        elif isinstance(raw_date, datetime):
-                            league_match.scheduled_date = raw_date
-                        else:
-                            raise TypeError(f"Invalid type for scheduled_date: {type(raw_date)}")
+                if raw_date is not None:
+                    if raw_date == "" or raw_date is None:
+                        league_match.scheduled_date = None
+                    
+                    elif isinstance(raw_date, str):
+                        try:
+                            parsed_date = datetime.fromisoformat(raw_date.replace("Z", "+00:00"))
+                            
+                            if parsed_date.tzinfo is None:
+                                parsed_date = parsed_date.replace(tzinfo=timezone.utc)
+                                
+                            league_match.scheduled_date = parsed_date
+                        except ValueError:
+                            raise ApiException(f"Invalid date format received: {raw_date}")
 
-                league_match.copy_with(**data)
+                    elif isinstance(raw_date, (int, float)):
+                        league_match.scheduled_date = datetime.fromtimestamp(raw_date / 1000, tz=timezone.utc)
+
+                if data:
+                    league_match.copy_with(**data)
+
                 await session.commit()
+                
+                asyncio.create_task(monitor_match_status_wrapper(league_match_id))
                 
                 return "Success"
         except (IntegrityError, SQLAlchemyError) as e:

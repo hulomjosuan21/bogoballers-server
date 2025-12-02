@@ -308,6 +308,112 @@ class ManualLeagueManagementService:
             await session.commit()
             return result.rowcount > 0
 
+    # async def synchronize_bracket(self, league_category_id: str) -> dict:
+    #     async with AsyncSession() as session, session.begin():
+    #         total_teams_stmt = select(func.count(LeagueTeamModel.league_team_id)).where(
+    #             LeagueTeamModel.league_category_id == league_category_id
+    #         )
+    #         already_ranked_stmt = select(func.count(LeagueTeamModel.league_team_id)).where(
+    #             LeagueTeamModel.league_category_id == league_category_id,
+    #             LeagueTeamModel.is_eliminated == True,
+    #             LeagueTeamModel.final_rank.isnot(None)
+    #         )
+            
+    #         total_teams_count = (await session.execute(total_teams_stmt)).scalar_one() or 0
+    #         initial_already_ranked_count = (await session.execute(already_ranked_stmt)).scalar_one() or 0
+
+    #         all_matches = (await session.execute(
+    #             select(LeagueMatchModel).where(LeagueMatchModel.league_category_id == league_category_id)
+    #         )).scalars().all()
+            
+    #         all_teams = (await session.execute(
+    #             select(LeagueTeamModel).where(LeagueTeamModel.league_category_id == league_category_id)
+    #         )).scalars().all()
+            
+    #         edges = (await session.execute(
+    #             select(LeagueFlowEdgeModel).where(LeagueFlowEdgeModel.league_category_id == league_category_id)
+    #         )).scalars().all()
+
+    #         matches_by_id = {m.league_match_id: m for m in all_matches}
+    #         teams_by_id = {t.league_team_id: t for t in all_teams}
+            
+    #         edge_map = {}
+    #         for edge in edges:
+    #             if edge.source_node_id not in edge_map:
+    #                 edge_map[edge.source_node_id] = []
+    #             edge_map[edge.source_node_id].append(edge)
+    #         progressed_teams_count = 0
+    #         eliminated_teams_count = 0
+    #         ranked_teams_count = 0
+    #         newly_ranked_tracker = 0 
+    #         resolved_matches = [m for m in all_matches if m.winner_team_id is not None]
+
+    #         for match in resolved_matches:
+    #             winner_id = match.winner_team_id
+    #             loser_id = match.loser_team_id
+    #             outgoing_edges = edge_map.get(match.league_match_id, [])
+    #             for edge in outgoing_edges:
+    #                 team_to_progress = None
+    #                 if 'winner' in edge.source_handle and winner_id:
+    #                     team_to_progress = winner_id
+    #                 elif 'loser' in edge.source_handle and loser_id:
+    #                     team_to_progress = loser_id
+
+    #                 if team_to_progress:
+    #                     next_match = matches_by_id.get(edge.target_node_id)
+                        
+    #                     if next_match and team_to_progress not in [next_match.home_team_id, next_match.away_team_id]:
+    #                         if next_match.home_team_id is None:
+    #                             next_match.home_team_id = team_to_progress
+    #                             progressed_teams_count += 1
+    #                         elif next_match.away_team_id is None:
+    #                             next_match.away_team_id = team_to_progress
+    #                             progressed_teams_count += 1
+                                
+    #             if match.is_final and winner_id and loser_id:
+    #                 champion = teams_by_id.get(winner_id)
+    #                 runner_up = teams_by_id.get(loser_id)
+                    
+    #                 if champion:
+    #                     champion.is_champion = True
+    #                     champion.final_rank = 1
+    #                     ranked_teams_count += 1
+    #                 if runner_up:
+    #                     runner_up.final_rank = 2
+    #                     runner_up.is_eliminated = True
+    #                     ranked_teams_count += 1
+    #             elif match.is_third_place and winner_id and loser_id:
+    #                 third = teams_by_id.get(winner_id)
+    #                 fourth = teams_by_id.get(loser_id)
+                    
+    #                 if third:
+    #                     third.final_rank = 3
+    #                     third.is_eliminated = True
+    #                     ranked_teams_count += 1
+    #                 if fourth:
+    #                     fourth.final_rank = 4
+    #                     fourth.is_eliminated = True
+    #                     ranked_teams_count += 1
+    #             elif match.is_elimination and loser_id:
+    #                 loser_team = teams_by_id.get(loser_id)
+                    
+    #                 if loser_team and not loser_team.is_eliminated and loser_team.final_rank is None:
+    #                     loser_team.is_eliminated = True
+    #                     loser_team.eliminated_in_round_id = match.round_id
+                        
+    #                     # Calculate Rank dynamically using memory
+    #                     current_already_ranked = initial_already_ranked_count + newly_ranked_tracker
+    #                     loser_team.final_rank = total_teams_count - current_already_ranked
+                        
+    #                     newly_ranked_tracker += 1
+    #                     eliminated_teams_count += 1
+    #                     ranked_teams_count += 1
+    #             else:
+    #                 pass 
+
+    #         await session.commit()
+    #         return {"teams_progressed": progressed_teams_count}
+
     async def synchronize_bracket(self, league_category_id: str) -> dict:
         async with AsyncSession() as session, session.begin():
             

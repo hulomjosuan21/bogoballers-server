@@ -4,7 +4,6 @@ from typing import Callable
 import logging
 
 logger = logging.getLogger(__name__)
-
 class SchedulerManager:
     def __init__(self):
         self._scheduler = AsyncIOScheduler()
@@ -19,7 +18,7 @@ class SchedulerManager:
             self._scheduler.shutdown()
             logger.info("🛑 SchedulerManager: Shut down.")
 
-    def add_job(self, func: Callable, job_id: str, trigger: BaseTrigger, replace: bool = True):
+    def add_job(self, func: Callable, job_id: str, trigger: BaseTrigger, replace: bool = True, **job_kwargs):
         try:
             if self._scheduler.get_job(job_id):
                 if replace:
@@ -32,9 +31,10 @@ class SchedulerManager:
                 func,
                 trigger=trigger,
                 id=job_id,
-                replace_existing=True
+                replace_existing=True,
+                kwargs=job_kwargs
             )
-            logger.info(f"➕ Job '{job_id}' scheduled.")
+            logger.info(f"➕ Job '{job_id}' scheduled with args: {job_kwargs}")
         except Exception as e:
             logger.error(f"❌ Failed to add job {job_id}: {e}")
 

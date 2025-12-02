@@ -18,6 +18,16 @@ async def get_one_by_public_id_route(public_team_id: str):
         traceback.print_exc()
         return await ApiResponse.error(e)
 
+@team_bp.get('/leaderboard')
+async def get_leaderboard_route():
+    try:
+        results = await service.get_leaderboard()
+        data = [team.to_json() for team in results]
+        return await ApiResponse.payload(data)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)
+
 @team_bp.get('/<team_id>')
 async def get_one_route(team_id: str):
     try:
