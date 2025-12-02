@@ -221,6 +221,8 @@ async def update_match_score(
                 else:
                     match.winner_team_id = None
                     match.loser_team_id = None
+                    
+                match.status = "Completed"
 
             await session.commit()
 

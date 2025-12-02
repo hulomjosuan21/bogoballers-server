@@ -24,6 +24,19 @@ class TeamService:
             result = await session.execute(query)
             return result.scalars().all()
     
+    async def get_leaderboard(self):
+        async with AsyncSession() as session:
+            stmt = select(TeamModel).order_by(
+                TeamModel.total_wins.desc(),
+                TeamModel.total_points.desc(),
+                TeamModel.total_losses.asc()
+            ).limit(100)
+
+            result = await session.execute(stmt)
+            teams = result.scalars().all()
+            
+            return teams
+    
     async def search_teams(self, session, search: str, limit: int = 10) -> List[TeamModel]:
         query = select(TeamModel).options(selectinload(TeamModel.user))
 

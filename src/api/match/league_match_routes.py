@@ -1,9 +1,11 @@
 import traceback
 from quart import Blueprint, request
+from src.models.match import LeagueMatchModel
+from src.extensions import AsyncSession
 from src.services.match.match_service import LeagueMatchService
-from src.utils.api_response import ApiResponse
+from src.utils.api_response import ApiException, ApiResponse
 from src.utils.db_utils import str_to_bool
-
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 league_match_bp = Blueprint('league-match', __name__, url_prefix='/league-match')
     
 service = LeagueMatchService()
@@ -89,3 +91,46 @@ async def get_one_route(league_match_id: str):
         traceback.print_exc()
         return await ApiResponse.error(e)
     
+@league_match_bp.patch('/<match_id>/score')
+async def update_match_score(match_id: str):
+    async with AsyncSession() as session:
+        try:
+            data = await request.get_json()
+            home_score = data.get('home_score')
+            away_score = data.get('away_score')
+            if home_score is None or away_score is None:
+                raise ApiException("Both 'home_score' and 'away_score' are required")
+            if not isinstance(home_score, int) or home_score < 0:
+                raise ApiException("Home score must be a non-negative integer")
+            
+            if not isinstance(away_score, int) or away_score < 0:
+                raise ApiException("Away score must be a non-negative integer")
+            match = await session.get(LeagueMatchModel, match_id)
+
+            if not match:
+                raise ApiException("Match not found")
+
+            match.home_team_score = home_score
+            match.away_team_score = away_score
+            if match.home_team_score > match.away_team_score:
+                match.winner_team_id = match.home_team_id
+                match.loser_team_id = match.away_team_id
+            elif match.away_team_score > match.home_team_score:
+                match.winner_team_id = match.away_team_id
+                match.loser_team_id = match.home_team_id
+            else:
+                match.winner_team_id = None
+                match.loser_team_id = None
+            match.status = "Completed"
+
+            await session.commit()
+
+            return await ApiResponse.success(message="Scores updated successfully")
+
+        except (IntegrityError, SQLAlchemyError) as se:
+            traceback.print_exc()
+            await session.rollback()
+            return await ApiResponse.error(se)
+        except Exception as e:
+            traceback.print_exc()
+            return await ApiResponse.error(e)

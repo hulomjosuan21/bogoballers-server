@@ -1,18 +1,16 @@
 
 
 import asyncio
-
+from src.extensions import notification_limit
 from sqlalchemy import select
 import logging
 from sqlalchemy.orm import selectinload
 from src.models.team import LeagueTeamModel
 from src.extensions import db_session
-from src.services.notification_service import NotificationService, create_and_send_notification
+from src.services.notification_service import create_notification, send_notification
 from src.utils.notification_utils import get_valid_fcm_for_match
 
 logger = logging.getLogger(__name__)
-
-notification_service = NotificationService()
 
 async def scheduled_database_task():
     print("⏳ CRON: Starting scheduled database task...")
@@ -58,41 +56,41 @@ async def monitor_match_status(league_match_id: str):
             away_team_name = match_data.away_team.team.team_name
             
             if match_data.status != "Scheduled":
-                print(f"✅ Match '{match_data.display_name}' is {match_data.status}. Auto-removing job.")
                 scheduler_manager.remove_job(league_match_id)
             else:
-                print(f"📢 Monitor: Match '{home_team_name} vs {away_team_name}' is currently {match_data.status}.")
+                recipients = await get_valid_fcm_for_match(session, league_match_id, limit=notification_limit)
                 
-                # recipients = await get_valid_fcm_for_match(session, league_match_id, limit=4)
+                if len(recipients.home) > 0:
+                    for recipient in recipients.home:
+                        print(f"Home: {recipient}")
+                        data_payload = {
+                            "title": "Upcoming Game Reminder!",
+                            "message": (
+                                f"Your team, the {home_team_name}, has a game "
+                                f"against the team {away_team_name} "
+                                f"scheduled for {match_data.scheduled_date.strftime('%Y-%m-%d %I:%M %p')}."
+                            ),
+                            "to_id": recipient.user_id,
+                            "fcm_token": recipient.fcm_token,
+                        }
+                        
+                        notif = await create_notification(data=data_payload)
+                        await send_notification(recipient.fcm_token, notif, enable=True)
                 
-                # tasks = []
-                
-                # for recipient in recipients.home:
-                #     data_payload = {
-                #         "title": "Upcoming Game Reminder!",
-                #         "message": (
-                #             f"Your team, the {home_team_name}, has a game "
-                #             f"against the team {away_team_name} "
-                #             f"scheduled for {match_data.scheduled_date.strftime('%Y-%m-%d %I:%M %p')}."
-                #         ),
-                #         "to_id": recipient.user_id,
-                #         "fcm_token": recipient.fcm_token,
-                #     }
-                #     tasks.append(create_and_send_notification(data=data_payload))
-                
-                # for recipient in recipients.away:
-                #     data_payload = {
-                #         "title": "Upcoming Game Reminder!",
-                #         "message": (
-                #             f"Your team, the {away_team_name}, has a game "
-                #             f"against the team {home_team_name} "
-                #             f"scheduled for {match_data.scheduled_date.strftime('%Y-%m-%d %I:%M %p')}."
-                #         ),
-                #         "to_id": recipient.user_id,
-                #         "fcm_token": recipient.fcm_token,
-                #     }
-                #     tasks.append(create_and_send_notification(data=data_payload))
-                # await asyncio.gather(*tasks, return_exceptions=True)
-
+                if len(recipients.away) > 0:
+                    for recipient in recipients.away:
+                        data_payload = {
+                            "title": "Upcoming Game Reminder!",
+                            "message": (
+                                f"Your team, the {away_team_name}, has a game "
+                                f"against the team {home_team_name} "
+                                f"scheduled for {match_data.scheduled_date.strftime('%Y-%m-%d %I:%M %p')}."
+                            ),
+                            "to_id": recipient.user_id,
+                            "fcm_token": recipient.fcm_token,
+                        }
+                        notif = await create_notification(data=data_payload)
+                        await send_notification(recipient.fcm_token, notif, enable=True)
+                        
         except Exception as e:
             logger.error(f"❌ Error monitoring match {league_match_id}: {e}")

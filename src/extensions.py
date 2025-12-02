@@ -37,6 +37,8 @@ SETTINGS_PATH = BASE_DIR.parent / "settings.json"
 with open(SETTINGS_PATH, "r", encoding="utf-8") as f:
     settings = json.load(f)
     
+notification_limit = int(settings.get("notification_limit")) if settings.get("notification_limit") else None
+    
 @asynccontextmanager
 async def db_session():
     session = AsyncSession()

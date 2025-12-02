@@ -8,5 +8,6 @@
   "player_profiles_folder": "/player/profiles",
   "team_logo_folder": "/team/logos",
   "league_admin_organization_logo_folder": "league-admin/organization-logos",
-  "enable_notification": true
+  "enable_notification": true,
+  "notification_limit": 1
 }

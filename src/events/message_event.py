@@ -62,8 +62,6 @@ class MessageEvent:
                         'event': 'get_conversations'
                     }, room=sid)
                     return
-
-                # Ensure user is in their room
                 room = f"user:{user_id}"
                 await self.sio.enter_room(sid, room)
                 
@@ -94,7 +92,6 @@ class MessageEvent:
                         }, room=sid)
                         return
 
-                # Ensure sender is in their room
                 sender_room = f"user:{data['sender_id']}"
                 await self.sio.enter_room(sid, sender_room)
                     
@@ -102,8 +99,6 @@ class MessageEvent:
                     data=data,
                     enable_notification=True
                 )
-                
-                # Don't emit message_sent here as it's handled in the service
                 
             except Exception as e:
                 traceback.print_exc()

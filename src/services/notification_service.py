@@ -1,11 +1,19 @@
+from asyncio import to_thread
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from src.extensions import AsyncSession
 from src.models.notification import NotificationModel
 from src.extensions import settings
 from src.utils.api_response import ApiException
+from firebase_admin import messaging
+from dataclasses import dataclass
 
-async def create_and_send_notification(data: dict):
+@dataclass
+class NotificationResult:
+    title: str
+    message: str
+
+async def create_notification(data: dict):
     async with AsyncSession() as session:
         try:
             notif = NotificationModel(
@@ -17,14 +25,26 @@ async def create_and_send_notification(data: dict):
                 status=data.get("status", "unread"),
             )
             session.add(notif)
-            await session.refresh(notif)
-            
-            await notif.send(data.get("fcm_token"), settings.get("enable_notification", False))           
-            
             await session.commit()
+            
+            return NotificationResult(
+                title=notif.title,
+                message=notif.message
+            )
         except SQLAlchemyError as e:
             await session.rollback()
-            return None
+            raise e
+        
+async def send_notification(receiver_token, notif: NotificationResult, enable: bool = False):
+    if enable and receiver_token:
+        message = messaging.Message(
+            notification=messaging.Notification(
+                title=notif.title,
+                body=notif.message
+            ),
+            token=receiver_token
+        )
+        await to_thread(messaging.send, message)
             
 class NotificationService:
     async def get_notifications(self, user_id: str):
@@ -53,13 +73,7 @@ class NotificationService:
                 )
                 session.add(notif)
                 await session.commit()
-                await session.refresh(
-                    notif,
-                    attribute_names=["to_user"]
-                )
-                
-                await notif.send_notification(settings.get("enable_notification", False))
-                print("Notification sent!")
+                await session.refresh(notif)
                 return notif
             except SQLAlchemyError as e:
                 await session.rollback()

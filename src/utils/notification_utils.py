@@ -11,7 +11,6 @@ class FCMUser:
     user_id: str
     fcm_token: str
 
-
 @dataclass(frozen=True, slots=True)
 class MatchFCMRecipients:
     home: List[FCMUser]
