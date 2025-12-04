@@ -1,6 +1,7 @@
 import asyncio
 from typing import List, Optional
 from sqlalchemy import  and_, func, or_, select, update
+from src.models.records import LeagueMatchRecordModel
 from src.services.scheduler.job_wrapper import monitor_match_status_wrapper
 from src.models.player import LeaguePlayerModel, PlayerModel, PlayerTeamModel
 from src.services.league.league_category_service import LeagueCategoryService
@@ -302,6 +303,13 @@ class LeagueMatchService:
                         loser_team.team.total_losses += 1
                         loser_team.team.total_points += loser_score
 
+                new_record = LeagueMatchRecordModel(
+                    league_id=match.league_id,
+                    record_name=f"Match {match.display_name} finalized",
+                    record_json=data
+                )
+
+                session.add(new_record)
                 await session.commit()
                 await session.refresh(match)
 

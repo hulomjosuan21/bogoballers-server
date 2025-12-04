@@ -138,3 +138,23 @@ async def get_logs():
             for log in logs
         ]
     })
+
+@league_bp.get('/active')
+async def fetch_active_route():
+    try:
+        user_id = request.args.get('user_id') or current_user.auth_id
+        result = await service.fetch_active(user_id=user_id)
+        return await ApiResponse.payload(result.to_json())
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)
+    
+@league_bp.get('/records')
+async def fetch_records_route():
+    try:
+        user_id = request.args.get('user_id') or current_user.auth_id
+        result = await service.fetch_records(user_id=user_id)
+        return await ApiResponse.payload(result)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)

@@ -62,6 +62,7 @@ async def login_route():
         )
 
     except Exception as e:
+        traceback.print_exc()
         return await ApiResponse.error(e)
 
 @league_admin_bp.get("/auth")

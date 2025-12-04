@@ -308,7 +308,78 @@ class LeagueService:
                 return response
 
             return None
-    
+
+    async def fetch_by_user(user_id: str):
+        async with AsyncSession() as session:
+            stmt = (
+                select(LeagueModel)
+                .join(LeagueModel.creator)
+                .where(LeagueAdministratorModel.user_id == user_id)
+                .limit(1)
+            )
+            result = await session.execute(stmt) 
+            league_obj = result.scalars().first()
+
+            if league_obj:
+                return league_obj
+            else:
+                return None
+
+    async def fetch_by_public_id(public_league_id: str):
+        async with AsyncSession() as session:
+            stmt = (
+                select(LeagueModel)
+                .where(LeagueModel.public_league_id == public_league_id)
+                .limit(1)
+            )
+            result = await session.execute(stmt) 
+            league_obj = result.scalars().first()
+
+            if league_obj:
+                return league_obj
+            else:
+                return None
+
+    async def fetch_active(self, user_id: str):
+        async with AsyncSession() as session:
+            active_statuses = ["Pending", "Scheduled", "Ongoing"]
+
+            stmt = (
+                select(LeagueModel)
+                .join(LeagueModel.creator)
+                .where(LeagueAdministratorModel.user_id == user_id)
+                .where(LeagueModel.status.in_(active_statuses))
+                .limit(1)
+            )
+            result = await session.execute(stmt) 
+            legue_obj = result.scalars().first()
+
+            if legue_obj:
+                return legue_obj
+            else:
+                return None
+        
+    async def fetch_records(self, user_id: str):
+        async with AsyncSession() as session:
+            active_statuses = ["Pending", "Scheduled", "Ongoing"]
+
+            priority_sorting = case(
+                (LeagueModel.status.in_(active_statuses), 0),
+                else_=1
+            )
+            stmt = (
+                select(LeagueModel)
+                .join(LeagueModel.creator)
+                .where(LeagueAdministratorModel.user_id == user_id)
+                .order_by(
+                    priority_sorting.asc(),
+                    LeagueModel.league_created_at.desc()
+                )
+            )
+            result = await session.execute(stmt) 
+            league_objs = result.scalars().all()
+            return [league.to_json(include_team=True) for league in league_objs]
+                
     async def fetch_generic(
         self,
         user_id,
@@ -382,7 +453,7 @@ class LeagueService:
                 result = await session.execute(stmt)
                 league = result.scalar_one_or_none()
                 return league.to_json() if league else None
-                
+
     async def fetch_carousel(self):
         conditions = []
         async with AsyncSession() as session:

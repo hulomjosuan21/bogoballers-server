@@ -1,7 +1,9 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, List, Optional
 
+
 if TYPE_CHECKING:
+    from src.models.records import LeagueMatchRecordModel
     from src.models.team import LeagueTeamModel
     from src.models.league_admin import LeagueAdministratorModel
     from src.models.league import LeagueCategoryModel
@@ -97,6 +99,12 @@ class LeagueModel(Base, UpdatableMixin):
         back_populates="league"
     )
     
+    league_match_records: Mapped[list["LeagueMatchRecordModel"]] = relationship(
+        "LeagueMatchRecordModel",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+
     def _league_schedule_serialized(self):
         try:
             return [
@@ -109,7 +117,7 @@ class LeagueModel(Base, UpdatableMixin):
                 self.league_schedule.upper.isoformat()
             ]
             
-    def to_json(self, include_team = False) -> dict:
+    def to_json(self, include_team = False, include_record = False) -> dict:
         data = {
             'league_id': self.league_id,
             'public_league_id': self.public_league_id,
@@ -137,6 +145,11 @@ class LeagueModel(Base, UpdatableMixin):
         
         if include_team is True:
             data["teams"] = [team.to_json() for team in self.teams]
+
+        if include_record is True:
+            data["league_match_records"] = [
+                record.to_json() for record in self.league_match_records
+            ]
         
         return data
 
@@ -186,7 +199,7 @@ class LeagueCategoryModel(Base, UpdatableMixin):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
-    
+
     position: Mapped[dict] = mapped_column(JSONB, nullable=True)
     
     league_category_status: Mapped[Optional[str]] = mapped_column(league_category_status_enum, default="Close", nullable=False)

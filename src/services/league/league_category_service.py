@@ -2,6 +2,7 @@ from typing import Dict, List
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
+from src.services.league.league_service import LeagueService
 from src.models.group import LeagueGroupModel
 from src.models.match import LeagueMatchModel
 from src.models.team import LeagueTeamModel
@@ -127,16 +128,22 @@ class LeagueCategoryService:
                 await session.rollback()
                 raise e
             
-    async def get_category_round_group_names(self, league_id: str):
+    async def get_category_round_group_names(self, user_id, public_league_id: str | None):
         async with AsyncSession() as session:
+            league_service = LeagueService()
+            if public_league_id is not None:
+                league = await league_service.fetch_by_public_id(public_league_id=public_league_id)
+            else:
+                league = await league_service.fetch_active(user_id=user_id)
+            if not league:
+                raise ApiException("League not found", 404)
+
             stmt = (
                 select(LeagueCategoryModel)
                 .options(
                     joinedload(LeagueCategoryModel.rounds).joinedload(LeagueCategoryRoundModel.format),
-                    joinedload(LeagueCategoryModel.rounds).joinedload(LeagueCategoryRoundModel.format),
-                    joinedload(LeagueCategoryModel.rounds).joinedload(LeagueCategoryRoundModel.format),
                 )
-                .where(LeagueCategoryModel.league_id == league_id)
+                .where(LeagueCategoryModel.league_id == league.league_id)
             )
 
             result = await session.execute(stmt)
@@ -169,4 +176,8 @@ class LeagueCategoryService:
                     "rounds": rounds_data,
                 })
 
-            return data
+            return {
+                "league_id": league.league_id,
+                "league_status": league.status,
+                "payload": data,
+            }

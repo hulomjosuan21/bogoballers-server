@@ -1,13 +1,10 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, List, Optional
 
-
-
 if TYPE_CHECKING:
-    from src.models.league import LeagueCategoryModel
     from src.models.user import UserModel
     from src.models.team import TeamModel
-    from src.models.league import LeagueTeamModel, LeagueModel
+    from src.models.league import LeagueTeamModel
     from src.models.player_valid_documents import PlayerValidDocument
     
 from sqlalchemy.orm import Mapped, mapped_column, relationship
