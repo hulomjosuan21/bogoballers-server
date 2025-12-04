@@ -471,6 +471,7 @@ class LeagueService:
             leagues = result.scalars().all()
             return [league.to_json(include_team=True) for league in leagues]
     
+
     async def analytics(self, league_id: str):
         async with AsyncSession() as session:
             stmt_league = (
@@ -488,133 +489,110 @@ class LeagueService:
             
             if not active_league:
                 raise ApiException("No found league.")
-            
-            stmt_teams = (
-                select(
-                    func.count(LeagueTeamModel.league_team_id).label("team_count"),
-                    func.max(LeagueTeamModel.league_team_updated_at).label("last_update")
-                )
-                .where(
-                    LeagueTeamModel.league_id == active_league.league_id,
-                    LeagueTeamModel.status == "Accepted",
-                    LeagueTeamModel.payment_status.notin_(["Pending"])
-                )
-            )
-            result_teams = await session.execute(stmt_teams)
-            team_stats = result_teams.one()
-            total_accepted_teams = team_stats.team_count
-            teams_last_update = team_stats.last_update.isoformat() if team_stats.last_update else None
 
-            stmt_profit = (
-                select(
-                    func.coalesce(func.sum(LeagueTeamModel.amount_paid), 0).label("total_profit"),
-                    func.max(LeagueTeamModel.league_team_updated_at).label("last_update")
-                )
-                .where(
-                    LeagueTeamModel.league_id == active_league.league_id,
-                    LeagueTeamModel.status == "Accepted",
-                    LeagueTeamModel.payment_status.notin_(["Pending","No Charge","Refunded"])
-                )
+            total_categories = len(active_league.categories)
+            cat_updates = [c.league_category_updated_at for c in active_league.categories if c.league_category_updated_at]
+            categories_last_update = max(cat_updates).isoformat() if cat_updates else None
+
+            team_filter = [
+                LeagueTeamModel.league_id == active_league.league_id,
+                LeagueTeamModel.status == "Accepted",
+                LeagueTeamModel.payment_status.notin_(["Pending"])
+            ]
+            
+            profit_filter = [
+                LeagueTeamModel.league_id == active_league.league_id,
+                LeagueTeamModel.status == "Accepted",
+                LeagueTeamModel.payment_status.notin_(["Pending", "No Charge", "Refunded"])
+            ]
+
+            sq_team_count = select(func.count(LeagueTeamModel.league_team_id)).where(*team_filter).scalar_subquery()
+            sq_team_max = select(func.max(LeagueTeamModel.league_team_updated_at)).where(*team_filter).scalar_subquery()
+            
+            sq_profit_sum = select(func.coalesce(func.sum(LeagueTeamModel.amount_paid), 0)).where(*profit_filter).scalar_subquery()
+            sq_profit_max = select(func.max(LeagueTeamModel.league_team_updated_at)).where(*profit_filter).scalar_subquery()
+            
+            sq_player_count = select(func.count(LeaguePlayerModel.league_player_id))\
+                .where(LeaguePlayerModel.league_id == active_league.league_id).scalar_subquery()
+            sq_player_max = select(func.max(LeaguePlayerModel.league_player_updated_at))\
+                .where(LeaguePlayerModel.league_id == active_league.league_id).scalar_subquery()
+
+            stmt_master_stats = select(
+                sq_team_count.label("team_count"),
+                sq_team_max.label("team_last_update"),
+                sq_profit_sum.label("total_profit"),
+                sq_profit_max.label("profit_last_update"),
+                sq_player_count.label("player_count"),
+                sq_player_max.label("player_last_update"),
             )
-            result_profit = await session.execute(stmt_profit)
-            profit_stats = result_profit.one()
-            total_profit = profit_stats.total_profit
-            profit_last_update = profit_stats.last_update.isoformat() if profit_stats.last_update else None
+            
+            stats_result = (await session.execute(stmt_master_stats)).one()
 
             stmt_profit_chart = (
                 select(
                     cast(LeagueTeamModel.league_team_updated_at, Date).label("date"),
                     func.coalesce(func.sum(LeagueTeamModel.amount_paid), 0).label("amount")
                 )
-                .where(
-                    LeagueTeamModel.league_id == active_league.league_id,
-                    LeagueTeamModel.status == "Accepted",
-                    LeagueTeamModel.payment_status.notin_(["Pending","No Charge","Refunded"])
-                )
+                .where(*profit_filter)
                 .group_by(cast(LeagueTeamModel.league_team_updated_at, Date))
                 .order_by(cast(LeagueTeamModel.league_team_updated_at, Date))
             )
-            result_chart = await session.execute(stmt_profit_chart)
-            profit_chart = [
-                {"date": row.date.isoformat(), "amount": float(row.amount)}
-                for row in result_chart.all()
-            ]
 
-            stmt_players = (
-                select(
-                    func.count(LeaguePlayerModel.league_player_id).label("player_count"),
-                    func.max(LeaguePlayerModel.league_player_updated_at).label("last_update")
-                )
-                .where(LeaguePlayerModel.league_id == active_league.league_id)
-            )
-            result_players = await session.execute(stmt_players)
-            player_stats = result_players.one()
-            total_players = player_stats.player_count
-            players_last_update = player_stats.last_update.isoformat() if player_stats.last_update else None
-
-            stmt_categories = (
-                select(
-                    func.count(LeagueCategoryModel.league_category_id).label("category_count"),
-                    func.max(LeagueCategoryModel.league_category_updated_at).label("last_update")
-                )
-                .where(LeagueCategoryModel.league_id == active_league.league_id)
-            )
-            result_categories = await session.execute(stmt_categories)
-            category_stats = result_categories.one()
-            total_categories = category_stats.category_count
-            categories_last_update = category_stats.last_update.isoformat() if category_stats.last_update else None
-
-            date_expression = cast(LeagueMatchModel.scheduled_date, Date)
-
+            date_match_expr = cast(LeagueMatchModel.scheduled_date, Date)
             stmt_matches_chart = (
                 select(
-                    date_expression.label("date"),
+                    date_match_expr.label("date"),
                     func.count(LeagueMatchModel.league_match_id).label("count")
                 )
                 .where(
                     LeagueMatchModel.league_id == active_league.league_id,
                     LeagueMatchModel.scheduled_date.is_not(None)
                 )
-                .group_by(date_expression)
-                .order_by(date_expression)
+                .group_by(date_match_expr)
+                .order_by(date_match_expr)
             )
 
+            result_chart = await session.execute(stmt_profit_chart)
             result_matches_chart = await session.execute(stmt_matches_chart)
-            rows = result_matches_chart.all()
-            
+
+            profit_chart = [
+                {"date": row.date.isoformat(), "amount": float(row.amount)}
+                for row in result_chart.all()
+            ]
+
+            matches_rows = result_matches_chart.all()
             matches_chart_list = [
                 {"date": row.date.isoformat(), "count": row.count}
-                for row in rows
+                for row in matches_rows
             ]
 
             total_matches_days = 0
             last_match_date_str = None
 
-            if rows:
-                start_date = rows[0].date
-                end_date = rows[-1].date
+            if matches_rows:
+                start_date = matches_rows[0].date
+                end_date = matches_rows[-1].date
                 last_match_date_str = end_date.isoformat()
-                # Delta days + 1 to include both start and end date
                 total_matches_days = (end_date - start_date).days + 1
 
             return {
                 "active_league": active_league.to_json(),
                 "total_accepted_teams": {
-                    "count": total_accepted_teams,
-                    "last_update": teams_last_update,
+                    "count": stats_result.team_count,
+                    "last_update": stats_result.team_last_update.isoformat() if stats_result.team_last_update else None,
                 },
                 "total_categories": {
                     "count": total_categories,
                     "last_update": categories_last_update,
                 },
                 "total_profit": {
-                    "amount": total_profit,
-                    "last_update": profit_last_update,
+                    "amount": stats_result.total_profit,
+                    "last_update": stats_result.profit_last_update.isoformat() if stats_result.profit_last_update else None,
                     "chart": profit_chart,
                 },
                 "total_players": {
-                    "count": total_players,
-                    "last_update": players_last_update,
+                    "count": stats_result.player_count,
+                    "last_update": stats_result.player_last_update.isoformat() if stats_result.player_last_update else None,
                 },
                 "matches_chart_data": {
                     "chart": matches_chart_list,

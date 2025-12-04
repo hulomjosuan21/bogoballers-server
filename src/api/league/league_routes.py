@@ -148,7 +148,7 @@ async def fetch_active_route():
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)
-    
+
 @league_bp.get('/records')
 async def fetch_records_route():
     try:
