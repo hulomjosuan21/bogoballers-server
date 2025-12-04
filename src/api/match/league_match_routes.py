@@ -1,5 +1,6 @@
 import traceback
 from quart import Blueprint, request
+from src.models.team import LeagueTeamModel
 from src.models.match import LeagueMatchModel
 from src.extensions import AsyncSession
 from src.services.match.match_service import LeagueMatchService
@@ -90,6 +91,33 @@ async def get_one_route(league_match_id: str):
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)
+
+@league_match_bp.get('/<league_category_id>/<round_id>/unscheduled')
+async def fetch_unscheduled_route(league_category_id: str, round_id: str):
+    try:
+        result = await service.fetch_unscheduled(league_category_id=league_category_id,round_id=round_id)
+        return await ApiResponse.payload([r.to_json() for r in result])
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)
+    
+@league_match_bp.get('/<league_category_id>/<round_id>/scheduled')
+async def fetch_scheduled_route(league_category_id: str, round_id: str):
+    try:
+        result = await service.fetch_scheduled(league_category_id=league_category_id,round_id=round_id)
+        return await ApiResponse.payload([r.to_json() for r in result])
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)
+    
+@league_match_bp.get('/<league_category_id>/<round_id>/completed')
+async def fetch_completed_route(league_category_id: str, round_id: str):
+    try:
+        result = await service.fetch_completed(league_category_id=league_category_id,round_id=round_id)
+        return await ApiResponse.payload([r.to_json() for r in result])
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)
     
 @league_match_bp.patch('/<match_id>/score')
 async def update_match_score(match_id: str):
@@ -98,34 +126,50 @@ async def update_match_score(match_id: str):
             data = await request.get_json()
             home_score = data.get('home_score')
             away_score = data.get('away_score')
+
             if home_score is None or away_score is None:
                 raise ApiException("Both 'home_score' and 'away_score' are required")
             if not isinstance(home_score, int) or home_score < 0:
                 raise ApiException("Home score must be a non-negative integer")
-            
             if not isinstance(away_score, int) or away_score < 0:
                 raise ApiException("Away score must be a non-negative integer")
-            match = await session.get(LeagueMatchModel, match_id)
+            
+            if home_score == away_score:
+                raise ApiException("Draws are not allowed. Please enter the final score after Overtime.")
 
+            match = await session.get(LeagueMatchModel, match_id)
             if not match:
                 raise ApiException("Match not found")
 
+            home_team = await session.get(LeagueTeamModel, match.home_team_id)
+            away_team = await session.get(LeagueTeamModel, match.away_team_id)
+
+            if not home_team or not away_team:
+                raise ApiException("One or both teams not found in league records")
+
             match.home_team_score = home_score
             match.away_team_score = away_score
+            match.status = "Completed"
+
+            home_team.points += home_score
+            away_team.points += away_score
             if match.home_team_score > match.away_team_score:
                 match.winner_team_id = match.home_team_id
                 match.loser_team_id = match.away_team_id
+                
+                home_team.wins += 1
+                away_team.losses += 1
+
             elif match.away_team_score > match.home_team_score:
                 match.winner_team_id = match.away_team_id
                 match.loser_team_id = match.home_team_id
-            else:
-                match.winner_team_id = None
-                match.loser_team_id = None
-            match.status = "Completed"
+                
+                away_team.wins += 1
+                home_team.losses += 1
 
             await session.commit()
 
-            return await ApiResponse.success(message="Scores updated successfully")
+            return await ApiResponse.success(message="Scores updated and team stats incremented")
 
         except (IntegrityError, SQLAlchemyError) as se:
             traceback.print_exc()

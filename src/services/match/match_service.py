@@ -81,6 +81,56 @@ class LeagueMatchService:
             
             return league_match
         
+    async def fetch_unscheduled(self, league_category_id: str, round_id: str):
+        async with AsyncSession() as session:
+            stmt = (
+                select(LeagueMatchModel)
+                .where(
+                    LeagueMatchModel.league_category_id == league_category_id,
+                    LeagueMatchModel.status == "Unscheduled",
+                    LeagueMatchModel.scheduled_date.is_(None),
+                    LeagueMatchModel.round_id == round_id
+                )
+                .order_by(LeagueMatchModel.display_name.asc())
+            )
+            result = await session.execute(stmt)
+            return result.scalars().all()
+
+    async def fetch_scheduled(self, league_category_id: str, round_id: str):
+        async with AsyncSession() as session:
+            stmt = (
+                select(LeagueMatchModel)
+                .where(
+                    LeagueMatchModel.league_category_id == league_category_id,
+                    LeagueMatchModel.status == "Scheduled",
+                    LeagueMatchModel.scheduled_date.is_not(None),
+                    LeagueMatchModel.round_id == round_id
+                )
+                .order_by(
+                    LeagueMatchModel.scheduled_date.asc(), 
+                    LeagueMatchModel.display_name.asc()
+                )
+            )
+            result = await session.execute(stmt)
+            return result.scalars().all()
+        
+    async def fetch_completed(self, league_category_id: str, round_id: str):
+        async with AsyncSession() as session:
+            stmt = (
+                select(LeagueMatchModel)
+                .where(
+                    LeagueMatchModel.league_category_id == league_category_id,
+                    LeagueMatchModel.status == "Completed",
+                    LeagueMatchModel.round_id == round_id
+                )
+                .order_by(
+                    LeagueMatchModel.scheduled_date.desc(), 
+                    LeagueMatchModel.display_name.asc()
+                )
+            )
+            result = await session.execute(stmt)
+            return result.scalars().all()
+        
     async def get_many(self, league_category_id: str, round_id: str, data: dict):
         async with AsyncSession() as session:
             conditions = [LeagueMatchModel.league_category_id == league_category_id]
@@ -305,7 +355,7 @@ class LeagueMatchService:
 
                 new_record = LeagueMatchRecordModel(
                     league_id=match.league_id,
-                    record_name=f"Match {match.display_name} finalized",
+                    league_match_id=match.league_match_id,
                     record_json=data
                 )
 

@@ -1,7 +1,8 @@
 from typing import TYPE_CHECKING, List, Optional
 
+
 if TYPE_CHECKING:
-    from src.models.league import LeagueModel
+    from models.match import LeagueMatchModel
 import datetime
 from src.extensions import Base
 from sqlalchemy import (
@@ -25,15 +26,28 @@ class LeagueMatchRecordModel(Base):
         ForeignKey("leagues_table.league_id", ondelete="CASCADE"),
         nullable=False
     )
-    record_name: Mapped[str] = mapped_column(String(250), nullable=False)
+    league_match_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey("league_matches_table.league_match_id", ondelete="CASCADE"),
+        nullable=False
+    )
     record_json: Mapped[List[dict]] = mapped_column(JSONB, nullable=False)
     record_created_at: Mapped[datetime] = CreatedAt()
+
+    league_match: Mapped["LeagueMatchModel"] = relationship(
+        "LeagueMatchModel",
+        lazy="joined",
+    )
 
     def to_json(self) -> dict:
         return {
             "record_id": self.record_id,
             "league_id": self.league_id,
-            "record_name": self.record_name,
+            "league_match_id": self.league_match_id,
+            "home_team": self.league_match.home_team.team.team_name,
+            "away_team": self.league_match.away_team.team.team_name,
+            "record_name": self.league_match.display_name,
+            "schedule_date": self.league_match.scheduled_date.isoformat() if self.league_match.scheduled_date else None,
             "record_json": self.record_json,
             "record_created_at": self.record_created_at.isoformat(),
         }

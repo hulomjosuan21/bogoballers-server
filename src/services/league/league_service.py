@@ -378,7 +378,7 @@ class LeagueService:
             )
             result = await session.execute(stmt) 
             league_objs = result.scalars().all()
-            return [league.to_json(include_team=True) for league in league_objs]
+            return [league.to_json(include_team=True,include_record=True) for league in league_objs]
                 
     async def fetch_generic(
         self,
