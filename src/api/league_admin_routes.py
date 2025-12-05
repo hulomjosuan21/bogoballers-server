@@ -30,12 +30,12 @@ async def get_jwt_route():
     except Exception as e:
         return await ApiResponse.error(str(e))
     
-@league_admin_bp.put('/update')
-async def update_route():
+    
+@league_admin_bp.put('/update/<league_administrator_id>')
+async def update_route(league_administrator_id: str):
     try:
-        user_id = request.args.get('user_id') or current_user.auth_id
         data = await request.get_json()
-        result = await service.update_one(user_id, data)
+        result = await service.update_one(league_administrator_id, data)
         return await ApiResponse.success(message=result)
     except Exception as e:
         return await ApiResponse.error(e)

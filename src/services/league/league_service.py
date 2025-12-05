@@ -72,7 +72,6 @@ class LeagueService:
         creator = data["creator"]
         admin_account = creator["account"]
 
-        # ✅ TABLE DATA → Matches Docx Jinja loops
         courts_table = [
             {
                 "court_name": c.get("name","Unnamed"),

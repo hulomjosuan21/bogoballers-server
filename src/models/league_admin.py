@@ -45,6 +45,10 @@ class LeagueAdministratorModel(Base, UpdatableMixin):
     organization_type: Mapped[str] = mapped_column(String, nullable=False)
     organization_address: Mapped[str] = mapped_column(String(250), nullable=False)
 
+    organization_country: Mapped[str] = mapped_column(String(250), nullable=False)
+    organization_province: Mapped[str] = mapped_column(String(250), nullable=False)
+    organization_municipality: Mapped[str] = mapped_column(String(250), nullable=False)
+
     organization_photo_url: Mapped[str | None] = mapped_column(String, nullable=True)
 
     league_admin_created_at: Mapped[datetime] = CreatedAt()
@@ -64,6 +68,9 @@ class LeagueAdministratorModel(Base, UpdatableMixin):
             'organization_name': self.organization_name,
             'organization_type': self.organization_type,
             'organization_address': self.organization_address,
+            'organization_country': self.organization_country,
+            'organization_province': self.organization_province,
+            'organization_municipality': self.organization_municipality,
             'organization_logo_url': self.organization_logo_url,
             'league_admin_created_at': self.league_admin_created_at.isoformat(),
             'league_admin_updated_at': self.league_admin_updated_at.isoformat(),

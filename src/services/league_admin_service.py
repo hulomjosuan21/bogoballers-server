@@ -77,15 +77,10 @@ class LeagueAdministratorService:
         result = await session.execute(stmt)
         return result.unique().scalar_one_or_none()
     
-    async def update_one(self, user_id: str, data: dict):
+    async def update_one(self, league_administrator_id: str, data: dict):
         async with AsyncSession() as session:
             try:
-                league_admin_result = (
-                    select(LeagueAdministratorModel)
-                    .where(LeagueAdministratorModel.user_id == user_id)
-                )
-                result = await session.execute(league_admin_result)
-                league_admin = result.unique().scalar_one_or_none()
+                league_admin = await session.get(LeagueAdministratorModel,league_administrator_id)
 
                 if not league_admin:
                     raise ApiException("League Administrator not found", 404)
