@@ -139,7 +139,7 @@ class LeagueMatchModel(Base, UpdatableMixin):
         )
     )
 
-    def to_json(self) -> dict:
+    def to_json_no_league(self) -> dict:
         def wrap_int(v):
             return int(v) if v is not None else None
 
@@ -199,7 +199,76 @@ class LeagueMatchModel(Base, UpdatableMixin):
             "is_elimination": wrap_bool(self.is_elimination),
             "is_round_robin": wrap_bool(self.is_round_robin),
             "status": wrap_str(self.status),
-            "league": self.league.to_json(),
+            "stage_number": wrap_int(self.stage_number),
+            "depends_on_match_ids": wrap_list_str(self.depends_on_match_ids),
+            "is_placeholder": wrap_bool(self.is_placeholder),
+            "bracket_stage_label": wrap_str(self.bracket_stage_label),
+
+            "league_match_created_at": wrap_datetime(self.league_match_created_at),
+            "league_match_updated_at": wrap_datetime(self.league_match_updated_at),
+        }
+
+    def to_json(self, include_league: bool = True) -> dict:
+        def wrap_int(v):
+            return int(v) if v is not None else None
+
+        def wrap_str(v):
+            return str(v) if v is not None else None
+
+        def wrap_bool(v):
+            return bool(v) if v is not None else False
+
+        def wrap_list_str(v):
+            return [str(x) for x in v] if v else []
+
+        def wrap_datetime(v):
+            return v.isoformat() if v else None
+
+        return {
+            "league_match_id": wrap_str(self.league_match_id),
+            "public_league_match_id": wrap_str(self.public_league_match_id),
+            "league_id": wrap_str(self.league_id),
+            "league_category_id": wrap_str(self.league_category_id),
+            "round_id": wrap_str(self.round_id),
+
+            "home_team_id": wrap_str(self.home_team_id),
+            "home_team": self.home_team.to_json() if self.home_team else None,
+            "away_team_id": wrap_str(self.away_team_id),
+            "away_team": self.away_team.to_json() if self.away_team else None,
+
+            "home_team_score": wrap_int(self.home_team_score),
+            "away_team_score": wrap_int(self.away_team_score),
+
+            "winner_team_id": wrap_str(self.winner_team_id),
+            "loser_team_id": wrap_str(self.loser_team_id),
+
+            "group_id": wrap_str(self.group_id),
+            
+            "scheduled_date": wrap_datetime(self.scheduled_date),
+            "quarters": wrap_int(self.quarters),
+            "minutes_per_quarter": wrap_int(self.minutes_per_quarter),
+            "minutes_per_overtime": wrap_int(self.minutes_per_overtime),
+
+            "court": wrap_str(self.court),
+            "referees": wrap_list_str(self.referees),
+            "previous_match_ids": wrap_list_str(self.previous_match_ids),
+
+            "next_match_id": wrap_str(self.next_match_id),
+            "next_match_slot": wrap_str(self.next_match_slot),
+            "loser_next_match_id": wrap_str(self.loser_next_match_id),
+            "loser_next_match_slot": wrap_str(self.loser_next_match_slot),
+
+            "round_number": wrap_int(self.round_number),
+            "pairing_method": wrap_str(self.pairing_method),
+            "generated_by": wrap_str(self.generated_by),
+            "display_name": wrap_str(self.display_name),
+
+            "is_final": wrap_bool(self.is_final),
+            "is_third_place": wrap_bool(self.is_third_place),
+            "is_elimination": wrap_bool(self.is_elimination),
+            "is_round_robin": wrap_bool(self.is_round_robin),
+            "status": wrap_str(self.status),
+            "league": self.league.to_json() if include_league and self.league else None,
 
             "stage_number": wrap_int(self.stage_number),
             "depends_on_match_ids": wrap_list_str(self.depends_on_match_ids),

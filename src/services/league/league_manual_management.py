@@ -1,50 +1,68 @@
 from sqlalchemy import select, delete, func
 from src.models.category import CategoryModel
-from src.models.team import LeagueTeamModel
+from src.models.team import LeagueTeamModel, TeamModel
 from src.models.edge import LeagueFlowEdgeModel
 from src.models.group import LeagueGroupModel
 from src.models.league import LeagueCategoryModel, LeagueCategoryRoundModel
 from src.models.match import LeagueMatchModel
 from src.extensions import AsyncSession
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload, noload
 
 class ManualLeagueManagementService:
+
     async def get_flow_state(self, league_id: str) -> dict:
         async with AsyncSession() as session:
-            categories_result = await session.execute(
-                select(LeagueCategoryModel).where(
+            stmt_cats = (
+                select(LeagueCategoryModel)
+                .options(
+                    noload(LeagueCategoryModel.teams),
+                    noload(LeagueCategoryModel.rounds),
+                    joinedload(LeagueCategoryModel.category)
+                )
+                .where(
                     LeagueCategoryModel.league_id == league_id, 
                     LeagueCategoryModel.manage_automatic.is_(False)
                 )
             )
-            categories = categories_result.scalars().all()
+            categories = (await session.execute(stmt_cats)).scalars().all()
+            
+            if not categories:
+                return {"nodes": [], "edges": []}
+
             category_ids = [c.league_category_id for c in categories]
 
-            rounds_result = await session.execute(
+            stmt_rounds = (
                 select(LeagueCategoryRoundModel)
                 .where(LeagueCategoryRoundModel.league_category_id.in_(category_ids))
+                .options(
+                    noload(LeagueCategoryRoundModel.league_category)
+                )
             )
-            rounds = rounds_result.scalars().all()
-
-            groups_result = await session.execute(
+            rounds = (await session.execute(stmt_rounds)).scalars().all()
+            stmt_groups = (
                 select(LeagueGroupModel)
                 .join(LeagueCategoryRoundModel, LeagueGroupModel.round_id == LeagueCategoryRoundModel.round_id)
                 .where(LeagueCategoryRoundModel.league_category_id.in_(category_ids))
             )
-            groups = groups_result.scalars().all()
+            groups = (await session.execute(stmt_groups)).scalars().all()
 
-            matches_result = await session.execute(
+            stmt_matches = (
                 select(LeagueMatchModel)
                 .where(LeagueMatchModel.league_category_id.in_(category_ids))
+                .options(
+                    selectinload(LeagueMatchModel.home_team).joinedload(LeagueTeamModel.team),
+                    selectinload(LeagueMatchModel.away_team).joinedload(LeagueTeamModel.team),
+                    noload(LeagueMatchModel.league),
+                )
             )
-            matches = matches_result.scalars().all()
+            matches = (await session.execute(stmt_matches)).scalars().all()
 
-            edges_result = await session.execute(
+            stmt_edges = (
                 select(LeagueFlowEdgeModel)
                 .where(LeagueFlowEdgeModel.league_category_id.in_(category_ids))
             )
-            flow_edges = edges_result.scalars().all()
+            flow_edges = (await session.execute(stmt_edges)).scalars().all()
 
             nodes = []
             
@@ -85,7 +103,7 @@ class ManualLeagueManagementService:
                     "id": match.league_match_id,
                     "type": "leagueMatch",
                     "position": match.position or {"x": 800, "y": 50},
-                    "data": { "type": "league_match", "league_match": match.to_json() }
+                    "data": { "type": "league_match", "league_match": match.to_json_no_league() }
                 })
             
             edges = []
@@ -98,9 +116,7 @@ class ManualLeagueManagementService:
                     "targetHandle": edge.target_handle
                 })
                 
-            
-            final_response = {"nodes": nodes, "edges": edges}
-            return final_response
+            return {"nodes": nodes, "edges": edges}
         
     async def count_matches_in_round(self, round_id: str, group_id: str | None = None) -> int:
         async with AsyncSession() as session:

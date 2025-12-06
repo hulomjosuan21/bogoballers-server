@@ -109,4 +109,13 @@ async def update_format(format_id: str):
         traceback.print_exc()
         return await ApiResponse.error(e)
 
+@auto_match_config_bp.get('/round-matches/<round_id>')
+async def fetch_round_matches(round_id: str):
+    try:
+        ok = await service.get_round_matches(round_id=round_id)
+        return await ApiResponse.payload(ok)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)
+
 

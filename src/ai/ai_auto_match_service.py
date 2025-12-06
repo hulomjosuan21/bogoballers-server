@@ -1,8 +1,8 @@
 import json
 import os
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import and_, select, update
-from sqlalchemy.orm import selectinload
+from sqlalchemy import and_, select
+from sqlalchemy.orm import selectinload, noload
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
@@ -11,7 +11,7 @@ from langchain_core.output_parsers import PydanticOutputParser
 from src.models.league_log_model import LeagueLogModel
 from src.models.league import LeagueCategoryModel, LeagueCategoryRoundModel
 from src.models.match import LeagueMatchModel
-from src.models.team import LeagueTeamModel
+from src.models.team import LeagueTeamModel, TeamModel
 from src.schemas.ai_match_schemas import CommissionerDecision
 
 class AiAutoMatchService:
@@ -25,25 +25,34 @@ class AiAutoMatchService:
         self.parser = PydanticOutputParser(pydantic_object=CommissionerDecision)
 
     async def get_round_context(self, round_id: str):
-        stmt = select(LeagueCategoryRoundModel).options(
+        round_stmt = select(LeagueCategoryRoundModel).options(
             selectinload(LeagueCategoryRoundModel.format),
-            selectinload(LeagueCategoryRoundModel.league_category).selectinload(LeagueCategoryModel.teams).selectinload(LeagueTeamModel.team)
+            selectinload(LeagueCategoryRoundModel.league_category),
+            noload(LeagueCategoryRoundModel.league_category, LeagueCategoryModel.teams), 
+            noload(LeagueCategoryRoundModel.league_category, LeagueCategoryModel.rounds)
         ).where(LeagueCategoryRoundModel.round_id == round_id)
         
-        result = await self.session.execute(stmt)
+        result = await self.session.execute(round_stmt)
         round_data = result.scalar_one_or_none()
         
         if not round_data:
             raise ValueError("Round not found")
-
         matches_stmt = select(LeagueMatchModel).where(
             LeagueMatchModel.round_id == round_id
         ).order_by(LeagueMatchModel.league_match_created_at.asc())
+        
         matches_res = await self.session.execute(matches_stmt)
         matches = matches_res.scalars().all()
         
         teams_stmt = select(LeagueTeamModel).options(
-            selectinload(LeagueTeamModel.team) 
+            selectinload(LeagueTeamModel.team).options(
+                noload(TeamModel.user),
+                noload(TeamModel.players)
+            ),
+            noload(LeagueTeamModel.league_players), 
+            noload(LeagueTeamModel.home_matches),
+            noload(LeagueTeamModel.away_matches),
+            noload(LeagueTeamModel.league)
         ).where(
             and_(
                 LeagueTeamModel.league_category_id == round_data.league_category_id,
@@ -86,6 +95,7 @@ class AiAutoMatchService:
             "round_name": round_data.round_name,
             "current_stage": round_data.current_stage,
             "total_stages": round_data.total_stages,
+            "total_teams_count": len(valid_teams),
             "format_config": format_config,
             "teams": teams_context,
             "match_history": matches_context

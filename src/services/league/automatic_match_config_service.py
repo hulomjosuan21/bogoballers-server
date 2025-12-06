@@ -3,15 +3,16 @@
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 import uuid
-from sqlalchemy import and_, delete, select, update
+from sqlalchemy import delete, select, update, or_, case
 from src.schemas.format_schemas import RoundConfig
-from src.models.team import LeagueTeamModel
+from src.models.team import LeagueTeamModel, TeamModel
 from src.services.league.league_category_service import LeagueCategoryService
 from src.models.match import LeagueMatchModel
 from src.extensions import AsyncSession
 from src.models.edge import LeagueFlowEdgeModel
 from src.models.format import LeagueRoundFormatModel
 from src.models.league import LeagueCategoryModel, LeagueCategoryRoundModel
+from sqlalchemy.orm import joinedload, selectinload, noload, aliased
 
 ALLOWED_CONNECTIONS = {
     ("leagueCategory", "leagueCategoryRound"): ("category-out", "round-in"),
@@ -36,90 +37,95 @@ ROUND_NAME_TO_ORDER = {
 class AutomaticMatchConfigService:
     async def get_flow_state(self, league_id: str) -> dict:
         async with AsyncSession() as session:
-            categories = (
-                await session.execute(
-                    select(LeagueCategoryModel).where(
-                        and_(
-                            LeagueCategoryModel.league_id == league_id,
-                            LeagueCategoryModel.manage_automatic.is_(True),
-                        )
-                    )
+
+            stmt_cats = (
+                select(LeagueCategoryModel)
+                .options(
+                    noload(LeagueCategoryModel.teams),
+                    noload(LeagueCategoryModel.rounds),
+                    joinedload(LeagueCategoryModel.category)
                 )
-            ).scalars().all()
+                .where(
+                    LeagueCategoryModel.league_id == league_id,
+                    LeagueCategoryModel.manage_automatic.is_(True),
+                )
+            )
+            categories = (await session.execute(stmt_cats)).scalars().all()
+            
+            if not categories:
+                return {"nodes": [], "edges": []}
 
             category_ids = [c.league_category_id for c in categories]
-            
-            rounds = (
-                await session.execute(
-                    select(LeagueCategoryRoundModel).where(
-                        LeagueCategoryRoundModel.league_category_id.in_(category_ids)
-                    )
-                )
-            ).scalars().all()
 
-            formats = (
-                await session.execute(
-                    select(LeagueRoundFormatModel).where(
-                        LeagueRoundFormatModel.round_id.in_([r.round_id for r in rounds])
-                    )
+            stmt_rounds = (
+                select(LeagueCategoryRoundModel)
+                .where(LeagueCategoryRoundModel.league_category_id.in_(category_ids))
+                .options(
+                    noload(LeagueCategoryRoundModel.league_category),
+                    noload(LeagueCategoryRoundModel.format)
                 )
-            ).scalars().all()
+            )
+            rounds = (await session.execute(stmt_rounds)).scalars().all()
+            round_ids = [r.round_id for r in rounds]
+            stmt_formats = (
+                select(LeagueRoundFormatModel)
+                .where(LeagueRoundFormatModel.round_id.in_(round_ids))
+                .options(
+                    noload(LeagueRoundFormatModel.round)
+                )
+            )
+            formats = (await session.execute(stmt_formats)).scalars().all()
 
-            edges = (
-                await session.execute(
-                    select(LeagueFlowEdgeModel).where(
-                        LeagueFlowEdgeModel.league_category_id.in_(category_ids)
-                    )
-                )
-            ).scalars().all()
+            stmt_edges = (
+                select(LeagueFlowEdgeModel)
+                .where(LeagueFlowEdgeModel.league_category_id.in_(category_ids))
+            )
+            edges = (await session.execute(stmt_edges)).scalars().all()
 
             nodes = []
             y_offset = 50
             Y_SPACING = 120
 
             for c in categories:
-                nodes.append(
-                    {
-                        "id": c.league_category_id,
-                        "type": "leagueCategory",
-                        "position": c.position or {"x": 50, "y": y_offset},
-                        "data": {
-                            "type": "league_category",
-                            "league_category": c.to_json(),
-                        },
-                    }
-                )
-                y_offset += Y_SPACING
+                position = c.position or {"x": 50, "y": y_offset}
+                if not c.position:
+                    y_offset += Y_SPACING
+                    
+                nodes.append({
+                    "id": c.league_category_id,
+                    "type": "leagueCategory",
+                    "position": position,
+                    "data": {
+                        "type": "league_category",
+                        "league_category": c.to_json(),
+                    },
+                })
 
             for r in rounds:
-                nodes.append(
-                    {
-                        "id": r.round_id,
-                        "type": "leagueCategoryRound",
-                        "position": r.position or {"x": 300, "y": 50},
-                        "data": {
-                            "type": "league_category_round",
-                            "league_category_round": r.round_name,
-                            "round": r.to_json(),
-                        },
-                    }
-                )
+                nodes.append({
+                    "id": r.round_id,
+                    "type": "leagueCategoryRound",
+                    "position": r.position or {"x": 300, "y": 50},
+                    "data": {
+                        "type": "league_category_round",
+                        "league_category_round": r.round_name,
+                        "round": r.to_json(),
+                    },
+                })
 
             for f in formats:
-                nodes.append(
-                    {
-                        "id": f.format_id,
-                        "type": "roundFormat",
-                        "position": f.position or {"x": 200, "y": 300},
-                        "data": {
-                            "type": "league_category_round_format",
-                            "format_name": f.format_name,
-                            "format_type": f.format_name,
-                            "league_category_id": f.league_category_id,
-                            "format_obj": f.to_dict(),
-                        },
-                    }
-                )
+                nodes.append({
+                    "id": f.format_id,
+                    "type": "roundFormat",
+                    "position": f.position or {"x": 200, "y": 300},
+                    "data": {
+                        "type": "league_category_round_format",
+                        "format_name": f.format_name,
+                        "format_type": f.format_name,
+                        "league_category_id": f.league_category_id,
+                        "format_obj": f.to_dict(),
+                    },
+                })
 
             edge_list = [
                 {
@@ -574,3 +580,42 @@ class AutomaticMatchConfigService:
                         loser_team.final_rank = 3
                         loser_team.finalized_at = datetime.now(timezone.utc)
                         session.add(loser_team)
+
+
+    async def get_round_matches(self, round_id: str) -> List[dict]:
+        async with AsyncSession() as session:
+            HomeLeagueTeam = aliased(LeagueTeamModel)
+            AwayLeagueTeam = aliased(LeagueTeamModel)
+            HomeTeam = aliased(TeamModel)
+            AwayTeam = aliased(TeamModel)
+            stmt = (
+                select(
+                    LeagueMatchModel.league_match_id,
+                    LeagueMatchModel.display_name,
+                    LeagueMatchModel.home_team_score,
+                    LeagueMatchModel.away_team_score,
+                    LeagueMatchModel.winner_team_id,
+                    LeagueMatchModel.loser_team_id,
+                    HomeTeam.team_name.label("home_team_name"),
+                    AwayTeam.team_name.label("away_team_name"),
+                    case(
+                        (
+                            or_(
+                                LeagueMatchModel.scheduled_date.is_not(None),
+                                LeagueMatchModel.status != "Unscheduled"
+                            ),
+                            True
+                        ),
+                        else_=False
+                    ).label("is_scheduled")
+                )
+                .select_from(LeagueMatchModel)
+                .outerjoin(HomeLeagueTeam, LeagueMatchModel.home_team_id == HomeLeagueTeam.league_team_id)
+                .outerjoin(HomeTeam, HomeLeagueTeam.team_id == HomeTeam.team_id)
+                .outerjoin(AwayLeagueTeam, LeagueMatchModel.away_team_id == AwayLeagueTeam.league_team_id)
+                .outerjoin(AwayTeam, AwayLeagueTeam.team_id == AwayTeam.team_id)
+                
+                .where(LeagueMatchModel.round_id == round_id)
+            )
+            result = await session.execute(stmt)
+            return [dict(row) for row in result.mappings()]
