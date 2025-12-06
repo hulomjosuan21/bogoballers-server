@@ -122,6 +122,25 @@ async def fetch_completed_route(league_category_id: str, round_id: str):
         traceback.print_exc()
         return await ApiResponse.error(e)
     
+@league_match_bp.get('/<league_category_id>/<round_id>/scheduled/dashboard')
+async def fetch_scheduled_dashboard_route(league_category_id: str, round_id: str):
+    try:
+        result = await service.fetch_scheduled_dashboard(league_category_id=league_category_id,round_id=round_id)
+        return await ApiResponse.payload(result)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)
+    
+@league_match_bp.get('/<league_category_id>/<round_id>/completed/dashboard')
+async def fetch_completed_dashboard_route(league_category_id: str, round_id: str):
+    try:
+        result = await service.fetch_completed_dashboard(league_category_id=league_category_id,round_id=round_id)
+        return await ApiResponse.payload(result)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)
+
+    
 @league_match_bp.patch('/<match_id>/score')
 async def update_match_score(match_id: str):
     async with AsyncSession() as session:

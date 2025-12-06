@@ -29,13 +29,6 @@ async def fetch_carousel():
         traceback.print_exc()
         return await ApiResponse.error(e) 
 
-@league_bp.get('/print/<league_id>')
-async def print_league(league_id: str):
-    try:
-        return await service.print_league(league_id)
-    except Exception as e:
-        traceback.print_exc()
-        return await ApiResponse.error(e) 
 
 @league_bp.get('/fetch')
 async def fetch_league():

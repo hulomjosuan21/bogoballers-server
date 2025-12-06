@@ -1,8 +1,10 @@
 from typing import List
 from sqlalchemy import func, select
+from src.models.team import LeagueTeamModel
 from src.models.user import UserModel
 from src.models.league import LeagueModel
 from src.models.league_admin import LeagueAdministratorModel
+from sqlalchemy.orm import noload, selectinload, joinedload
 from src.extensions import AsyncSession
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
@@ -30,6 +32,15 @@ class ManageLeagueAdministratorService:
             try:
                 stmt = (
                     select(LeagueModel)
+                    .options(
+                        noload(LeagueModel.categories),
+                        noload(LeagueModel.league_match_records),
+                        selectinload(LeagueModel.teams).options(
+                            noload(LeagueTeamModel.league_players),
+                            joinedload(LeagueTeamModel.team)
+                        ),
+                        joinedload(LeagueModel.creator)
+                    )
                     .order_by(LeagueModel.league_created_at.desc())
                 )
                 result = await session.execute(stmt)

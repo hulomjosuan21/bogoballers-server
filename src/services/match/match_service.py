@@ -181,6 +181,124 @@ class LeagueMatchService:
             )
             result = await session.execute(stmt)
             return result.scalars().all()
+
+    async def fetch_scheduled_dashboard(self, league_category_id: str, round_id: str):
+        async with AsyncSession() as session:
+            HomeLT = aliased(LeagueTeamModel)
+            HomeT = aliased(TeamModel)
+            AwayLT = aliased(LeagueTeamModel)
+            AwayT = aliased(TeamModel)
+            
+            stmt = (
+                select(
+                    LeagueMatchModel.display_name.label("detail"),
+                    LeagueMatchModel.scheduled_date,
+                    HomeT.team_name.label("home_team_name"),
+                    HomeT.team_logo_url.label("home_team_logo"),
+                    HomeLT.wins.label("home_wins"),
+                    HomeLT.losses.label("home_losses"),
+                    AwayT.team_name.label("away_team_name"),
+                    AwayT.team_logo_url.label("away_team_logo"),
+                    AwayLT.wins.label("away_wins"),
+                    AwayLT.losses.label("away_losses"),
+                )
+                .select_from(LeagueMatchModel)
+                .outerjoin(HomeLT, LeagueMatchModel.home_team_id == HomeLT.league_team_id)
+                .outerjoin(HomeT, HomeLT.team_id == HomeT.team_id)
+                .outerjoin(AwayLT, LeagueMatchModel.away_team_id == AwayLT.league_team_id)
+                .outerjoin(AwayT, AwayLT.team_id == AwayT.team_id)
+                .where(
+                    LeagueMatchModel.league_category_id == league_category_id,
+                    LeagueMatchModel.status == "Scheduled",
+                    LeagueMatchModel.scheduled_date.is_not(None),
+                    LeagueMatchModel.round_id == round_id
+                )
+                .order_by(
+                    LeagueMatchModel.scheduled_date.asc(), 
+                    LeagueMatchModel.display_name.asc()
+                )
+            )
+
+            result = await session.execute(stmt)
+            return [
+                {
+                    "home_team": {
+                        "team_name": row.home_team_name or "TBD",
+                        "team_logo_url": row.home_team_logo or "",
+                        "wins": row.home_wins if row.home_wins is not None else 0,
+                        "losses": row.home_losses if row.home_losses is not None else 0,
+                    },
+                    "away_team": {
+                        "team_name": row.away_team_name or "TBD",
+                        "team_logo_url": row.away_team_logo or "",
+                        "wins": row.away_wins if row.away_wins is not None else 0,
+                        "losses": row.away_losses if row.away_losses is not None else 0,
+                    },
+                    "detail": row.detail,
+                    "schedule_date": row.scheduled_date.isoformat() if row.scheduled_date else None
+                }
+                for row in result.mappings()
+            ]
+
+    async def fetch_completed_dashboard(self, league_category_id: str, round_id: str):
+        async with AsyncSession() as session:
+            HomeLT = aliased(LeagueTeamModel)
+            HomeT = aliased(TeamModel)
+            AwayLT = aliased(LeagueTeamModel)
+            AwayT = aliased(TeamModel)
+            
+            stmt = (
+                select(
+                    LeagueMatchModel.display_name.label("detail"),
+                    LeagueMatchModel.home_team_score,
+                    LeagueMatchModel.away_team_score,
+                    LeagueMatchModel.scheduled_date,
+                    HomeT.team_name.label("home_team_name"),
+                    HomeT.team_logo_url.label("home_team_logo"),
+                    HomeLT.wins.label("home_wins"),
+                    HomeLT.losses.label("home_losses"),
+                    AwayT.team_name.label("away_team_name"),
+                    AwayT.team_logo_url.label("away_team_logo"),
+                    AwayLT.wins.label("away_wins"),
+                    AwayLT.losses.label("away_losses"),
+                )
+                .select_from(LeagueMatchModel)
+                .outerjoin(HomeLT, LeagueMatchModel.home_team_id == HomeLT.league_team_id)
+                .outerjoin(HomeT, HomeLT.team_id == HomeT.team_id)
+                .outerjoin(AwayLT, LeagueMatchModel.away_team_id == AwayLT.league_team_id)
+                .outerjoin(AwayT, AwayLT.team_id == AwayT.team_id)
+                .where(
+                    LeagueMatchModel.league_category_id == league_category_id,
+                    LeagueMatchModel.status == "Completed",
+                    LeagueMatchModel.round_id == round_id
+                )
+                .order_by(
+                    LeagueMatchModel.scheduled_date.desc(), 
+                    LeagueMatchModel.display_name.asc()
+                )
+            )
+
+            result = await session.execute(stmt)
+            return [
+                {
+                    "home_team": {
+                        "team_name": row.home_team_name or "TBD",
+                        "team_logo_url": row.home_team_logo or "",
+                        "wins": row.home_wins if row.home_wins is not None else 0,
+                        "losses": row.home_losses if row.home_losses is not None else 0,
+                    },
+                    "away_team": {
+                        "team_name": row.away_team_name or "TBD",
+                        "team_logo_url": row.away_team_logo or "",
+                        "wins": row.away_wins if row.away_wins is not None else 0,
+                        "losses": row.away_losses if row.away_losses is not None else 0,
+                    },
+                    "home_team_score": str(row.home_team_score) if row.home_team_score is not None else "0",
+                    "away_team_score": str(row.away_team_score) if row.away_team_score is not None else "0",
+                    "detail": row.detail
+                }
+                for row in result.mappings()
+            ]
         
     async def get_many(self, league_category_id: str, round_id: str, data: dict):
         async with AsyncSession() as session:
