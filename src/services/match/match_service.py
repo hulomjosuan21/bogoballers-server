@@ -83,8 +83,33 @@ class LeagueMatchService:
         
     async def fetch_unscheduled(self, league_category_id: str, round_id: str):
         async with AsyncSession() as session:
+            HomeLT = aliased(LeagueTeamModel)
+            HomeT = aliased(TeamModel)
+            AwayLT = aliased(LeagueTeamModel)
+            AwayT = aliased(TeamModel)
             stmt = (
-                select(LeagueMatchModel)
+                select(
+                    LeagueMatchModel.league_match_id,
+                    LeagueMatchModel.display_name,
+                    LeagueMatchModel.court,
+                    LeagueMatchModel.referees,
+                    LeagueMatchModel.scheduled_date,
+                    LeagueMatchModel.quarters,
+                    LeagueMatchModel.minutes_per_quarter,
+                    LeagueMatchModel.minutes_per_overtime,
+                    LeagueMatchModel.home_team_score,
+                    LeagueMatchModel.away_team_score,
+
+                    HomeT.team_name.label("home_team_name"),
+                    HomeT.team_logo_url.label("home_team_logo"),
+                    AwayT.team_name.label("away_team_name"),
+                    AwayT.team_logo_url.label("away_team_logo"),
+                )
+                .select_from(LeagueMatchModel)
+                .outerjoin(HomeLT, LeagueMatchModel.home_team_id == HomeLT.league_team_id)
+                .outerjoin(HomeT, HomeLT.team_id == HomeT.team_id)
+                .outerjoin(AwayLT, LeagueMatchModel.away_team_id == AwayLT.league_team_id)
+                .outerjoin(AwayT, AwayLT.team_id == AwayT.team_id)
                 .where(
                     LeagueMatchModel.league_category_id == league_category_id,
                     LeagueMatchModel.status == "Unscheduled",
@@ -93,8 +118,34 @@ class LeagueMatchService:
                 )
                 .order_by(LeagueMatchModel.display_name.asc())
             )
+
             result = await session.execute(stmt)
-            return result.scalars().all()
+            rows = result.mappings().all()
+            data = []
+            for row in rows:
+                match_dict = {
+                    "league_match_id": row.league_match_id,
+                    "display_name": row.display_name,
+                    "court": row.court,
+                    "referees": row.referees,
+                    "scheduled_date": row.scheduled_date.isoformat() if row.scheduled_date else None,
+                    "quarters": row.quarters,
+                    "minutes_per_quarter": row.minutes_per_quarter,
+                    "minutes_per_overtime": row.minutes_per_overtime,
+                    "home_team_score": row.home_team_score,
+                    "away_team_score": row.away_team_score,
+                    "home_team": {
+                        "team_name": row.home_team_name,
+                        "team_logo_url": row.home_team_logo
+                    } if row.home_team_name else None,
+                    "away_team": {
+                        "team_name": row.away_team_name,
+                        "team_logo_url": row.away_team_logo
+                    } if row.away_team_name else None,
+                }
+                data.append(match_dict)
+            
+            return data
 
     async def fetch_scheduled(self, league_category_id: str, round_id: str):
         async with AsyncSession() as session:

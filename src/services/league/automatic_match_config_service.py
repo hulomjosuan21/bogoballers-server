@@ -27,7 +27,6 @@ def _is_permanent_format_id(format_id: str) -> bool:
     return format_id.startswith("lformat-")
 
 ROUND_NAME_TO_ORDER = {
-    # You can tune these based on RoundTypeEnum
     "Elimination": 0,
     "Quarterfinal": 1,
     "Semifinal": 2,

@@ -95,8 +95,11 @@ async def get_one_route(league_match_id: str):
 @league_match_bp.get('/<league_category_id>/<round_id>/unscheduled')
 async def fetch_unscheduled_route(league_category_id: str, round_id: str):
     try:
-        result = await service.fetch_unscheduled(league_category_id=league_category_id,round_id=round_id)
-        return await ApiResponse.payload([r.to_json() for r in result])
+        result = await service.fetch_unscheduled(
+            league_category_id=league_category_id,
+            round_id=round_id
+        )
+        return await ApiResponse.payload(result)
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)
