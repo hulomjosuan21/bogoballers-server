@@ -286,23 +286,35 @@ class LeagueTeamService:
             result = await session.execute(stmt)
             return result.scalars().all()
 
-    async def get_grouped_teams(self, league_category_id: str) -> list[LeagueTeamModel]:
+    async def get_grouped_teams(self, league_category_id: str) -> list[dict]:
         async with AsyncSession() as session:
             stmt = (
-                select(LeagueTeamModel)
-                .options(
-                    selectinload(LeagueTeamModel.team),
+                select(
+                    LeagueTeamModel.league_team_id,
+                    TeamModel.team_name,
+                    LeagueTeamModel.group_label
                 )
+                .join(TeamModel, LeagueTeamModel.team_id == TeamModel.team_id)
                 .where(
                     LeagueTeamModel.league_category_id == league_category_id,
-                    LeagueTeamModel.is_eliminated == False
+                    LeagueTeamModel.is_eliminated.is_(False)
                 )
                 .order_by(LeagueTeamModel.group_label)
             )
-            result = await session.execute(stmt)
-            return result.scalars().all()
 
-    async def update_group_teams(self, league_category_id: str, group_updates: list[dict]) -> bool:
+            result = await session.execute(stmt)
+            rows = result.all()
+
+            return [
+                {
+                    "league_team_id": row[0],
+                    "team_name": row[1],
+                    "group_label": row[2]
+                }
+                for row in rows
+            ]
+
+    async def update_group_teams(self, league_category_id: str, group_updates: list[dict]) -> list[dict]:
         async with AsyncSession() as session:
             try:
                 for item in group_updates:
@@ -317,7 +329,31 @@ class LeagueTeamService:
                     await session.execute(stmt)
                 
                 await session.commit()
-                return True
+                stmt = (
+                    select(
+                        LeagueTeamModel.league_team_id,
+                        TeamModel.team_name,
+                        LeagueTeamModel.group_label
+                    )
+                    .join(TeamModel, LeagueTeamModel.team_id == TeamModel.team_id)
+                    .where(
+                        LeagueTeamModel.league_category_id == league_category_id,
+                        LeagueTeamModel.is_eliminated.is_(False)
+                    )
+                    .order_by(LeagueTeamModel.group_label)
+                )
+                result = await session.execute(stmt)
+                rows = result.all()
+
+                return [
+                    {
+                        "league_team_id": row[0],
+                        "team_name": row[1],
+                        "group_label": row[2]
+                    }
+                    for row in rows
+                ]
+
             except Exception as e:
                 await session.rollback()
                 raise e

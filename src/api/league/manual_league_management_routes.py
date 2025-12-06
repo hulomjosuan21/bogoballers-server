@@ -275,3 +275,14 @@ async def eliminate_team(team_id: str):
         except Exception as e:
             traceback.print_exc()
             return await ApiResponse.error(e)
+        
+@manual_league_management_bp.get('/league-categories/<league_id>')
+async def get_categories(league_id: str):
+    try:
+        result = await service.fetch_manual_categories(league_id)
+
+        return await ApiResponse.payload(result)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)
+        

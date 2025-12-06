@@ -20,7 +20,7 @@ from src.models.league import LeagueModel, LeagueCategoryModel
 from src.services.cloudinary_service import CloudinaryService
 from src.extensions import LEAGUE_TEMPLATE_PATH, AsyncSession, settings
 from src.utils.api_response import ApiException, ApiResponse
-from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy.orm import selectinload, joinedload, noload
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.exc import NoResultFound
 from src.utils.server_utils import validate_required_fields
@@ -324,12 +324,16 @@ class LeagueService:
             else:
                 return None
 
-    async def fetch_by_public_id(public_league_id: str):
+    async def fetch_by_public_id(self, public_league_id: str):
         async with AsyncSession() as session:
             stmt = (
                 select(LeagueModel)
                 .where(LeagueModel.public_league_id == public_league_id)
                 .limit(1)
+                .options(
+                    noload(LeagueModel.teams),
+                    noload(LeagueModel.league_match_records),
+                )
             )
             result = await session.execute(stmt) 
             league_obj = result.scalars().first()
@@ -349,6 +353,10 @@ class LeagueService:
                 .where(LeagueAdministratorModel.user_id == user_id)
                 .where(LeagueModel.status.in_(active_statuses))
                 .limit(1)
+                .options(
+                    noload(LeagueModel.teams),
+                    noload(LeagueModel.league_match_records),
+                )
             )
             result = await session.execute(stmt) 
             legue_obj = result.scalars().first()
@@ -473,49 +481,39 @@ class LeagueService:
 
     async def analytics(self, league_id: str):
         async with AsyncSession() as session:
-            stmt_league = (
-                select(LeagueModel)
-                .options(
-                    selectinload(LeagueModel.categories).selectinload(LeagueCategoryModel.rounds)
-                )
+            stmt_check = (
+                select(LeagueModel.league_id)
                 .where(
                     LeagueModel.league_id == league_id,
                     LeagueModel.status.in_(["Pending", "Scheduled", "Ongoing"])
                 )
             )
-            result = await session.execute(stmt_league)
-            active_league = result.scalar_one_or_none()
-            
-            if not active_league:
+            result = await session.execute(stmt_check)
+            if not result.scalar_one_or_none():
                 raise ApiException("No found league.")
-
-            total_categories = len(active_league.categories)
-            cat_updates = [c.league_category_updated_at for c in active_league.categories if c.league_category_updated_at]
-            categories_last_update = max(cat_updates).isoformat() if cat_updates else None
-
             team_filter = [
-                LeagueTeamModel.league_id == active_league.league_id,
+                LeagueTeamModel.league_id == league_id,
                 LeagueTeamModel.status == "Accepted",
                 LeagueTeamModel.payment_status.notin_(["Pending"])
             ]
             
             profit_filter = [
-                LeagueTeamModel.league_id == active_league.league_id,
+                LeagueTeamModel.league_id == league_id,
                 LeagueTeamModel.status == "Accepted",
                 LeagueTeamModel.payment_status.notin_(["Pending", "No Charge", "Refunded"])
             ]
-
             sq_team_count = select(func.count(LeagueTeamModel.league_team_id)).where(*team_filter).scalar_subquery()
             sq_team_max = select(func.max(LeagueTeamModel.league_team_updated_at)).where(*team_filter).scalar_subquery()
-            
             sq_profit_sum = select(func.coalesce(func.sum(LeagueTeamModel.amount_paid), 0)).where(*profit_filter).scalar_subquery()
             sq_profit_max = select(func.max(LeagueTeamModel.league_team_updated_at)).where(*profit_filter).scalar_subquery()
-            
             sq_player_count = select(func.count(LeaguePlayerModel.league_player_id))\
-                .where(LeaguePlayerModel.league_id == active_league.league_id).scalar_subquery()
+                .where(LeaguePlayerModel.league_id == league_id).scalar_subquery()
             sq_player_max = select(func.max(LeaguePlayerModel.league_player_updated_at))\
-                .where(LeaguePlayerModel.league_id == active_league.league_id).scalar_subquery()
-
+                .where(LeaguePlayerModel.league_id == league_id).scalar_subquery()
+            sq_cat_count = select(func.count(LeagueCategoryModel.league_category_id))\
+                .where(LeagueCategoryModel.league_id == league_id).scalar_subquery()
+            sq_cat_max = select(func.max(LeagueCategoryModel.league_category_updated_at))\
+                .where(LeagueCategoryModel.league_id == league_id).scalar_subquery()
             stmt_master_stats = select(
                 sq_team_count.label("team_count"),
                 sq_team_max.label("team_last_update"),
@@ -523,40 +521,41 @@ class LeagueService:
                 sq_profit_max.label("profit_last_update"),
                 sq_player_count.label("player_count"),
                 sq_player_max.label("player_last_update"),
+                sq_cat_count.label("cat_count"),
+                sq_cat_max.label("cat_last_update"),
             )
             
             stats_result = (await session.execute(stmt_master_stats)).one()
-
+            profit_date_expr = cast(func.timezone('UTC', LeagueTeamModel.league_team_updated_at), Date)
             stmt_profit_chart = (
                 select(
-                    cast(LeagueTeamModel.league_team_updated_at, Date).label("date"),
+                    profit_date_expr.label("date"),
                     func.coalesce(func.sum(LeagueTeamModel.amount_paid), 0).label("amount")
                 )
                 .where(*profit_filter)
-                .group_by(cast(LeagueTeamModel.league_team_updated_at, Date))
-                .order_by(cast(LeagueTeamModel.league_team_updated_at, Date))
+                .group_by(profit_date_expr)
+                .order_by(profit_date_expr)
             )
-
-            date_match_expr = cast(LeagueMatchModel.scheduled_date, Date)
+            match_date_expr = cast(func.timezone('UTC', LeagueMatchModel.scheduled_date), Date)
             stmt_matches_chart = (
                 select(
-                    date_match_expr.label("date"),
+                    match_date_expr.label("date"),
                     func.count(LeagueMatchModel.league_match_id).label("count")
                 )
                 .where(
-                    LeagueMatchModel.league_id == active_league.league_id,
+                    LeagueMatchModel.league_id == league_id,
                     LeagueMatchModel.scheduled_date.is_not(None)
                 )
-                .group_by(date_match_expr)
-                .order_by(date_match_expr)
+                .group_by(match_date_expr)
+                .order_by(match_date_expr)
             )
 
-            result_chart = await session.execute(stmt_profit_chart)
+            result_profit_chart = await session.execute(stmt_profit_chart)
             result_matches_chart = await session.execute(stmt_matches_chart)
 
             profit_chart = [
                 {"date": row.date.isoformat(), "amount": float(row.amount)}
-                for row in result_chart.all()
+                for row in result_profit_chart.all()
             ]
 
             matches_rows = result_matches_chart.all()
@@ -575,22 +574,21 @@ class LeagueService:
                 total_matches_days = (end_date - start_date).days + 1
 
             return {
-                "active_league": active_league.to_json(),
                 "total_accepted_teams": {
-                    "count": stats_result.team_count,
+                    "count": stats_result.team_count or 0,
                     "last_update": stats_result.team_last_update.isoformat() if stats_result.team_last_update else None,
                 },
                 "total_categories": {
-                    "count": total_categories,
-                    "last_update": categories_last_update,
+                    "count": stats_result.cat_count or 0,
+                    "last_update": stats_result.cat_last_update.isoformat() if stats_result.cat_last_update else None,
                 },
                 "total_profit": {
-                    "amount": stats_result.total_profit,
+                    "amount": stats_result.total_profit or 0,
                     "last_update": stats_result.profit_last_update.isoformat() if stats_result.profit_last_update else None,
                     "chart": profit_chart,
                 },
                 "total_players": {
-                    "count": stats_result.player_count,
+                    "count": stats_result.player_count or 0,
                     "last_update": stats_result.player_last_update.isoformat() if stats_result.player_last_update else None,
                 },
                 "matches_chart_data": {
@@ -854,3 +852,86 @@ class LeagueService:
             
             result = await session.execute(stmt)
             return result.scalars().all()
+        
+    async def fetch_dashboard(self, user_id: str):
+        async with AsyncSession() as session:
+            stmt_league_admin = select(LeagueAdministratorModel.league_administrator_id).where(
+                LeagueAdministratorModel.user_id == user_id
+            )
+            result_admin = await session.execute(stmt_league_admin)
+            league_administrator_id = result_admin.scalar_one_or_none()
+
+            if not league_administrator_id:
+                return None
+            
+            ACTIVE_STATUS = ["Pending", "Scheduled", "Ongoing"]
+
+            stmt = (
+                select(
+                    LeagueModel.league_id,
+                    LeagueModel.banner_url,
+                    LeagueModel.league_title,
+                    LeagueModel.status,
+                    LeagueModel.league_description
+                )
+                .where(LeagueModel.league_administrator_id == league_administrator_id)
+                .where(LeagueModel.status.in_(ACTIVE_STATUS))
+                .limit(1)
+            )
+
+            result_league = await session.execute(stmt)
+            league_row = result_league.first()
+
+            if not league_row:
+                return None
+            
+            dashboard = {
+                "league_id": league_row.league_id,
+                "banner_url": league_row.banner_url,
+                "league_title": league_row.league_title,
+                "status": league_row.status,
+                "league_description": league_row.league_description,
+            }
+
+            return dashboard
+        
+    async def fetch_league_meta(self, user_id: str):
+        try:
+            async with AsyncSession() as session:
+                stmt_league_admin = select(LeagueAdministratorModel.league_administrator_id).where(
+                    LeagueAdministratorModel.user_id == user_id
+                )
+                result_admin = await session.execute(stmt_league_admin)
+                league_administrator_id = result_admin.scalar_one_or_none()
+
+                if not league_administrator_id:
+                    return None
+                
+                ACTIVE_STATUS = ["Pending", "Scheduled", "Ongoing"]
+
+                stmt = (
+                    select(
+                        LeagueModel.league_id,
+                        LeagueModel.status
+                    )
+                    .where(LeagueModel.league_administrator_id == league_administrator_id)
+                    .where(LeagueModel.status.in_(ACTIVE_STATUS))
+                    .limit(1)
+                )
+
+                result_league = await session.execute(stmt)
+                league_row = result_league.first()
+
+                if not league_row:
+                    return None
+                
+                dashboard = {
+                    "league_id": league_row.league_id,
+                    "status": league_row.status,
+                }
+
+                return dashboard
+        except:
+            return {
+                "messaage": "No Active League Please navigate to league creation form to start new league"
+            }

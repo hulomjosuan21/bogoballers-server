@@ -158,3 +158,25 @@ async def fetch_records_route():
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)
+    
+@league_bp.get('/dashboard')
+async def fetch_dashboard_route():
+    try:
+        user_id = request.args.get('user_id') or current_user.auth_id
+        result = await service.fetch_dashboard(user_id=user_id)
+        return await ApiResponse.payload(result)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)
+
+@league_bp.get('/active-meta')
+async def fetch_active_meta_route():
+    try:
+        user_id = request.args.get('user_id') or current_user.auth_id
+        result = await service.fetch_league_meta(user_id=user_id)
+        return await ApiResponse.payload(result)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.payload({
+            "messaage": "No Active League Please navigate to league creation form to start new league"
+        })

@@ -451,3 +451,5 @@ class LeagueMatchService:
             result = await session.execute(stmt)
             matches = result.scalars().unique().all()
             return matches
+
+            

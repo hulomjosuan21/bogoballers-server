@@ -58,6 +58,9 @@ class LeagueModel(Base, UpdatableMixin):
     league_referees: Mapped[List[dict]] = mapped_column(JSONB, nullable=False, default=list)
     league_affiliates: Mapped[List[dict]] = mapped_column(JSONB, nullable=False, default=list)
 
+    league_objective: Mapped[Optional[str]] = mapped_column(String(500), nullable=False, default="No data")
+    league_rationale: Mapped[List[str]] = mapped_column(JSONB, nullable=False, default=list)
+
     registration_deadline: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     opening_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     league_schedule: Mapped[tuple[date, date]] = mapped_column(
@@ -128,6 +131,8 @@ class LeagueModel(Base, UpdatableMixin):
             'league_budget': self.league_budget,
             'league_courts': self.league_courts,
             'league_officials': self.league_officials,
+            'league_objective': self.league_objective,
+            'league_rationale': self.league_rationale,
             'league_referees': self.league_referees,
             'league_affiliates': self.league_affiliates,
             'registration_deadline': self.registration_deadline.isoformat(),

@@ -1,5 +1,5 @@
-import uuid
 from sqlalchemy import select, delete, func
+from src.models.category import CategoryModel
 from src.models.team import LeagueTeamModel
 from src.models.edge import LeagueFlowEdgeModel
 from src.models.group import LeagueGroupModel
@@ -7,6 +7,7 @@ from src.models.league import LeagueCategoryModel, LeagueCategoryRoundModel
 from src.models.match import LeagueMatchModel
 from src.extensions import AsyncSession
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import joinedload
 
 class ManualLeagueManagementService:
     async def get_flow_state(self, league_id: str) -> dict:
@@ -507,3 +508,24 @@ class ManualLeagueManagementService:
             await session.commit()
            
             return {"teams_progressed": progressed_teams_count}
+        
+    async def fetch_manual_categories(self, league_id: str):
+        async with AsyncSession() as session:
+            stmt = (
+                select(
+                    LeagueCategoryModel.league_category_id,
+                    CategoryModel.category_name
+                )
+                .join(CategoryModel, LeagueCategoryModel.category_id == CategoryModel.category_id)
+                .where(
+                    LeagueCategoryModel.league_id == league_id,
+                    LeagueCategoryModel.manage_automatic.is_(False)
+                )
+            )
+
+            result = await session.execute(stmt)
+            categories = result.all()
+            return [
+                {"league_category_id": row[0], "category_name": row[1]}
+                for row in categories
+            ]

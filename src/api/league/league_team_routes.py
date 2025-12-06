@@ -305,7 +305,7 @@ async def get_remaining(league_category_id: str):
 async def get_grouped_teams(league_category_id: str):
     try:
         result = await service.get_grouped_teams(league_category_id=league_category_id)
-        return await ApiResponse.payload([r.to_json() for r in result])
+        return await ApiResponse.payload(result)
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)
@@ -315,14 +315,11 @@ async def update_group_teams(league_category_id: str):
     try:
         data = await request.get_json()
         updates = data.get('teams', [])
-        
-        await service.update_group_teams(
+        result = await service.update_group_teams(
             league_category_id=league_category_id, 
             group_updates=updates
         )
-        
-        result = await service.get_grouped_teams(league_category_id=league_category_id)
-        return await ApiResponse.payload([r.to_json() for r in result])
+        return await ApiResponse.payload(result)
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)

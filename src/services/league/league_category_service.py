@@ -2,12 +2,13 @@ from typing import Dict, List
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
-from src.services.league.league_service import LeagueService
+from src.models.category import CategoryModel
+from src.models.league_admin import LeagueAdministratorModel
 from src.models.group import LeagueGroupModel
 from src.models.match import LeagueMatchModel
 from src.models.team import LeagueTeamModel
 from src.extensions import AsyncSession
-from src.models.league import LeagueCategoryModel, LeagueCategoryRoundModel
+from src.models.league import LeagueCategoryModel, LeagueCategoryRoundModel, LeagueModel
 from src.utils.api_response import ApiException
 
 class LeagueCategoryService:
@@ -130,54 +131,111 @@ class LeagueCategoryService:
             
     async def get_category_round_group_names(self, user_id, public_league_id: str | None):
         async with AsyncSession() as session:
-            league_service = LeagueService()
-            if public_league_id is not None:
-                league = await league_service.fetch_by_public_id(public_league_id=public_league_id)
+            stmt_league = select(LeagueModel.league_id, LeagueModel.status)
+
+            if public_league_id:
+                stmt_league = stmt_league.where(LeagueModel.public_league_id == public_league_id)
             else:
-                league = await league_service.fetch_active(user_id=user_id)
-            if not league:
+                stmt_league = (
+                    stmt_league
+                    .join(LeagueModel.creator)
+                    .where(
+                        LeagueAdministratorModel.user_id == user_id,
+                        LeagueModel.status.in_(["Pending", "Scheduled", "Ongoing"])
+                    )
+                )
+
+            result_league = await session.execute(stmt_league)
+            league_row = result_league.first() 
+
+            if not league_row:
                 raise ApiException("League not found", 404)
 
-            stmt = (
-                select(LeagueCategoryModel)
-                .options(
-                    joinedload(LeagueCategoryModel.rounds).joinedload(LeagueCategoryRoundModel.format),
+            target_league_id = league_row.league_id
+            target_league_status = league_row.status
+
+         
+            stmt_cats = (
+                select(
+                    LeagueCategoryModel.league_category_id,
+                    CategoryModel.category_name
                 )
-                .where(LeagueCategoryModel.league_id == league.league_id)
+                .join(LeagueCategoryModel.category)
+                .where(LeagueCategoryModel.league_id == target_league_id)
+            )
+            
+            cats_result = await session.execute(stmt_cats)
+            cats_rows = cats_result.all()
+
+            if not cats_rows:
+                return {
+                    "league_id": target_league_id,
+                    "league_status": target_league_status,
+                    "payload": []
+                }
+
+
+            cat_ids = [row.league_category_id for row in cats_rows]
+
+            stmt_rounds = (
+                select(
+                    LeagueCategoryRoundModel.round_id,
+                    LeagueCategoryRoundModel.round_name,
+                    LeagueCategoryRoundModel.league_category_id
+                )
+                .where(LeagueCategoryRoundModel.league_category_id.in_(cat_ids))
+                .order_by(LeagueCategoryRoundModel.round_order.asc())
             )
 
-            result = await session.execute(stmt)
-            categories = result.unique().scalars().all()
+            rounds_result = await session.execute(stmt_rounds)
+            rounds_rows = rounds_result.all()
 
-            data = []
-            for category in categories:
-                rounds_data = []
-                for round_ in category.rounds:
-                    group_result = await session.execute(
-                        select(LeagueGroupModel).where(
-                            LeagueGroupModel.league_category_id == category.league_category_id,
-                            LeagueGroupModel.round_id == round_.round_id,
-                        )
+            round_ids = [row.round_id for row in rounds_rows]
+            
+            groups_rows = []
+            if round_ids:
+                stmt_groups = (
+                    select(
+                        LeagueGroupModel.group_id,
+                        LeagueGroupModel.display_name,
+                        LeagueGroupModel.round_id
                     )
-                    groups = group_result.scalars().all()
+                    .where(LeagueGroupModel.round_id.in_(round_ids))
+                )
+                groups_result = await session.execute(stmt_groups)
+                groups_rows = groups_result.all()
 
-                    rounds_data.append({
-                        "round_id": round_.round_id,
-                        "round_name": round_.round_name,
-                        "groups": [
-                            {"group_id": g.group_id, "group_name": g.display_name}
-                            for g in groups
-                        ]
-                    })
+            groups_map = {}
+            for g_row in groups_rows:
+                r_id = g_row.round_id
+                if r_id not in groups_map:
+                    groups_map[r_id] = []
+                groups_map[r_id].append({
+                    "group_id": g_row.group_id, 
+                    "group_name": g_row.display_name
+                })
 
-                data.append({
-                    "league_category_id": category.league_category_id,
-                    "category_name": category.category.category_name,
-                    "rounds": rounds_data,
+            rounds_map = {}
+            for r_row in rounds_rows:
+                c_id = r_row.league_category_id
+                if c_id not in rounds_map:
+                    rounds_map[c_id] = []
+                
+                rounds_map[c_id].append({
+                    "round_id": r_row.round_id,
+                    "round_name": r_row.round_name,
+                    "groups": groups_map.get(r_row.round_id, [])
+                })
+            payload = []
+            for c_row in cats_rows:
+                payload.append({
+                    "league_category_id": c_row.league_category_id,
+                    "category_name": c_row.category_name,
+                    "rounds": rounds_map.get(c_row.league_category_id, [])
                 })
 
             return {
-                "league_id": league.league_id,
-                "league_status": league.status,
-                "payload": data,
+                "league_id": target_league_id,
+                "league_status": target_league_status,
+                "payload": payload,
             }
