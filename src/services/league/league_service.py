@@ -535,7 +535,7 @@ class LeagueService:
         
         required_fields = [
             "league_title", "league_budget", "league_description", "league_address", "sportsmanship_rules",
-            "registration_deadline", "opening_date", "league_schedule", "banner_image", "categories"
+            "registration_deadline", "opening_date", "league_schedule", "categories"
         ]
         try:
             validate_required_fields(form_data, required_fields)

@@ -229,11 +229,20 @@ async def get_requests_by_league(league_category_id: str):
         traceback.print_exc()
         return await ApiResponse.error(e)
     
-@league_guest_bp.get('/league-team/all/<league_category_id>')
-async def get_league_team(league_category_id: str):
+@league_guest_bp.get('/player/<league_id>')
+async def fetch_guest_player_routes(league_id: str):
     try:
-        result = await service.get_all_team(league_category_id=league_category_id)
-        return await ApiResponse.payload([r.to_json() for r in result])
+        result = await service.get_guest_players_as_serialized(league_id=league_id)
+        return await ApiResponse.payload(result)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)
+    
+@league_guest_bp.get('/team/<league_id>')
+async def fetch_guest_team_routes(league_id: str):
+    try:
+        result = await service.get_guest_teams_as_serialized(league_id=league_id)
+        return await ApiResponse.payload(result)
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)

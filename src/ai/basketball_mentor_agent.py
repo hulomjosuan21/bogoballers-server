@@ -7,6 +7,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from dotenv import load_dotenv
 from src.services.ai_conversation_service import AIConversationService
 from src.models.player import PlayerModel
+from sqlalchemy.orm import noload
 load_dotenv()
 
 class BasketballMentorAgent:
@@ -56,9 +57,17 @@ class BasketballMentorAgent:
         )
 
     async def _get_player_profile(self, session, user_id: str) -> str:
-        result = await session.execute(
-            select(PlayerModel).filter_by(user_id=user_id)
+        stmt = (
+            select(PlayerModel)
+            .options(
+                noload(PlayerModel.user),
+                noload(PlayerModel.teams),
+                noload(PlayerModel.league_players)
+            )
+            .filter_by(user_id=user_id)
         )
+        
+        result = await session.execute(stmt)
         player = result.scalar_one_or_none()
 
         if not player:

@@ -142,3 +142,12 @@ class LeaguePlayerService:
             await session.commit()
             await session.refresh(player)
             return player.to_json()
+        
+    async def delete_one(self, league_player_id: str):
+        async with AsyncSession() as session:
+            player = await session.get(LeaguePlayerModel, league_player_id)
+            if not player:
+                raise ApiException("League player not found", 404)
+            await session.delete(player)
+            await session.commit()
+            return "League player deleted successfully"

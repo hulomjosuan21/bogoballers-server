@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Any, Dict, List
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload

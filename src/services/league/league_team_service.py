@@ -338,7 +338,8 @@ class LeagueTeamService:
                     .join(TeamModel, LeagueTeamModel.team_id == TeamModel.team_id)
                     .where(
                         LeagueTeamModel.league_category_id == league_category_id,
-                        LeagueTeamModel.is_eliminated.is_(False)
+                        LeagueTeamModel.is_eliminated.is_(False),
+                        LeagueTeamModel.status == "Accepted"
                     )
                     .order_by(LeagueTeamModel.group_label)
                 )

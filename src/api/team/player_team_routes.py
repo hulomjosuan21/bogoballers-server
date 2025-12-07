@@ -61,3 +61,13 @@ async def toggle_team_captain_route(player_team_id: str):
         import traceback
         traceback.print_exc()
         return await ApiResponse.error(e)
+    
+@player_team_bp.delete('/remove/<player_team_id>')
+async def remove_one_router(player_team_id: str):
+    try:
+        result = await service.remove_one(player_team_id=player_team_id)
+        return await ApiResponse.success(message=result)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return await ApiResponse.error(e)

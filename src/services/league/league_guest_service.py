@@ -1,6 +1,6 @@
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
-from sqlalchemy import select
+from sqlalchemy import desc, select
 from sqlalchemy.orm import selectinload
 
 from src.models.league import LeagueCategoryModel
@@ -137,28 +137,38 @@ class LeagueGuestService:
         async with AsyncSession() as session:
             request = await session.get(GuestRegistrationRequestModel, guest_request_id, options=[selectinload(GuestRegistrationRequestModel.league_category)])
             if not request: raise ApiException("Guest request not found", 404)
-
-            if 'status' in data and data['status'] in ['Accepted', 'Rejected']:
+            if 'status' in data and data['status'] == 'Accepted':
                 if request.status != 'Pending': raise ApiException(f"Request already processed.", 409)
                 
-                request.status = data['status']
+                request.status = 'Accepted'
                 request.request_processed_at = datetime.now(timezone.utc)
                 
-                if data['status'] == 'Accepted':
-                    if request.request_type == "Team":
-                        session.add(LeagueTeamModel(team_id=request.team_id, league_id=request.league_category.league_id, league_category_id=request.league_category_id, status="Accepted", amount_paid=request.amount_paid, payment_status=request.payment_status, payment_record=request.payment_record))
-                    else:
-                        assign_to_team_id = data.get("assign_to_team_id")
-                        if not assign_to_team_id: raise ApiException("assign_to_team_id is required for guest players.", 400)
+                if request.request_type == "Team":
+                    session.add(LeagueTeamModel(team_id=request.team_id, league_id=request.league_category.league_id, league_category_id=request.league_category_id, status="Accepted", amount_paid=request.amount_paid, payment_status=request.payment_status, payment_record=request.payment_record))
+                else:
+                    assign_to_team_id = data.get("assign_to_team_id")
+                    if assign_to_team_id:
                         session.add(PlayerTeamModel(player_id=request.player_id, team_id=assign_to_team_id, is_accepted="Guest"))
             
-            if 'payment_status' in data and 'amount_paid' in data:
-                request.payment_status = data['payment_status']
-                request.amount_paid = data['amount_paid']
+            if 'payment_status' in data:
+                new_status = data['payment_status']
+                request.payment_status = new_status
+                
+                if new_status.startswith("Paid"):
+                    required = (request.payment_record or {}).get("required_amount", 0)
+                    request.amount_paid = required
+                elif new_status == "Pending":
+                    request.amount_paid = 0
+
                 record = dict(request.payment_record or {})
-                record.update({"status": data['payment_status'], "amount": data['amount_paid'], "updated_by_admin_at": datetime.now(timezone.utc).isoformat()})
+                record.update({
+                    "status": new_status, 
+                    "amount": request.amount_paid, 
+                    "updated_by_admin_at": datetime.now(timezone.utc).isoformat()
+                })
                 request.payment_record = record
 
+            await session.commit()
             return request
 
     async def remove_guest_request(self, guest_request_id: str) -> bool:
@@ -167,6 +177,7 @@ class LeagueGuestService:
             if not request: raise ApiException("Guest request not found", 404)
             
             await session.delete(request)
+            await session.commit()
             return True
 
     async def refund_guest_payment(self, guest_request_id: str, amount: float, remove: bool, reason: str):
@@ -228,3 +239,47 @@ class LeagueGuestService:
 
             result = await session.execute(stmt)
             return result.scalars().all()
+
+    async def get_guest_players_as_serialized(
+        self,
+        league_id: str
+    ) -> List[Dict[str, Any]]:
+        async with AsyncSession() as session:
+            stmt = (
+                select(PlayerModel)
+                .join(
+                    GuestRegistrationRequestModel, 
+                    GuestRegistrationRequestModel.player_id == PlayerModel.player_id
+                )
+                .where(
+                    GuestRegistrationRequestModel.league_id == league_id,
+                    GuestRegistrationRequestModel.request_type == "Player"
+                )
+                .order_by(desc(GuestRegistrationRequestModel.request_created_at))
+            )
+            
+            result = await session.execute(stmt)
+            player_models = result.scalars().all()
+            return [player.to_json() for player in player_models]
+
+    async def get_guest_teams_as_serialized(
+        self,
+        league_id: str
+    ) -> List[Dict[str, Any]]:
+        async with AsyncSession() as session:
+            stmt = (
+                select(TeamModel)
+                .join(
+                    GuestRegistrationRequestModel, 
+                    GuestRegistrationRequestModel.team_id == TeamModel.team_id
+                )
+                .where(
+                    GuestRegistrationRequestModel.league_id == league_id,
+                    GuestRegistrationRequestModel.request_type == "Team"
+                )
+                .order_by(desc(GuestRegistrationRequestModel.request_created_at))
+            )
+            
+            result = await session.execute(stmt)
+            team_models = result.scalars().all()
+            return [team.to_json() for team in team_models]

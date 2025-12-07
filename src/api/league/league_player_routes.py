@@ -29,3 +29,12 @@ async def update_one_router(league_player_id: str):
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)
+
+@league_player.delete('/<league_player_id>')
+async def delete_one_router(league_player_id: str):
+    try:
+        result = await service.delete_one(league_player_id)
+        return await ApiResponse.success(message=result)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)

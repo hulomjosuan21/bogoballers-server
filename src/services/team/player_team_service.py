@@ -211,3 +211,14 @@ class PlayerTeamService:
             except (IntegrityError, SQLAlchemyError) as e:
                 await session.rollback()
                 raise e
+            
+    async def remove_one(self, player_team_id: str):
+        async with AsyncSession() as session:
+            player_team = await session.get(PlayerTeamModel, player_team_id)
+            if not player_team:
+                raise ApiException("Player not found in this team", 404)
+
+            await session.delete(player_team)
+            await session.commit()
+            
+            return "Player successfully removed from team"
