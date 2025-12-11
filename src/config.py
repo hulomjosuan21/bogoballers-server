@@ -6,6 +6,10 @@ import jwt
 load_dotenv()
 
 class Config:
+    JWT_TOKEN_LOCATION = ["cookies"] 
+    JWT_ACCESS_COOKIE_NAME = "STAFF_ACCESS_TOKEN" 
+    JWT_COOKIE_CSRF_PROTECT = False
+
     AUTH_COOKIE_NAME = "access_token"
     DEBUG = True
     DATABASE_URL = os.getenv("DATABASE_URL")

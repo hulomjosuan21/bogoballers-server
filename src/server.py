@@ -4,6 +4,7 @@ from quart_cors import cors
 import socketio
 from src.container import cluster_worker, scheduler_manager
 from src.blueprints import all_blueprints
+from quart_jwt_extended import JWTManager
 from src.config import Config
 from src.extensions import sio
 from quart_auth import QuartAuth
@@ -21,6 +22,7 @@ def create_app():
     app = Quart(__name__)
     app.config.from_object(Config)
     QuartAuth(app)
+    JWTManager(app)
 
     if not app.secret_key:
         raise RuntimeError("SECRET_KEY must be set in Config")

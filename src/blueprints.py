@@ -23,6 +23,7 @@ from src.api.manage_league_admin_routes import manage_league_admin_bp
 from src.api.ai_automatch_routes import auto_matcher_bp
 from src.api.scheduler import scheduler_bp
 from src.api.test import test_bp
+from src.api.league_admin_staff_route import league_staff_bp
 
 all_blueprints = [
     static_data_bp,
@@ -49,5 +50,6 @@ all_blueprints = [
     manage_league_admin_bp,
     auto_matcher_bp,
     scheduler_bp,
-    test_bp
+    test_bp,
+    league_staff_bp
 ]
