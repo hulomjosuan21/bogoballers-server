@@ -1,5 +1,5 @@
 import asyncio
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from sqlalchemy import  and_, func, or_, select, update
 from src.models.records import LeagueMatchRecordModel
 from src.services.scheduler.job_wrapper import monitor_match_status_wrapper
@@ -594,23 +594,17 @@ class LeagueMatchService:
                 .join(union_subquery, union_subquery.c.league_match_id == LeagueMatchModel.league_match_id)
                 .options(
                     selectinload(LeagueMatchModel.league).selectinload(LeagueModel.categories).selectinload(LeagueCategoryModel.rounds),
-                    
-                    # Home team
                     selectinload(LeagueMatchModel.home_team)
                         .selectinload(LeagueTeamModel.team)
                         .selectinload(TeamModel.user),
-
                     selectinload(LeagueMatchModel.home_team)
                         .selectinload(LeagueTeamModel.league_players)
                         .selectinload(LeaguePlayerModel.player_team)
                         .selectinload(PlayerTeamModel.player)
                         .selectinload(PlayerModel.user),
-
-                    # Away team
                     selectinload(LeagueMatchModel.away_team)
                         .selectinload(LeagueTeamModel.team)
                         .selectinload(TeamModel.user),
-
                     selectinload(LeagueMatchModel.away_team)
                         .selectinload(LeagueTeamModel.league_players)
                         .selectinload(LeaguePlayerModel.player_team)
@@ -639,3 +633,69 @@ class LeagueMatchService:
             return matches
 
             
+    async def get_user_matches_partial_teams_optimized(self, user_id: str):
+        async with AsyncSession() as session:
+            match_main = aliased(LeagueMatchModel) 
+            league_team_home = aliased(LeagueTeamModel)
+            team_home = aliased(TeamModel)
+            league_team_away = aliased(LeagueTeamModel)
+            team_away = aliased(TeamModel)
+            
+            league_team_check = aliased(LeagueTeamModel)
+            team_check = aliased(TeamModel)
+            player_check = aliased(PlayerModel)
+            player_team_check = aliased(PlayerTeamModel)
+            league_player_check = aliased(LeaguePlayerModel)
+
+            manager_query = (
+                select(match_main.league_match_id)
+                .join(league_team_check, or_(
+                    league_team_check.league_team_id == match_main.home_team_id,
+                    league_team_check.league_team_id == match_main.away_team_id
+                ))
+                .join(team_check, team_check.team_id == league_team_check.team_id)
+                .where(team_check.user_id == user_id)
+            )
+            player_query = (
+                select(match_main.league_match_id)
+                .join(league_team_check, or_(
+                    league_team_check.league_team_id == match_main.home_team_id,
+                    league_team_check.league_team_id == match_main.away_team_id
+                ))
+                .join(league_player_check, league_player_check.league_team_id == league_team_check.league_team_id)
+                .join(player_team_check, player_team_check.player_team_id == league_player_check.player_team_id)
+                .join(player_check, player_check.player_id == player_team_check.player_id)
+                .where(player_check.user_id == user_id)
+            )
+            union_subquery = manager_query.union(player_query).distinct().subquery()
+            stmt = (
+                select(
+                    match_main.league_match_id,
+                    match_main.scheduled_date,
+                    match_main.court,
+                    team_home.team_name.label("home_team_name"),
+                    team_away.team_name.label("away_team_name"),
+                )
+                .select_from(match_main)
+                .join(union_subquery, union_subquery.c.league_match_id == match_main.league_match_id)
+                .join(league_team_home, match_main.home_team_id == league_team_home.league_team_id)
+                .join(team_home, league_team_home.team_id == team_home.team_id)
+                .join(league_team_away, match_main.away_team_id == league_team_away.league_team_id)
+                .join(team_away, league_team_away.team_id == team_away.team_id)
+            )
+            now = datetime.now(timezone.utc)
+            one_week_from_now = now + timedelta(weeks=1)
+            
+            stmt = stmt.where(
+                and_(
+                    match_main.scheduled_date.isnot(None), 
+                    match_main.scheduled_date >= now,
+                    match_main.scheduled_date <= one_week_from_now,
+                    ~match_main.status.in_(["Cancelled", "Postponed", "Completed"])
+                )
+            ).order_by(match_main.scheduled_date.asc())
+
+            result = await session.execute(stmt)
+            matches: List[Dict[str, Any]] = [dict(row) for row in result.mappings().all()]
+            
+            return matches

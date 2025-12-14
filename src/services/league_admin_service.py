@@ -69,6 +69,42 @@ class LeagueAdministratorService:
         result = await session.execute(query)
         return result.scalars().all()
     
+
+    async def partial_search_league_administrators(
+        self,
+        session,
+        search: str,
+        limit: int = 10
+    ) -> list[dict]:
+        search_term = f"%{search}%"
+
+        query = (
+            select(
+                LeagueAdministratorModel.league_administrator_id.label("league_administrator_id"),
+                LeagueAdministratorModel.organization_name.label("organization_name"),
+                LeagueAdministratorModel.organization_photo_url.label("organization_photo_url")
+            )
+            .where(
+                or_(
+                    func.lower(LeagueAdministratorModel.organization_name).like(func.lower(search_term)),
+                    func.lower(LeagueAdministratorModel.organization_type).like(func.lower(search_term)),
+                    func.lower(LeagueAdministratorModel.organization_address).like(func.lower(search_term)),
+                )
+            )
+            .order_by(
+                case(
+                    (func.lower(LeagueAdministratorModel.organization_name) == func.lower(search), 1),
+                    (func.lower(LeagueAdministratorModel.organization_name).like(func.lower(f"{search}%")), 2),
+                    else_=3,
+                ),
+                LeagueAdministratorModel.organization_name,
+            )
+            .limit(limit)
+        )
+
+        result = await session.execute(query)
+        return result.mappings().all()
+    
     async def get_one(self, session, user_id: str) -> LeagueAdministratorModel | None:
         stmt = (
             select(LeagueAdministratorModel)

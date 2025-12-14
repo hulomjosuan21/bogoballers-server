@@ -62,6 +62,42 @@ class TeamService:
             
         result = await session.execute(query)
         return result.scalars().all()
+    
+    async def partial_search_teams(
+        self,
+        session,
+        search: str,
+        limit: int = 10
+    ) -> list[dict]:
+        search_term = f"%{search}%"
+        query = (
+            select(
+                TeamModel.team_id.label("team_id"),
+                TeamModel.team_name.label("team_name"),
+                TeamModel.team_logo_url.label("team_logo_url")
+            )
+            .where(
+                or_(
+                    func.lower(TeamModel.team_name).like(func.lower(search_term)),
+                    func.lower(TeamModel.team_category).like(func.lower(search_term)),
+                    func.lower(TeamModel.coach_name).like(func.lower(search_term)),
+                    func.lower(TeamModel.team_address).like(func.lower(search_term)),
+                    func.lower(TeamModel.assistant_coach_name).like(func.lower(search_term)),
+                )
+            )
+            .order_by(
+                case(
+                    (func.lower(TeamModel.team_name) == func.lower(search), 1),
+                    (func.lower(TeamModel.team_name).like(func.lower(f"{search}%")), 2),
+                    else_=3,
+                ),
+                TeamModel.team_name,
+            )
+            .limit(limit)
+        )
+
+        result = await session.execute(query)
+        return result.mappings().all()
         
     async def fetch_many(self, search: str = None):
         async with AsyncSession() as session:

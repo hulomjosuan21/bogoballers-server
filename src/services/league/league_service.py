@@ -487,6 +487,42 @@ class LeagueService:
         result = await session.execute(query)
         leagues = result.scalars().unique().all()
         return leagues
+    
+    async def partial_search_leagues(
+        self,
+        session,
+        search: str,
+        limit: int = 10
+    ) -> list[dict]:
+        search_term = f"%{search}%"
+        search_lower = search.lower()
+        query = (
+            select(
+                LeagueModel.league_id.label("league_id"),
+                LeagueModel.league_title.label("league_title"),
+                LeagueModel.banner_url.label("banner_url"),
+            )
+            .where(
+                or_(
+                    func.lower(LeagueModel.league_title).like(func.lower(search_term)),
+                    func.lower(LeagueModel.league_address).like(func.lower(search_term)),
+                    cast(LeagueModel.status, Text).ilike(search_term),
+                )
+            )
+            .order_by(
+                case(
+                    (func.lower(LeagueModel.league_title) == search_lower, 1),
+                    (cast(LeagueModel.status, Text).ilike(search), 2),
+                    else_=3,
+                ),
+                LeagueModel.league_title,
+            )
+            .limit(limit)
+        )
+
+        result = await session.execute(query)
+
+        return result.mappings().all()
 
     async def update_league_resource(self, league_id: str, field_name: str, json_data: str, files: dict):
         IMAGE_KEYS = {

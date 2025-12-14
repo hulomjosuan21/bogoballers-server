@@ -128,6 +128,36 @@ class PlayerService:
         result = await session.execute(query)
         return result.scalars().all()
     
+    async def partial_search_players(self, session, search: str, limit: int = 10) -> list[dict]:
+        search_term = f"%{search}%"
+        query = (
+            select(
+                PlayerModel.player_id.label("player_id"),
+                PlayerModel.full_name.label("full_name"),
+                PlayerModel.profile_image_url.label("profile_image_url")
+            )
+            .where(
+                or_(
+                    func.lower(PlayerModel.full_name).like(func.lower(search_term)),
+                    func.lower(PlayerModel.jersey_name).like(func.lower(search_term)),
+                    cast(PlayerModel.jersey_number, String).like(search_term),
+                    func.lower(cast(PlayerModel.position, String)).like(func.lower(search_term)),
+                )
+            )
+            .order_by(
+                case(
+                    (func.lower(PlayerModel.full_name) == func.lower(search), 1),
+                    (cast(PlayerModel.jersey_number, String) == search, 2),
+                    else_=3,
+                ),
+                PlayerModel.full_name,
+            )
+            .limit(limit)
+        )
+        result = await session.execute(query)
+        return result.mappings().all()
+
+    
     async def get_players(
         self,
         filters: Optional[dict] = None,

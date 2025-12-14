@@ -22,6 +22,53 @@ team_service = TeamService()
 league_admin_service = LeagueAdministratorService()
 league_service = LeagueService()
 
+class CalculatePartialEntityRelevance:
+    def player_relevance(self, player: dict, query: str) -> float:
+        query_lower = query.lower()
+        score = 0.0
+
+        if 'full_name' in player and player['full_name']:
+            if player['full_name'].lower() == query_lower:
+                score += 10.0
+            elif query_lower in player['full_name'].lower():
+                score += 5.0
+
+        return score
+
+    def team_relevance(self, team: dict, query: str) -> float:
+        query_lower = query.lower()
+        score = 0.0
+
+        if 'team_name' in team and team['team_name']:
+            if team['team_name'].lower() == query_lower:
+                score += 10.0
+            elif query_lower in team['team_name'].lower():
+                score += 5.0
+
+        return score
+
+    def admin_relevance(self, admin: dict, query: str) -> float:
+        query_lower = query.lower()
+        score = 0.0
+
+        if 'organization_name' in admin and admin['organization_name']:
+            if admin['organization_name'].lower() == query_lower:
+                score += 10.0
+            elif query_lower in admin['organization_name'].lower():
+                score += 5.0
+        return score
+    
+    def league_relevance(self, league: dict, query: str) -> float:
+        query_lower = query.lower()
+        score = 0.0
+
+        if 'league_title' in league and league['league_title']:
+            if league['league_title'].lower() == query_lower:
+                score += 10.0
+            elif query_lower in league['league_title'].lower():
+                score += 5.0
+        return score
+
 class CalculateEntityRelevance:
     def player_relevance(self, player, query: str) -> float:
         query_lower = query.lower()
@@ -147,6 +194,48 @@ class EntityService():
                 for a in league_admins
             ] + [
                 {'type': 'league', 'data': l.to_json(),
+                 'relevance_score': calculate.league_relevance(l, query)}
+                for l in leagues
+            ]
+
+            top_results = heapq.nlargest(20, results, key=lambda x: x['relevance_score'])
+
+            return {
+                'query': query,
+                'total_results': len(results),
+                'players_count': len(players),
+                'teams_count': len(teams),
+                'leagues_count': len(leagues),
+                'league_administrators_count': len(league_admins),
+                'results': top_results
+            }
+        
+    async def partial_search_entity(self, query: str):
+        async with AsyncSession() as session:
+            tasks = [
+                player_service.partial_search_players(session, query, limit=10),
+                team_service.partial_search_teams(session, query, limit=10),
+                league_admin_service.partial_search_league_administrators(session, query, limit=10),
+                league_service.partial_search_leagues(session, query, limit=10),
+            ]
+            players, teams, league_admins, leagues = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            calculate = CalculatePartialEntityRelevance()
+
+            results = [
+                {'type': 'player', 'data': dict(p),
+                 'relevance_score': calculate.player_relevance(p, query)}
+                for p in players
+            ] + [
+                {'type': 'team', 'data': dict(t),
+                 'relevance_score': calculate.team_relevance(t, query)}
+                for t in teams
+            ] + [
+                {'type': 'league_administrator', 'data': dict(a),
+                 'relevance_score': calculate.admin_relevance(a, query)}
+                for a in league_admins
+            ] + [
+                {'type': 'league', 'data': dict(l),
                  'relevance_score': calculate.league_relevance(l, query)}
                 for l in leagues
             ]

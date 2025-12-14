@@ -80,6 +80,23 @@ async def search_entity_route():
         traceback.print_exc()
         return await ApiResponse.error(str(e))
     
+@entity_bp.get('/partial-search')
+async def partial_search_entity_route():
+    try:
+        await enforce_rate_limit(request, search_limit, key_prefix="search")
+        form = await request.form
+        query = form.get("query") or request.args.get("query", "")
+        query = query.strip()
+        if not query:
+            raise ApiException("Query parameter is required")
+
+        result = await service.partial_search_entity(query)
+        return await ApiResponse.payload(result)
+
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(str(e))
+    
 @entity_bp.put("/update/image/<entity_id>/<account_type>")
 async def update_image_route(entity_id: str, account_type: str):
     try:

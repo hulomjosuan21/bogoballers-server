@@ -21,6 +21,15 @@ async def get_all_matches(user_id: str):
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)
+    
+@league_match_bp.post('/partial-matches/all/<user_id>')
+async def partial_get_all_matches(user_id: str):
+    try:
+        result = await service.get_user_matches_partial_teams_optimized(user_id)
+        return await ApiResponse.payload(result)
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)
         
 @league_match_bp.put('/<league_match_id>/finalize')
 async def finalize_one_match_route(league_match_id: str):
@@ -149,7 +158,6 @@ async def fetch_completed_dashboard_route(league_category_id: str, round_id: str
         traceback.print_exc()
         return await ApiResponse.error(e)
 
-    
 @league_match_bp.patch('/<match_id>/score')
 async def update_match_score(match_id: str):
     async with AsyncSession() as session:
