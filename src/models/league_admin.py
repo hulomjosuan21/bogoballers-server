@@ -84,7 +84,7 @@ class LeagueStaffModel(Base, UpdatableMixin):
 
     staff_id: Mapped[str] = UUIDGenerator("staff")
     full_name: Mapped[str] = mapped_column(String(250), nullable=False)
-    contact_info: Mapped[str] = mapped_column(String(250), nullable=False, unique=True)
+    contact_info: Mapped[str] = mapped_column(String(250), nullable=False)
     username: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
     pin_hash: Mapped[str] = mapped_column(String, nullable=False)
     

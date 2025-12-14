@@ -81,6 +81,23 @@ class LeagueMatchService:
             
             return league_match
         
+    async def unschedule_league_match(self, league_match_id: str):
+        async with AsyncSession() as session: 
+            query = select(LeagueMatchModel).where(LeagueMatchModel.league_match_id == league_match_id)
+            result = await session.execute(query)
+            match = result.scalar_one_or_none()
+            if not match:
+                raise ApiException("Match not found.")
+            
+            if match.status in ["In Progress", "Completed", "Cancelled"]:
+                raise ApiException(f"Cannot unschedule a match that is {match.status}.")
+            
+            match.status = "Unscheduled"
+            match.scheduled_date = None
+            match.court = None
+            match.referees = []
+            session.add(match)
+
     async def fetch_unscheduled(self, league_category_id: str, round_id: str):
         async with AsyncSession() as session:
             HomeLT = aliased(LeagueTeamModel)

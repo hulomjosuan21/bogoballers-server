@@ -41,6 +41,15 @@ async def get_update_one_route(league_round_id: str):
     except Exception as e:
         traceback.print_exc()
         return await ApiResponse.error(e)
+    
+@league_match_bp.put('/set-unschedule/<league_match_id>')
+async def unschedule_league_match_route(league_match_id: str):
+    try:
+        await service.unschedule_league_match(league_match_id)
+        return await ApiResponse.success(message="Match unscheduled successfully!")
+    except Exception as e:
+        traceback.print_exc()
+        return await ApiResponse.error(e)
 
 @league_match_bp.post('/all/<league_category_id>/<round_id>')
 async def get_many_route(league_category_id: str, round_id: str):
